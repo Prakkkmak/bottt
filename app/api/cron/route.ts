@@ -1,0 +1,2 @@
+import {timingSafeEqual} from 'node:crypto';import {deliverNotifications} from '@/lib/notifications';
+export async function GET(request:Request){const secret=process.env.CRON_SECRET;const authorization=request.headers.get('authorization')||'';if(!secret||authorization.length!==`Bearer ${secret}`.length||!timingSafeEqual(Buffer.from(authorization),Buffer.from(`Bearer ${secret}`)))return new Response('Unauthorized',{status:401});try{return Response.json(await deliverNotifications());}catch{return Response.json({error:'Traitement indisponible'},{status:503});}}

@@ -1,0 +1,13 @@
+node_modules/
+.pnpm-store/
+.next/
+.env*
+!.env.example
+.vercel/
+*.tsbuildinfo
+next-env.d.ts
+.demo-data/
+.docker/
+.local-runtime/
+supabase/.temp/
+supabase/.branches/

@@ -1,0 +1,2 @@
+import Link from 'next/link';import {Clock3} from 'lucide-react';
+export default function NotFound(){return <main className="centered-panel panel"><Clock3 size={35}/><h1>Le village est ailleurs.</h1><p>Cette page n’existe pas ou cette session est réservée aux membres. Connecte-toi pour retrouver tes soirées.</p><Link href="/" className="button primary">Revenir aux sessions</Link><Link href="/profil" className="button secondary">Me connecter</Link></main>;}

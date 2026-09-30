@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 160" fill="none">
+  <title>Blood on Breizh — Tour Tanguy, Brest</title>
+  <g id="tour-tanguy" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M60 5v7M18 65 60 12l42 53Q60 79 18 65Z" fill="currentColor" fill-opacity=".22"/>
+    <path d="M60 16 35 68m25-52 25 52" stroke-width="1.2" opacity=".6"/>
+    <path d="M23 70v15q37 15 74 0V70" fill="currentColor" fill-opacity=".16"/>
+    <path d="M29 76v12m12-8v12m13-10v12m13-12v12m13-14v12m12-16v12" stroke-width="4"/>
+    <path d="M30 91v48q30 17 60 0V91" fill="currentColor" fill-opacity=".08"/>
+    <path d="M56 147v-16a6 6 0 0 1 12 0v16" fill="currentColor" fill-opacity=".3"/>
+    <path d="M55 102h7v12h-7zM77 110h5v10h-5z" fill="currentColor" stroke="none"/>
+    <path d="M37 116h8m-9 15h7m29 7h8M26 147q34 17 68 0M23 154h74" stroke-width="1.5"/>
+  </g>
+</svg>

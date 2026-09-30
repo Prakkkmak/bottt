@@ -1,0 +1,42 @@
+{
+  "name": "blood-on-breizh",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev --hostname 127.0.0.1 --port 3000",
+    "build": "next build",
+    "start": "next start --hostname 127.0.0.1 --port 3000",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test tests/*.test.ts",
+    "local:setup": "node scripts/docker-setup.mjs",
+    "local:up": "docker compose --env-file .env.docker up -d --wait",
+    "local:migrate": "node scripts/migrate.mjs",
+    "local:seed": "tsx --env-file=.env.local scripts/seed.ts",
+    "local:worker": "tsx --env-file=.env.local scripts/worker.ts",
+    "local:stop": "docker compose --env-file .env.docker stop"
+  },
+  "dependencies": {
+    "@supabase/ssr": "^0.9.0",
+    "@supabase/supabase-js": "^2.99.0",
+    "lucide-react": "^0.577.0",
+    "next": "^16.2.0",
+    "nodemailer": "^10.0.12",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "zod": "^4.3.0"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.4.0",
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "supabase": "2.75.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.0"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@11.19.0"
+}

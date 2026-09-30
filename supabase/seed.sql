@@ -1,0 +1,1 @@
+-- Example sessions are added by `pnpm local:seed` after the local services start.

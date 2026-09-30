@@ -1,0 +1,20 @@
+export type Membership = 'newcomer' | 'member' | 'organizer' | 'suspended';
+export type BookingStatus = 'pending' | 'confirmed' | 'waitlisted' | 'offered' | 'cancelled' | 'declined';
+export type Profile = { id: string; display_name: string; bio: string; avatar_color: string; beginner: boolean; can_storytell: boolean; membership: Membership; sponsored_by: string | null; };
+export type GameSession = {
+  id: string; title: string; description?: string; script: string;
+  starts_at: string; ends_at: string; location: string;
+  capacity: number; newcomer_seats: number; release_hours: number;
+  beginners_welcome: boolean; visibility: 'public' | 'members';
+  status: 'published' | 'cancelled';
+  confirmed_count: number; waitlist_count: number;
+  my_status: BookingStatus | null; my_offer_expires_at?: string | null;
+  occupied_seats?: number[]; my_seat?: number | null;
+  participants: (Pick<Profile, 'display_name' | 'avatar_color'> & { seat_index?: number; can_storytell?: boolean })[];
+};
+export type Booking = { id: string; session_id: string; user_id: string; status: BookingStatus; pool: 'circle' | 'newcomer'; created_at: string; offer_expires_at: string | null; profile?: Profile; };
+export type Invitation = { id: string; sponsor_id: string; expires_at: string; used_by: string | null; created_at: string; };
+export type Notice = { id: string; user_id: string; title: string; body: string; session_id: string | null; created_at: string; read_at: string | null; };
+export type AppData = { profile: Profile | null; sessions: GameSession[]; invitations: Invitation[]; notices: Notice[]; demo: boolean; configured: boolean; local?: boolean; error?: string; };
+export type ActionResult = { ok: boolean; message: string; value?: string; };
+export type SessionInput = Omit<GameSession, 'id' | 'status' | 'confirmed_count' | 'waitlist_count' | 'my_status' | 'my_offer_expires_at' | 'occupied_seats' | 'my_seat' | 'participants'> & { address: string; id?: string; };
