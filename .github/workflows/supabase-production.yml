@@ -17,6 +17,7 @@ concurrency:
 jobs:
   migrate:
     if: github.ref == 'refs/heads/main'
+    environment: Production
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -38,7 +39,7 @@ jobs:
         run: |
           for secret in SUPABASE_ACCESS_TOKEN SUPABASE_DB_PASSWORD SUPABASE_PROJECT_ID; do
             if [[ -z "${!secret}" ]]; then
-              echo "::error::Ajoute le secret $secret dans Settings > Secrets and variables > Actions."
+              echo "::error::Ajoute le secret $secret dans Settings > Environments > Production > Environment secrets."
               exit 1
             fi
           done

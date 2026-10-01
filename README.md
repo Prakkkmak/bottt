@@ -93,8 +93,8 @@ Les tests SQL couvrent les droits, l’identité, les quotas, les doublons, le p
 
 Supabase conserve l'historique des migrations appliquées, mais la connexion Vercel–GitHub ne lui envoie pas les fichiers SQL. Le workflow `.github/workflows/supabase-production.yml` s'en charge. Il utilise le CLI Supabase, peut être lancé à la demande et démarre automatiquement lorsqu'un changement dans `supabase/migrations/` est poussé sur `main`.
 
-1. Ouvrir les [jetons d'accès Supabase](https://supabase.com/dashboard/account/tokens), puis créer un jeton nommé `GitHub Blood on the Tanguy Tower`, limité au projet de production. Accorder **Read** à **Project Settings**, **API Keys** et **API Key Secrets**, comme indiqué dans la [documentation Supabase](https://supabase.com/docs/guides/deployment/managing-environments). Copier le jeton pour l'étape suivante.
-2. Dans le dépôt GitHub : **Settings → Secrets and variables → Actions → New repository secret**. Ajouter chacun de ces trois secrets :
+1. Ouvrir les [jetons d'accès Supabase](https://supabase.com/dashboard/account/tokens), puis créer un jeton nommé `GitHub Blood on the Tanguy Tower`, limité au projet de production. Accorder **Read** à **Project Settings**, **API Keys** et **API Key Secrets**, comme indiqué dans la [documentation Supabase](https://supabase.com/docs/guides/platform/personal-access-tokens#use-a-scoped-personal-access-token-with-the-supabase-cli). Copier le jeton pour l'étape suivante.
+2. Dans le dépôt GitHub : **Settings → Environments → Production → Environment secrets → Add secret**. Créer l'environnement `Production` s'il n'existe pas encore. Le workflow utilise cet environnement pour accéder aux secrets. Ajouter chacun de ces trois secrets :
 
    | Nom | Valeur |
    | --- | --- |
