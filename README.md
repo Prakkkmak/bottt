@@ -1,6 +1,6 @@
 # Blood on Breizh
 
-Une application en français pour organiser les soirées Blood on the Clocktower. Version locale avec Next.js, Supabase Auth, PostgreSQL, Docker Compose et Mailpit. Le code est prêt à être raccordé plus tard à Vercel et à un projet Supabase hébergé ; aucun service distant n’est utilisé pour les comptes ou les données actuellement.
+Une application en français pour organiser les soirées Blood on the Clocktower, avec Next.js, Supabase Auth et PostgreSQL. Elle peut fonctionner en local avec Docker Compose et Mailpit, ou en production avec Vercel et Supabase hébergé. La pile locale décrite ci-dessous conserve ses comptes, ses données et ses e-mails sur la machine.
 
 ## Ouvrir le site
 
@@ -78,10 +78,10 @@ node node_modules/tsx/dist/cli.mjs --env-file=.env.local tests/local-integration
 
 Les tests SQL couvrent les droits, l’identité, les quotas, les doublons, le parrainage, l’expiration de session et les désistements. Le test d’intégration utilise la vraie pile Docker, effectue des réservations simultanées et supprime uniquement ses propres données temporaires.
 
-## Mise en ligne ultérieure
+## Mise en ligne
 
 1. Créer un dépôt avec ce dossier, sans `.env*`, `.docker/`, `node_modules/` ou `.next/`, puis l’importer dans Vercel (projet Next.js).
-2. Appliquer les fichiers `supabase/migrations/` au projet Supabase distant, dans l’ordre. Ne pas appliquer les exemples locaux.
+2. Appliquer les fichiers `supabase/migrations/` au projet Supabase distant avec le workflow GitHub décrit ci-dessous. Le premier lancement applique les quatre migrations ; les suivants appliquent seulement celles qui manquent. Les exemples locaux ne sont pas importés.
 3. Renseigner les variables de `.env.example` dans Vercel. La clé de service reste côté serveur ; seule la clé publique peut avoir le préfixe `NEXT_PUBLIC_`.
 4. Configurer le fournisseur d’e-mails d’Auth, utiliser `supabase/templates/code.html` pour la confirmation et la connexion, choisir un code à 6 chiffres avec une expiration de 600 secondes. Vérifier l’URL réelle du site et les limites d’envoi.
 5. Activer la protection Turnstile dans Supabase Auth avec sa clé secrète, et renseigner `NEXT_PUBLIC_TURNSTILE_SITE_KEY` dans Vercel. Sans clé publique configurée, le formulaire bloque les inscriptions sur Vercel. Tester aussi le rejet des requêtes directes sans jeton par Supabase.
@@ -89,6 +89,24 @@ Les tests SQL couvrent les droits, l’identité, les quotas, les doublons, le p
 7. Configurer Resend, `MAIL_FROM`, `NEXT_PUBLIC_SITE_URL` et `CRON_SECRET`, puis un ordonnanceur authentifié vers `/api/cron` au moins toutes les 5 minutes. Le rythme disponible dépend de l’offre d’hébergement ; aucun abonnement ni ordonnanceur distant n’est créé par ce projet.
 8. Refaire les tests de connexion, de droits et d’envoi sur le déploiement réel. L’ajout d’une double authentification des organisateurs et des sauvegardes est à prévoir avant l’ouverture publique.
 
-La publication, les comptes distants et les protections externes de production seront raccordés plus tard, comme convenu.
+### Activer les migrations automatiques
+
+Supabase conserve l'historique des migrations appliquées, mais la connexion Vercel–GitHub ne lui envoie pas les fichiers SQL. Le workflow `.github/workflows/supabase-production.yml` s'en charge. Il utilise le CLI Supabase, peut être lancé à la demande et démarre automatiquement lorsqu'un changement dans `supabase/migrations/` est poussé sur `main`.
+
+1. Ouvrir les [jetons d'accès Supabase](https://supabase.com/dashboard/account/tokens), puis créer un jeton nommé `GitHub Blood on Breizh`, limité au projet de production. Accorder **Read** à **Project Settings**, **API Keys** et **API Key Secrets**, comme indiqué dans la [documentation Supabase](https://supabase.com/docs/guides/deployment/managing-environments). Copier le jeton pour l'étape suivante.
+2. Dans le dépôt GitHub : **Settings → Secrets and variables → Actions → New repository secret**. Ajouter chacun de ces trois secrets :
+
+   | Nom | Valeur |
+   | --- | --- |
+   | `SUPABASE_ACCESS_TOKEN` | Le jeton personnel créé à l'étape 1, différent de la clé publique de l'application. |
+   | `SUPABASE_DB_PASSWORD` | Le mot de passe de la base choisi à la création du projet Supabase. En cas d'oubli, le réinitialiser dans **Supabase → Database → Settings**. |
+   | `SUPABASE_PROJECT_ID` | La référence du projet, visible dans **Supabase → Project Settings → General** ou dans l'URL du tableau de bord, sans `https://` ni `.supabase.co`. |
+
+3. Dans GitHub : **Actions → Supabase — migrations de production → Run workflow**, choisir `main` et confirmer **Run workflow**. Attendre que l'exécution soit verte. L'étape finale affiche l'historique local et distant des migrations.
+4. Dans Supabase : ouvrir **Table Editor**. Les tables `profiles`, `sessions`, `session_addresses`, `bookings`, `invitations`, `notifications` et `action_limits` doivent être présentes. Le site doit afficher une liste vide de parties plutôt que l'erreur d'indisponibilité.
+
+Ces secrets restent dans GitHub Actions ; les fichiers publics contiennent uniquement leurs noms. Le workflow n'applique ni `seed.sql`, ni les réglages d'Auth de `config.toml`, ni les secrets Vault. Il ne réactive donc pas les inscriptions. Les réglages de CAPTCHA et de courrier se configurent séparément dans Supabase et Vercel.
+
+Pour les futurs changements de schéma, ajouter une **nouvelle** migration plutôt que modifier un fichier déjà appliqué. Garder les migrations compatibles avec le site déployé : le traitement GitHub et le déploiement Vercel démarrent indépendamment. Une exécution en échec arrête les migrations suivantes ; elle ne relance pas celles déjà enregistrées avec succès. Une nouvelle exécution permet de reprendre après correction.
 
 Documentation de référence : [Supabase Auth](https://supabase.com/docs/guides/auth/auth-email-passwordless), [installation locale](https://supabase.com/docs/guides/local-development/cli/getting-started), [Supabase avec Docker](https://supabase.com/docs/guides/self-hosting/docker), [Next.js](https://nextjs.org/docs/app/getting-started/installation).
