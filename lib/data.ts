@@ -22,7 +22,7 @@ export const getData = cache(async (): Promise<AppData> => {
     ]);
     if (profile.error || invitations.error || notices.error) throw profile.error || invitations.error || notices.error;
     return { ...empty, sessions: sessions || [], profile: profile.data, invitations: invitations.data || [], notices: notices.data || [] };
-  } catch (err) { console.error('Data unavailable', err instanceof Error ? err.message : 'database error'); return { ...empty, error: 'Blood on Breizh est momentanément indisponible. Réessaie dans un instant.' }; }
+  } catch (err) { console.error('Data unavailable', err instanceof Error ? err.message : 'database error'); return { ...empty, error: 'BOTTT est momentanément indisponible. Réessaie dans un instant.' }; }
 });
 export async function getAddresses(ids: string[]): Promise<Record<string, string>> {
   if (!ids.length || isDemo() || !isConfigured()) return {};

@@ -32,5 +32,5 @@ export function Invitations({ data }: { data: AppData }) {
 
 export function AcceptInvite({ data, token }: { data: AppData; token: string }) {
   const a = useAction();
-  return <div className="centered-panel panel"><span className="invite-icon"><UserPlus size={30} /></span><h1>Blood on Breizh t’invite.</h1><p>Connecte-toi avec ton e-mail, puis accepte l’invitation pour choisir une partie.</p>{!data.profile ? <SignInButton label="Me connecter pour rejoindre" configured={data.configured} /> : a.result?.ok ? <Link className="button primary" href="/">Choisir ma première partie</Link> : <button className="button primary" disabled={a.pending} onClick={() => a.run(() => acceptInvitation(token))}>Accepter l’invitation</button>}<Feedback result={a.result} /></div>;
+  return <div className="centered-panel panel"><span className="invite-icon"><UserPlus size={30} /></span><h1>BOTTT t’invite.</h1><p>Connecte-toi avec ton e-mail, puis accepte l’invitation pour choisir une partie.</p>{!data.profile ? <SignInButton label="Me connecter pour rejoindre" configured={data.configured} /> : a.result?.ok ? <Link className="button primary" href="/">Choisir ma première partie</Link> : <button className="button primary" disabled={a.pending} onClick={() => a.run(() => acceptInvitation(token))}>Accepter l’invitation</button>}<Feedback result={a.result} /></div>;
 }

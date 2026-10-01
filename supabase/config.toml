@@ -51,10 +51,10 @@ otp_expiry = 600
 [auth.sessions]
 timebox = "720h"
 [auth.email.template.magic_link]
-subject = "Ton code pour Le Cercle"
+subject = "Ton code pour BOTTT"
 content_path = "./supabase/templates/code.html"
 [auth.email.template.confirmation]
-subject = "Bienvenue dans Le Cercle"
+subject = "Bienvenue sur BOTTT"
 content_path = "./supabase/templates/code.html"
 [edge_runtime]
 enabled = false

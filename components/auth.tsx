@@ -16,13 +16,13 @@ function Captcha({ onToken }: { onToken:(token:string)=>void }) {
 }
 export function SignInButton({ label='Se connecter', className='button primary', configured=true }: {label?:string;className?:string;configured?:boolean}) {
   const [open,setOpen]=useState(false);
-  return <><button className={className} onClick={()=>setOpen(true)}><LogIn size={16}/>{label}</button><Dialog open={open} onClose={()=>setOpen(false)} title="Blood on Breizh"><AuthForm configured={configured} onSuccess={()=>setOpen(false)}/></Dialog></>;
+  return <><button className={className} onClick={()=>setOpen(true)}><LogIn size={16}/>{label}</button><Dialog open={open} onClose={()=>setOpen(false)} title="BOTTT"><AuthForm configured={configured} onSuccess={()=>setOpen(false)}/></Dialog></>;
 }
 export function AuthForm({ configured=true,onSuccess }: {configured?:boolean;onSuccess?:()=>void}) {
   const [step,setStep]=useState<'email'|'code'>('email'); const [email,setEmail]=useState(''); const [name,setName]=useState(''); const [code,setCode]=useState(''); const [captcha,setCaptcha]=useState(''); const [sentAt,setSentAt]=useState(0); const [cooldown,setCooldown]=useState(0);const a=useAction();
   const local=process.env.NEXT_PUBLIC_SUPABASE_URL?.startsWith('http://127.0.0.1:');
   useEffect(()=>{if(!sentAt)return; const tick=()=>setCooldown(Math.max(0,60-Math.floor((Date.now()-sentAt)/1000)));tick();const interval=setInterval(tick,1000);return()=>clearInterval(interval);},[sentAt]);
-  if(!configured)return <div className="stack"><p>Blood on Breizh se prépare. La connexion sera disponible dès que les services locaux seront démarrés.</p></div>;
+  if(!configured)return <div className="stack"><p>BOTTT se prépare. La connexion sera disponible dès que les services locaux seront démarrés.</p></div>;
   return <div className="stack auth-form"><span className="auth-emblem"><Clock3 size={32}/></span><p className="muted">{step==='email'?'Un code par e-mail pour entrer, puis tu restes connecté·e sur cet appareil pendant 30 jours.':`Saisis les 6 chiffres envoyés à ${email}.`}</p>
     {step==='email'?<form className="stack" onSubmit={e=>{e.preventDefault();const form=new FormData(e.currentTarget);a.run(()=>sendCode({email,name:name||'Nouveau joueur',captcha,website:String(form.get('website')||'')}),()=>{setStep('code');setSentAt(Date.now());});}}>
       <label className="field">Ton adresse e-mail<input type="email" autoComplete="email" required maxLength={254} placeholder="toi@exemple.fr" value={email} onChange={e=>setEmail(e.target.value)}/></label>

@@ -21,7 +21,7 @@ export function Shell({ data, children }: { data: AppData; children: React.React
     <WebTools sessions={data.sessions} />
     <a className="skip-link" href="#main-content">Aller au contenu</a>
     <header className="site-header">
-      <Link href="/" className="brand" aria-label="Blood on Breizh, accueil"><span className="brand-seal"><TourTanguy /></span><span>Blood on Breizh<small>Blood on the Clocktower à Brest</small></span></Link>
+      <Link href="/" className="brand" aria-label="Blood on the Tanguy Tower, accueil"><span className="brand-seal"><TourTanguy /></span><span>BOTTT<small>Blood on the Tanguy Tower</small></span></Link>
       <nav className="main-nav" aria-label="Navigation principale">{links.map(({ href, label, icon: Icon }) => {
         const selected = path === href || (href === '/' && path.startsWith('/sessions'));
         return <Link key={href} href={href} className={selected ? 'active' : ''} aria-current={selected ? 'page' : undefined}><Icon size={17} /><span>{label}</span>{href === '/mes-parties' && count > 0 && <span className="nav-count">{count}</span>}</Link>;
@@ -30,6 +30,6 @@ export function Shell({ data, children }: { data: AppData; children: React.React
     </header>
     {data.error && <div className="alert error site-error" role="alert">{data.error}</div>}
     <main id="main-content" className="main-content">{children}</main>
-    <footer className="footer"><span>Blood on Breizh · Communauté indépendante à Brest.</span>{data.local ? <a href="http://127.0.0.1:54324" target="_blank" rel="noreferrer">Test local · boîte mail</a> : data.demo ? <span>Données de démonstration</span> : <Link href="/invitations">Inviter un ami</Link>}</footer>
+    <footer className="footer"><span>Blood on the Tanguy Tower · Communauté indépendante à Brest.</span>{data.local ? <a href="http://127.0.0.1:54324" target="_blank" rel="noreferrer">Test local · boîte mail</a> : data.demo ? <span>Données de démonstration</span> : <Link href="/invitations">Inviter un ami</Link>}</footer>
   </div>;
 }

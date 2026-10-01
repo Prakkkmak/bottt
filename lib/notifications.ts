@@ -13,9 +13,9 @@ export async function deliverNotifications() {
   for(const m of messages||[]){
     const base=process.env.NEXT_PUBLIC_SITE_URL||'http://127.0.0.1:3000';
     const link=`${base}${m.session_id?`/sessions/${m.session_id}`:'/mes-parties'}`;
-    const text=`${m.body}\n\n${link}\n\nBlood on Breizh`;
+    const text=`${m.body}\n\n${link}\n\nBlood on the Tanguy Tower`;
     try {
-      if(smtp)await smtp.sendMail({from:'Blood on Breizh <bonjour@cercle.test>',to:m.email,subject:m.title,text});
+      if(smtp)await smtp.sendMail({from:'Blood on the Tanguy Tower <bonjour@cercle.test>',to:m.email,subject:m.title,text});
       else {const result=await fetch('https://api.resend.com/emails',{method:'POST',headers:{Authorization:`Bearer ${process.env.RESEND_API_KEY}`,'Content-Type':'application/json','Idempotency-Key':m.id},body:JSON.stringify({from:process.env.MAIL_FROM,to:m.email,subject:m.title,text}),signal:AbortSignal.timeout(15000)});if(!result.ok)throw new Error('Email provider unavailable');}
       const {error:saveError}=await db.from('notifications').update({emailed_at:new Date().toISOString(),claimed_until:null}).eq('id',m.id);if(saveError)throw saveError;sent++;
     }catch{failed++;}

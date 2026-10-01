@@ -18,7 +18,7 @@ New-Item -ItemType Directory -Force -Path '.local-runtime' | Out-Null
 $taskWorkerScript = Join-Path $PSScriptRoot 'node_modules/tsx/dist/cli.mjs'
 $taskWorkerArguments = @("`"$taskWorkerScript`"", '--env-file=.env.local', 'scripts/worker.ts')
 $taskWorker = Start-Process -FilePath $taskNode -ArgumentList $taskWorkerArguments -WorkingDirectory $PSScriptRoot -WindowStyle Hidden -PassThru -RedirectStandardOutput '.local-runtime/worker.log' -RedirectStandardError '.local-runtime/worker-error.log'
-Write-Host 'Blood on Breizh : http://127.0.0.1:3000'
+Write-Host 'Blood on the Tanguy Tower : http://127.0.0.1:3000'
 Write-Host 'Boîte mail : http://127.0.0.1:54324 — Base : http://127.0.0.1:55433'
 Write-Host 'Compte organisateur de test : camille@cercle.test'
 try { & $taskNode 'node_modules/next/dist/bin/next' dev --hostname 127.0.0.1 --port 3000 }

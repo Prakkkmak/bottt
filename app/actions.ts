@@ -38,7 +38,7 @@ export async function verifyCode(input: { email: string; code: string }): Promis
     const db = await supabase();
     const { error } = await db.auth.verifyOtp({ email, token, type: 'email' });
     if (error) throw new Error('Ce code est invalide ou a expiré. Demande un nouveau code.');
-    invalidate(); return { ok: true, message: 'Bienvenue sur Blood on Breizh !' };
+    invalidate(); return { ok: true, message: 'Bienvenue sur BOTTT !' };
   } catch(e) { return failure(e); }
 }
 export async function signOut(): Promise<ActionResult> { try { const db = await supabase(); await db.auth.signOut({ scope: 'local' }); invalidate(); return { ok: true, message: 'Tu es déconnecté·e.' }; } catch(e) { return failure(e); } }
