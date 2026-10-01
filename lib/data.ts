@@ -11,19 +11,21 @@ export const getData = cache(async (): Promise<AppData> => {
   if (!isConfigured()) return empty;
   try {
     const db = await supabase();
-    const { data: { user } } = await db.auth.getUser();
-    const { data: sessions, error } = await db.rpc('list_sessions');
+    const [{ data: { user } }, { data: sessions, error }] = await Promise.all([db.auth.getUser(), db.rpc('list_sessions')]);
     if (error) throw error;
     if (!user) return { ...empty, sessions: sessions as GameSession[] };
-    const [profile, invitations, notices] = await Promise.all([
-      db.from('profiles').select('*').eq('id', user.id).maybeSingle(),
-      db.from('invitations').select('id,sponsor_id,expires_at,used_by,created_at').order('created_at', { ascending: false }).limit(30),
-      db.from('notifications').select('id,user_id,session_id,title,body,created_at,read_at').order('created_at', { ascending: false }).limit(25)
-    ]);
-    if (profile.error || invitations.error || notices.error) throw profile.error || invitations.error || notices.error;
-    return { ...empty, sessions: sessions || [], profile: profile.data, invitations: invitations.data || [], notices: notices.data || [] };
+    const profile = await db.from('profiles').select('*').eq('id', user.id).maybeSingle();
+    if (profile.error) throw profile.error;
+    return { ...empty, sessions: sessions || [], profile: profile.data };
   } catch (err) { console.error('Data unavailable', err instanceof Error ? err.message : 'database error'); return { ...empty, error: 'BOTTT est momentanément indisponible. Réessaie dans un instant.' }; }
 });
+export async function getInvitations() {
+  if (isDemo() || !isConfigured()) return [];
+  const db = await supabase();
+  const { data, error } = await db.from('invitations').select('id,sponsor_id,expires_at,used_by,created_at').order('created_at', { ascending: false }).limit(30);
+  if (error) throw new Error('Impossible de charger les invitations.');
+  return data || [];
+}
 export async function getAddresses(ids: string[]): Promise<Record<string, string>> {
   if (!ids.length || isDemo() || !isConfigured()) return {};
   const db = await supabase();

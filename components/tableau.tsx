@@ -22,7 +22,7 @@ export function VillageCircle({ reserved, capacity, occupiedSeats, participants 
   const occupied = new Set(occupiedSeats ?? Array.from({ length: reserved }, (_, i) => i));
   return <div className={`village-circle ${interactive ? 'booking-circle' : ''} ${capacity > 14 ? 'dense-circle' : ''}`} role={interactive ? 'group' : 'img'} aria-busy={busy || undefined} aria-label={`${reserved} places réservées sur ${capacity}`}>
     <div className="village-orbit" />
-    <div className="village-center"><TourTanguy ornate /><span>{reserved}<i> / {capacity}</i></span><small>autour du cercle</small></div>
+    <div className="village-center"><TourTanguy ornate /><span>{reserved}<i> / {capacity}</i></span></div>
     {Array.from({ length: capacity }, (_, i) => {
       const angle = (i / capacity) * Math.PI * 2 - Math.PI / 2;
       const style = { left: `${(50 + 43 * Math.cos(angle)).toFixed(3)}%`, top: `${(50 + 43 * Math.sin(angle)).toFixed(3)}%` } as CSSProperties;

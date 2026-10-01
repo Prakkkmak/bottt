@@ -6,6 +6,6 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ p
   const data = await getData();
   const { partie } = await searchParams;
   const selected = typeof partie === 'string' && data.sessions.some(s => s.id === partie) ? partie : undefined;
-  const addresses = await getAddresses(data.sessions.filter(s => s.my_status === 'confirmed').map(s => s.id));
+  const addresses = await getAddresses(data.sessions.filter(s => s.my_status === 'confirmed' || data.profile?.membership === 'organizer').map(s => s.id));
   return <Shell data={data}><Dashboard key={selected || 'all'} data={data} addresses={addresses} initialSessionId={selected} /></Shell>;
 }

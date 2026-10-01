@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { LogOut, Save, ShieldCheck } from 'lucide-react';
+import { LogOut, Save } from 'lucide-react';
 import type { AppData } from '@/lib/types';
 import { Avatar } from './ui';
 import { AuthForm } from './auth';
@@ -14,7 +14,7 @@ export function ProfileView({ data }: { data: AppData }) {
   const [name, setName] = useState(p?.display_name || '');
   return <>
     <div className="page-heading"><div><h1>Mon profil</h1><p>Juste ce qu’il faut pour faire connaissance.</p></div></div>
-    {!p ? <div className="panel centered-panel"><AuthForm configured={data.configured} /></div> : <div className="profile-layout">
+    {!p ? <div className="panel centered-panel"><AuthForm configured={data.configured} /></div> : <div className="profile-editor">
       <form className="panel stack" onSubmit={e => {
         e.preventDefault();
         const f = new FormData(e.currentTarget);
@@ -37,7 +37,7 @@ export function ProfileView({ data }: { data: AppData }) {
         <button className="button primary" disabled={a.pending}><Save size={17} />Enregistrer mon profil</button>
         <Feedback result={a.result} />
       </form>
-      <aside className="panel account-note"><ShieldCheck size={27} /><h2>Ton compte, tes participations.</h2><p>Ton adresse e-mail n’est pas affichée aux autres joueurs. Ton pseudo sert à te reconnaître dans les sessions.</p><p>Tu restes connecté·e sur cet appareil jusqu’à 30 jours après ta connexion.</p><button className="button secondary" disabled={a.pending} onClick={() => a.run(signOut)}><LogOut size={16} />Me déconnecter</button></aside>
+      <button className="button ghost" disabled={a.pending} onClick={() => a.run(signOut)}><LogOut size={16} />Me déconnecter</button>
     </div>}
   </>;
 }

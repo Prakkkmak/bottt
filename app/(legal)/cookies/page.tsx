@@ -1,0 +1,13 @@
+import { CookieSettings } from '@/components/cookies';
+export const metadata = { title: 'Politique de cookies' };
+
+export default function Page() {
+  return <>
+    <h1>Politique de cookies</h1>
+    <section><h2>Uniquement ce qui est nécessaire</h2><p>BOTTT utilise des cookies de connexion et de sécurité pour maintenir ta session et protéger ton compte. Nous n’installons aucun cookie publicitaire ni outil de mesure d’audience.</p><p>Ces cookies sont nécessaires au service demandé et ne requièrent pas de consentement préalable, conformément aux <a href="https://www.cnil.fr/fr/cookies-et-autres-traceurs/que-dit-la-loi" target="_blank" rel="noopener noreferrer">règles de la CNIL</a>. Le bouton de validation du bandeau confirme que tu as pris connaissance de cette politique ; il n’autorise pas de suivi publicitaire.</p></section>
+    <section><h2>Connexion et sécurité</h2><p>Les cookies d’authentification Supabase, dont le nom commence par « sb- » et contient « auth-token », conservent la connexion sur cet appareil pendant au maximum 30 jours après la connexion. Ils sont protégés contre la lecture par les scripts du site. La déconnexion met fin à la session sur cet appareil.</p><p>Lorsque Cloudflare Turnstile est configuré, la vérification de sécurité est chargée dans le formulaire de connexion pour lutter contre les demandes automatisées. Ce service peut traiter des informations techniques nécessaires à cette vérification. Consulte les <a href="https://www.cloudflare.com/privacypolicy/" target="_blank" rel="noopener noreferrer">informations de confidentialité de Cloudflare</a>.</p></section>
+    <section><h2>La validation de cette politique</h2><p>Le choix « Valider la politique » est mémorisé dans le stockage local de ton navigateur sous la clé « bottt-cookie-policy », pendant 6 mois. Il reste sur ton appareil et n’est pas envoyé au serveur. Le bandeau réapparaît à l’expiration de cette durée ou si la politique change.</p><p>Tu peux rouvrir le bandeau avec « Gérer les cookies » dans le footer. Si ton navigateur bloque le stockage local, tu peux continuer à utiliser le site ; le bandeau pourra réapparaître à la prochaine visite.</p><CookieSettings /></section>
+    <section><h2>Les services externes</h2><p>Les cartes et les agendas ne sont pas intégrés à la page. Leurs sites s’ouvrent uniquement après un clic sur leur lien et appliquent alors leurs propres politiques de cookies.</p></section>
+    <section><h2>Supprimer les cookies</h2><p>Tu peux supprimer les cookies et le stockage local dans les réglages de ton navigateur. Supprimer les cookies de connexion te déconnecte de cet appareil. Pour toute question : <a href="mailto:bonjour@bottt.fr">bonjour@bottt.fr</a>.</p></section>
+  </>;
+}

@@ -12,7 +12,7 @@ export async function deliverNotifications() {
   let sent=0,failed=0;
   for(const m of messages||[]){
     const base=process.env.NEXT_PUBLIC_SITE_URL||'http://127.0.0.1:3000';
-    const link=`${base}${m.session_id?`/sessions/${m.session_id}`:'/mes-parties'}`;
+    const link=`${base}${m.session_id?`/sessions/${m.session_id}`:'/'}`;
     const text=`${m.body}\n\n${link}\n\nBlood on the Tanguy Tower`;
     try {
       if(smtp)await smtp.sendMail({from:'Blood on the Tanguy Tower <bonjour@cercle.test>',to:m.email,subject:m.title,text});

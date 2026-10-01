@@ -35,7 +35,7 @@ Dans un second terminal, pour les rappels, l’expiration des propositions et la
 pnpm local:worker
 ```
 
-Le worker traite la file toutes les minutes. Sans lui, les inscriptions et désistements restent opérationnels, mais les traitements programmés et les e-mails attendent sa reprise. Les nouvelles restent consultables dans « Mes participations ».
+Le worker traite la file toutes les minutes. Sans lui, les inscriptions et désistements restent opérationnels, mais les traitements programmés et les e-mails attendent sa reprise. Les statuts des participations restent visibles dans « Jouer ».
 
 Pour arrêter les services Docker sans effacer les données : `pnpm local:stop`. Le site se limite à l’adresse de boucle locale, comme les ports de la base, du courrier et de Studio. Ne publie pas cette pile de développement sur Internet.
 
@@ -44,10 +44,10 @@ Les identifiants locaux sont générés automatiquement dans `.docker/` et `.env
 ## Fonctionnement
 
 - Compte personnel, connexion par code e-mail valable 10 minutes. Cookies HttpOnly ; session conservée et limitée à 30 jours, limite aussi contrôlée dans la base.
-- Sessions publiques ou réservées aux membres/parrainés, script, horaires en heure de Paris, lieu général et adresse privée.
+- Sessions publiques ou réservées aux membres/parrainés, script, début en heure de Paris, lieu général et adresse privée. La création préremplit le prochain vendredi à 19 h 30 et les réglages d’une partie existante. La fin est calculée côté serveur à +4 h pour l’agenda ; une modification conserve la durée précédente.
 - Toutes les soirées accueillent les débutants ; aucune catégorie découverte ni page bienvenue séparée.
 - Inscription en cliquant sur un + autour de la Tour Tanguy. Le jeton choisi est conservé ; cliquer sur son jeton permet de se désister après confirmation. Une demande en attente ne réserve pas de jeton.
-- Parties dépliables sur l’accueil et dans « Mes parties » : sièges, inscriptions et désistements restent sur la même page. Plusieurs cercles peuvent être ouverts ensemble.
+- Parties dépliables dans « Jouer » : sièges, inscriptions et désistements restent sur la même page. Plusieurs cercles peuvent être ouverts ensemble. L’ancien lien « Mes parties » redirige vers l’accueil.
 - Événements limités aux informations pratiques, sans champ de description.
 - Parties à partir de 7 joueurs ; capacité de 15 places par défaut, ajustable jusqu’à 20. Compteur des places réservées visible dans la liste des parties.
 - Quotas membres/nouveaux et réunion des quotas avant la soirée.
@@ -55,9 +55,12 @@ Les identifiants locaux sont générés automatiquement dans `.docker/` et `.env
 - Première participation des nouveaux soumise à validation. Validation puis inscription confirmée ou liste d’attente selon les places. L’organisateur peut aussi valider un membre directement.
 - Parrainage à usage unique, valable 7 jours et limité à 5 invitations par jour. Le parrain n’accède jamais au compte de son invité.
 - Désistement, liste d’attente chronologique par quota éligible, proposition réservée jusqu’à 12 heures (ou 30 minutes avant la session), acceptation explicite. Une proposition expirée est annulée pour permettre de passer au suivant.
-- Notifications dans le site et par e-mail : confirmation, validation, proposition, désistement, changements, annulation et rappel à moins de 24 h.
+- Statuts dans « Jouer » et notifications par e-mail : confirmation, validation, proposition, désistement, changements, annulation et rappel à moins de 24 h.
 - Création et modification de sessions, validation/retrait des participants, suspension des membres.
-- Profil et couleur d’avatar, export iCalendar d’une participation confirmée, interface mobile et navigation clavier.
+- Profil et couleur d’avatar, interface mobile et navigation clavier. Cliquer sur la date ouvre les liens préremplis Google Agenda, Outlook ou un fichier iCalendar. Une partie visible peut être ajoutée à l’agenda ; seuls les organisateurs et inscrits confirmés obtiennent l’adresse privée. L’ajout crée une copie et ne synchronise pas les changements ultérieurs.
+- Adresse texte ou lien partagé Google Maps, Apple Plans, Waze, etc. Le lien est conservé avec l’adresse privée, sans changement de schéma, et s’ouvre au clic.
+- Footer avec conditions d’utilisation, données personnelles et cookies ; coordonnées du responsable : Lévy MARQUES, bonjour@bottt.fr. Bandeau d’information à valider, mémorisé localement six mois et accessible via « Gérer les cookies ». Le site n’ajoute aucun traceur facultatif.
+- Polices variables servies localement avec leurs licences, cadre rendu côté serveur, formulaire organisateur chargé à l’ouverture, requêtes d’invitations réservées à leur page et suppression des requêtes de notifications inutilisées.
 
 ## Protection des données
 

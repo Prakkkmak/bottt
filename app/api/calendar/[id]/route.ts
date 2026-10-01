@@ -1,4 +1,17 @@
-import {getData,getAddress} from '@/lib/data';
-const esc=(s:string)=>s.replace(/\\/g,'\\\\').replace(/\r?\n/g,'\\n').replace(/;/g,'\\;').replace(/,/g,'\\,');
-const stamp=(s:string)=>new Date(s).toISOString().replace(/[-:]/g,'').replace(/\.\d{3}/,'');
-export async function GET(_request:Request,{params}:{params:Promise<{id:string}>}){const {id}=await params;const data=await getData();const s=data.sessions.find(s=>s.id===id);if(!s||s.my_status!=='confirmed')return new Response('Connexion et participation confirmée requises.',{status:403});const address=await getAddress(id);const lines=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Blood on the Tanguy Tower//Clocktower//FR','CALSCALE:GREGORIAN','BEGIN:VEVENT',`UID:${s.id}@lecercle`,`DTSTAMP:${stamp(new Date().toISOString())}`,`DTSTART:${stamp(s.starts_at)}`,`DTEND:${stamp(s.ends_at)}`,`SUMMARY:${esc(s.title)}`,`LOCATION:${esc(address||s.location)}`,`DESCRIPTION:${esc(s.script)}`,'END:VEVENT','END:VCALENDAR'];return new Response(lines.join('\r\n'),{headers:{'Content-Type':'text/calendar; charset=utf-8','Content-Disposition':'attachment; filename="bottt.ics"','Cache-Control':'private, no-store'}});}
+import { getData, getAddress } from '@/lib/data';
+import { sessionCalendar } from '@/lib/calendar';
+
+export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const data = await getData();
+  const session = data.sessions.find(s => s.id === id);
+  const headers = { 'Cache-Control': 'private, no-store' };
+  if (!session) return new Response('Session introuvable.', { status: 404, headers });
+  if (session.status === 'cancelled') return new Response('Cette session est annulée.', { status: 410, headers });
+  const address = session.my_status === 'confirmed' || data.profile?.membership === 'organizer' ? await getAddress(id) : null;
+  return new Response(sessionCalendar(session, address || session.location), { headers: {
+    ...headers,
+    'Content-Type': 'text/calendar; charset=utf-8',
+    'Content-Disposition': 'attachment; filename="bottt.ics"',
+  } });
+}
