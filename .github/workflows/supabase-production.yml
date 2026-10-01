@@ -50,6 +50,11 @@ jobs:
           fi
 
           supabase link --project-ref "$SUPABASE_PROJECT_ID" --yes
+          if [[ ! -s supabase/.temp/pooler-url ]]; then
+            echo "::error::Connexion IPv4 introuvable. Accorde Database > Connection Pooling > Read au jeton Supabase, puis mets à jour SUPABASE_ACCESS_TOKEN dans Settings > Environments > Production."
+            exit 1
+          fi
+
           supabase db push --dry-run --skip-vault
           # Only pending migrations: no local seed data, reset, or Auth configuration.
           supabase db push --yes --skip-vault
