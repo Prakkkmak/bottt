@@ -7,7 +7,7 @@ import { supabase, authenticatedClient } from './supabase';
 import { cache } from 'react';
 export const getData = cache(async (): Promise<AppData> => {
   if (isDemo()) return initialDemo();
-  const empty: AppData = { profile: null, sessions: [], invitations: [], notices: [], demo: false, configured: isConfigured(), local: process.env.LOCAL_PREVIEW==='true'&&!process.env.VERCEL };
+  const empty: AppData = { profile: null, sessions: [], invitations: [], demo: false, configured: isConfigured(), local: process.env.LOCAL_PREVIEW==='true'&&!process.env.VERCEL };
   if (!isConfigured()) return empty;
   try {
     const db = await supabase();
@@ -16,6 +16,8 @@ export const getData = cache(async (): Promise<AppData> => {
     if (!user) return { ...empty, sessions: sessions as GameSession[] };
     const profile = await db.from('profiles').select('*').eq('id', user.id).maybeSingle();
     if (profile.error) throw profile.error;
+    // A valid Auth cookie without a readable profile means the database refused the session: expired after 30 days or suspended.
+    if (!profile.data) return { ...empty, sessions: sessions || [], accountNotice: 'Ta connexion a expiré ou ton compte est suspendu. Reconnecte-toi avec un nouveau code. Si le problème persiste, écris à bonjour@bottt.fr.' };
     return { ...empty, sessions: sessions || [], profile: profile.data };
   } catch (err) { console.error('Data unavailable', err instanceof Error ? err.message : 'database error'); return { ...empty, error: 'BOTTT est momentanément indisponible. Réessaie dans un instant.' }; }
 });

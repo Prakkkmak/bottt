@@ -14,7 +14,6 @@ export type GameSession = {
 };
 export type Booking = { id: string; session_id: string; user_id: string; status: BookingStatus; pool: 'circle' | 'newcomer'; created_at: string; offer_expires_at: string | null; profile?: Profile; };
 export type Invitation = { id: string; sponsor_id: string; expires_at: string; used_by: string | null; created_at: string; };
-export type Notice = { id: string; user_id: string; title: string; body: string; session_id: string | null; created_at: string; read_at: string | null; };
-export type AppData = { profile: Profile | null; sessions: GameSession[]; invitations: Invitation[]; notices: Notice[]; demo: boolean; configured: boolean; local?: boolean; error?: string; };
+export type AppData = { profile: Profile | null; sessions: GameSession[]; invitations: Invitation[]; demo: boolean; configured: boolean; local?: boolean; error?: string; accountNotice?: string; };
 export type ActionResult = { ok: boolean; message: string; value?: string; };
 export type SessionInput = Omit<GameSession, 'id' | 'status' | 'confirmed_count' | 'waitlist_count' | 'my_status' | 'my_offer_expires_at' | 'occupied_seats' | 'my_seat' | 'participants'> & { address: string; id?: string; };

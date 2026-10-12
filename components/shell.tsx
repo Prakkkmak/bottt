@@ -17,6 +17,7 @@ export function Shell({ data, children }: { data: AppData; children: React.React
       <div className="header-account">{data.profile ? <Link href="/profil" className="account-link" aria-label={`Mon profil : ${data.profile.display_name}`}><Avatar name={data.profile.display_name} color={data.profile.avatar_color} /><span>{data.profile.display_name}</span></Link> : <SignInButton configured={data.configured} className="button secondary compact" />}</div>
     </header>
     {data.error && <div className="alert error site-error" role="alert">{data.error}</div>}
+    {data.accountNotice && <div className="alert info site-error" role="status">{data.accountNotice}</div>}
     <main id="main-content" className="main-content">{children}</main>
     <footer className="footer">
       <div className="footer-about">

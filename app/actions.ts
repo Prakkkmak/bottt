@@ -58,7 +58,6 @@ export async function revokeInvitation(id: string) { return rpc('revoke_invitati
 export async function saveSession(input: unknown) { const parsed = sessionSchema.safeParse(input); if (!parsed.success) return failure(parsed.error); return rpc('save_session', { p_data: { ...parsed.data, beginners_welcome: true } }, 'La session est publiée.'); }
 export async function cancelSession(id: string) { return rpc('cancel_session', { p_id: id }, 'La session est annulée. Les participants seront prévenus.'); }
 export async function setMembership(id: string, status: 'member' | 'suspended') { return rpc('set_membership', { p_user: id, p_status: status }, 'Le compte a été mis à jour.'); }
-export async function markNoticesRead() { return rpc('mark_notices_read'); }
 export async function saveProfile(input: unknown): Promise<ActionResult> {
   try { const parsed = profileSchema.parse(input); const { db, user } = await authenticatedClient(); const { error } = await db.from('profiles').update(parsed).eq('id', user.id); if (error) throw new Error('Le profil n’a pas pu être enregistré.'); invalidate(); return { ok: true, message: 'Ton profil a été mis à jour.' }; } catch(e) { return failure(e); }
 }
