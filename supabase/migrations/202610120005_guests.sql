@@ -84,3 +84,120 @@ create or replace function public.list_sessions() returns jsonb language sql sta
     where public.can_see_session(s.id) and (s.ends_at>now()-interval '30 days' or public.is_organizer())
   ) listed;
 $$;
+
+-- Offers and expiries about a guest go to the sponsor, who confirms on the guest's behalf.
+create or replace function public.rebalance(p_id uuid) returns void language plpgsql security definer set search_path = '' as $$
+declare s public.sessions; b public.bookings; deadline timestamptz;
+begin
+  select * into s from public.sessions where id=p_id for update;
+  if s.id is null or s.status<>'published' then return; end if;
+  for b in update public.bookings set status='cancelled',offer_expires_at=null
+    where session_id=p_id and status='offered' and offer_expires_at<=now() returning *
+  loop
+    if b.user_id is null then perform public.notify(b.sponsor_id,p_id,'La proposition pour '||b.guest_name||' a expiré','Le délai est passé. Tu peux l’ajouter à nouveau à la liste d’attente.');
+    else perform public.notify(b.user_id,p_id,'La proposition a expiré','Le délai est passé. Tu peux rejoindre à nouveau la liste d’attente.'); end if;
+  end loop;
+  if s.starts_at<=now()+interval '30 minutes' then return; end if;
+  deadline=least(now()+interval '12 hours',s.starts_at-interval '30 minutes');
+  for b in select * from public.bookings where session_id=p_id and status='waitlisted' order by created_at,id for update
+  loop
+    if public.seat_available(p_id,b.pool) then
+      update public.bookings set status='offered',offer_expires_at=deadline where id=b.id;
+      if b.user_id is null then perform public.notify(b.sponsor_id,p_id,'Une place s’est libérée pour '||b.guest_name,'Confirme sa place depuis la partie avant l’expiration de la proposition.');
+      else perform public.notify(b.user_id,p_id,'Une place s’est libérée !','Confirme ta présence depuis la partie avant l’expiration de la proposition.'); end if;
+    end if;
+  end loop;
+end; $$;
+
+create or replace function public.review_booking(p_booking uuid,p_approve boolean) returns text language plpgsql security definer set search_path = '' as $$
+declare b public.bookings; result text; s public.sessions; previous text;
+begin
+  if not public.is_organizer() then raise exception 'Accès organisateur requis.'; end if;
+  select * into b from public.bookings where id=p_booking;
+  select * into s from public.sessions where id=b.session_id for update;
+  select * into b from public.bookings where id=p_booking for update;
+  if b.id is null then raise exception 'Participation introuvable.'; end if;
+  if s.status<>'published' or s.starts_at<=now()+interval '30 minutes' then raise exception 'Cette session est close.'; end if;
+  if p_approve and b.status<>'pending' then raise exception 'Cette demande a déjà été traitée.'; end if;
+  previous=b.status;
+  if p_approve then
+    perform public.rebalance(b.session_id);
+    result=case when public.seat_available(b.session_id,b.pool) then 'confirmed' else 'waitlisted' end;
+  else result='declined'; end if;
+  update public.bookings set status=result,offer_expires_at=null where id=b.id;
+  -- Travellers stay travellers: only an organizer or a member's sponsorship link makes someone a member.
+  if b.user_id is null then
+    perform public.notify(b.sponsor_id,b.session_id,
+      case when result='confirmed' then b.guest_name||' a sa place' when result='waitlisted' then b.guest_name||' est en liste d’attente'
+        when previous='pending' then 'La participation de '||b.guest_name||' n’a pas été retenue' else b.guest_name||' a été retiré·e de la partie' end,
+      case result when 'declined' then 'Contacte un organisateur si tu as une question.' else 'Retrouve les détails dans la partie.' end);
+  else
+    perform public.notify(b.user_id,b.session_id,
+      case result when 'confirmed' then 'Bienvenue, ta place est confirmée !' when 'waitlisted' then 'Demande validée, tu es en attente' else 'Participation non retenue' end,
+      case result when 'declined' then 'Contacte un organisateur si tu as une question.' else 'Retrouve les détails dans la partie.' end);
+  end if;
+  perform public.rebalance(b.session_id);
+  return result;
+end; $$;
+
+-- Accepts or refuses, in one transaction and one message, a traveller's request and the friends they bring.
+create function public.review_request(p_session uuid,p_person uuid,p_approve boolean,p_promote boolean default false) returns text language plpgsql security definer set search_path='' as $$
+declare s public.sessions; b public.bookings; result text; own_result text; lines text[]=array[]::text[];
+begin
+  if not public.is_organizer() then raise exception 'Accès organisateur requis.'; end if;
+  select * into s from public.sessions where id=p_session for update;
+  if s.id is null or s.status<>'published' or s.starts_at<=now()+interval '30 minutes' then raise exception 'Cette session est close.'; end if;
+  if not exists(select 1 from public.bookings where session_id=p_session and status='pending' and (user_id=p_person or sponsor_id=p_person)) then
+    raise exception 'Cette demande a déjà été traitée.';
+  end if;
+  if p_approve and p_promote then
+    update public.profiles set membership='member' where id=p_person and membership='newcomer';
+    update public.bookings set pool='circle' where session_id=p_session and user_id=p_person and status='pending';
+  end if;
+  if p_approve then perform public.rebalance(p_session); end if;
+  -- The traveller's own request is seated first, then the friends in the order they were added.
+  for b in select * from public.bookings where session_id=p_session and status='pending' and (user_id=p_person or sponsor_id=p_person)
+    order by user_id is null,created_at,id for update
+  loop
+    result=case when not p_approve then 'declined' when public.seat_available(p_session,b.pool) then 'confirmed' else 'waitlisted' end;
+    update public.bookings set status=result,offer_expires_at=null where id=b.id;
+    if b.user_id is not null then own_result=result; end if;
+    lines=lines||(coalesce(b.guest_name,'Toi')||' : '||case result when 'confirmed' then 'place confirmée' when 'waitlisted' then 'liste d’attente' else 'non retenu·e' end);
+  end loop;
+  perform public.notify(p_person,p_session,
+    case when not p_approve then 'Participation non retenue' when own_result='confirmed' then 'Bienvenue, ta place est confirmée !'
+      when own_result='waitlisted' then 'Demande validée, tu es en attente' else 'Demande validée' end,
+    array_to_string(lines,E'\n')||case when p_approve then E'\nRetrouve les détails dans la partie.' else E'\nContacte un organisateur si tu as une question.' end);
+  perform public.rebalance(p_session);
+  return coalesce(own_result,case when p_approve then 'confirmed' else 'declined' end);
+end; $$;
+
+create function public.remove_guest(p_booking uuid) returns void language plpgsql security definer set search_path='' as $$
+declare b public.bookings;
+begin
+  perform public.rate_guard('booking',20,600);
+  select * into b from public.bookings where id=p_booking;
+  if b.id is null or b.sponsor_id is distinct from auth.uid() then raise exception 'Action non autorisée.'; end if;
+  perform 1 from public.sessions where id=b.session_id for update;
+  select * into b from public.bookings where id=p_booking for update;
+  if b.status in ('cancelled','declined') then return; end if;
+  update public.bookings set status='cancelled',offer_expires_at=null where id=b.id;
+  perform public.rebalance(b.session_id);
+end; $$;
+
+create function public.accept_guest_offer(p_booking uuid) returns text language plpgsql security definer set search_path='' as $$
+declare b public.bookings; s public.sessions;
+begin
+  perform public.rate_guard('booking',20,600);
+  select * into b from public.bookings where id=p_booking;
+  if b.id is null or b.sponsor_id is distinct from auth.uid() then raise exception 'Action non autorisée.'; end if;
+  select * into s from public.sessions where id=b.session_id for update;
+  if s.status<>'published' or s.starts_at<=now() then raise exception 'Cette session est close.'; end if;
+  select * into b from public.bookings where id=p_booking for update;
+  if b.status<>'offered' or b.offer_expires_at<=now() then raise exception 'Cette proposition a expiré.'; end if;
+  update public.bookings set status='confirmed',offer_expires_at=null where id=b.id;
+  return 'confirmed';
+end; $$;
+
+revoke execute on function public.review_request(uuid,uuid,boolean,boolean),public.remove_guest(uuid),public.accept_guest_offer(uuid) from public,anon,authenticated;
+grant execute on function public.review_request(uuid,uuid,boolean,boolean),public.remove_guest(uuid),public.accept_guest_offer(uuid) to authenticated,service_role;
