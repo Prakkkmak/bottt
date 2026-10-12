@@ -26,7 +26,7 @@ begin
   select * into s from public.sessions where id=p_session for update;
   if s.id is null or not public.can_see_session(p_session) then raise exception 'Cette session est inaccessible.'; end if;
   if s.status<>'published' or s.starts_at<=now()+interval '30 minutes' then raise exception 'Les inscriptions sont closes.'; end if;
-  clean=regexp_replace(trim(coalesce(p_name,'')),'\s+',' ','g');
+  clean=trim(regexp_replace(coalesce(p_name,''),'\s+',' ','g'));
   if char_length(clean) not between 2 and 40 then raise exception 'Indique un prénom ou un pseudo de 2 à 40 caractères.'; end if;
   if p_seat is not null and (p_seat<0 or p_seat>=s.capacity) then raise exception 'Cette place est invalide.'; end if;
   select * into existing from public.bookings where session_id=p_session and sponsor_id=auth.uid() and lower(guest_name)=lower(clean)

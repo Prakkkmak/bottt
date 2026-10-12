@@ -29,7 +29,7 @@ test('Ajout des invités',async t=>{
   });
   await t.test('le prénom et le jeton sont contrôlés',async()=>{
     await h.login(3);
-    for(const name of ['A','x'.repeat(41),'   '])await assert.rejects(add(game,name),/2 à 40 caractères/);
+    for(const name of ['A','x'.repeat(41),'   ','\t\nA'])await assert.rejects(add(game,name),/2 à 40 caractères/);
     for(const seat of [-1,8])await assert.rejects(add(game,'Marie',seat),/place est invalide/);
     await assert.rejects(add(game,'Marie',5),/vient d’être prise/);
   });
