@@ -49,3 +49,38 @@ begin
 end; $$;
 revoke execute on function public.add_guest(uuid,text,integer) from public,anon,authenticated;
 grant execute on function public.add_guest(uuid,text,integer) to authenticated,service_role;
+
+create or replace function public.list_sessions() returns jsonb language sql stable security definer set search_path='' as $$
+  select coalesce(jsonb_agg(payload order by starts_at),'[]'::jsonb) from (
+    select s.starts_at, (to_jsonb(s)-'created_by'-'created_at'-'description'-'storyteller') || jsonb_build_object(
+      'confirmed_count',used.total_used,
+      'waitlist_count',(select count(*) from public.bookings b where b.session_id=s.id and b.status='waitlisted'),
+      'occupied_seats',(select coalesce(jsonb_agg(b.seat_index order by b.seat_index),'[]'::jsonb) from public.bookings b where b.session_id=s.id and (b.status='confirmed' or (b.status='offered' and b.offer_expires_at>now()))),
+      -- Free tokens per kind of seat, counted like seat_available; both open up once quotas merge.
+      'member_seats_free',case when now()>=s.starts_at-make_interval(hours=>s.release_hours) then greatest(0,s.capacity-used.total_used)
+        else greatest(0,least(s.capacity-used.total_used,s.capacity-s.newcomer_seats-used.circle_used)) end,
+      'traveller_seats_free',case when now()>=s.starts_at-make_interval(hours=>s.release_hours) then greatest(0,s.capacity-used.total_used)
+        else greatest(0,least(s.capacity-used.total_used,s.newcomer_seats-used.newcomer_used)) end,
+      'my_status',case when public.active_user() then (select status from public.bookings b where b.session_id=s.id and b.user_id=auth.uid()) else null end,
+      'my_seat',case when public.active_user() then (select seat_index from public.bookings b where b.session_id=s.id and b.user_id=auth.uid() and (b.status='confirmed' or (b.status='offered' and b.offer_expires_at>now()))) else null end,
+      'my_offer_expires_at',case when public.active_user() then (select offer_expires_at from public.bookings b where b.session_id=s.id and b.user_id=auth.uid()) else null end,
+      'my_guests',case when public.active_user() then (select coalesce(jsonb_agg(jsonb_build_object('id',b.id,'name',b.guest_name,'status',b.status,'seat_index',b.seat_index,'offer_expires_at',b.offer_expires_at) order by b.created_at,b.id),'[]'::jsonb)
+        from public.bookings b where b.session_id=s.id and b.sponsor_id=auth.uid() and b.status<>'cancelled') else '[]'::jsonb end,
+      'participants',case when public.is_member() or (public.active_user() and exists(select 1 from public.bookings where session_id=s.id and user_id=auth.uid() and status='confirmed'))
+        then (select coalesce(jsonb_agg(jsonb_build_object(
+            'display_name',coalesce(b.guest_name,p.display_name),
+            'avatar_color',coalesce(p.avatar_color,sponsor.avatar_color),
+            'seat_index',b.seat_index,
+            'can_storytell',coalesce(p.can_storytell,false),
+            'role',case when b.user_id is null then case when b.pool='circle' then 'guest' else 'traveller_guest' end
+              when p.membership='newcomer' then 'traveller' else 'member' end,
+            'invited_by',sponsor.display_name) order by b.seat_index),'[]'::jsonb)
+          from public.bookings b left join public.profiles p on p.id=b.user_id left join public.profiles sponsor on sponsor.id=b.sponsor_id
+          where b.session_id=s.id and b.status='confirmed') else '[]'::jsonb end
+    ) as payload
+    from public.sessions s
+    cross join lateral (select count(*) as total_used,count(*) filter(where b.pool='circle') as circle_used,count(*) filter(where b.pool='newcomer') as newcomer_used
+      from public.bookings b where b.session_id=s.id and (b.status='confirmed' or (b.status='offered' and b.offer_expires_at>now()))) used
+    where public.can_see_session(s.id) and (s.ends_at>now()-interval '30 days' or public.is_organizer())
+  ) listed;
+$$;
