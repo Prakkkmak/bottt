@@ -26,7 +26,8 @@ export function ProfileView({ data }: { data: AppData }) {
           can_storytell: f.get('can_storytell') === 'on',
         }));
       }}>
-        <div className="profile-preview"><Avatar name={name || 'Moi'} color={color} /><div><h2>{name || 'Ton pseudo'}</h2><span className="badge">{p.membership === 'organizer' ? 'Organisateur·rice' : p.membership === 'newcomer' ? 'Nouveau visage' : 'Membre du cercle'}</span></div></div>
+        <div className="profile-preview"><Avatar name={name || 'Moi'} color={color} /><div><h2>{name || 'Ton pseudo'}</h2><span className="badge">{p.membership === 'organizer' ? 'Organisateur·rice' : p.membership === 'newcomer' ? 'Voyageur·se' : 'Membre du cercle'}</span></div></div>
+        {p.membership === 'newcomer' && <p className="muted">Un organisateur valide tes parties et peut te passer membre.</p>}
         <fieldset className="color-options"><legend>Ta couleur</legend>{['rose', 'blue', 'sage', 'ochre', 'lilac'].map(c => <label key={c} className={`color-option color-${c}`} title={c}><input type="radio" name="color" value={c} checked={color === c} onChange={() => setColor(c)} aria-label={`Couleur ${c}`} /><span /></label>)}</fieldset>
         <label className="field">Prénom ou pseudo<input required minLength={2} maxLength={40} value={name} onChange={e => setName(e.target.value)} /></label>
         <label className="field">Quelques mots sur toi <span className="field-note">Facultatif</span><textarea name="bio" rows={3} maxLength={300} defaultValue={p.bio} placeholder="Plutôt bon menteur ou détective du dimanche ?" /></label>

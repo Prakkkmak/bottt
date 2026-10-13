@@ -257,7 +257,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .participation-grid .session-row { flex-wrap: wrap; gap: 14px; }
 .participation-grid .row-state { margin-left: 67px; }
 .participation-grid .row-open { margin-left: auto; }
-.invitation-layout { max-width: 700px; margin: 0 auto; }
+.invitation-layout { max-width: 700px; margin: 0 auto; display: grid; gap: 20px; }
 .invitation-main { text-align: center; padding: 36px; }
 .invitation-main h2 { font-size: 26px; margin: 22px auto 0; max-width: 25ch; }
 .invitation-main > .muted { margin: 14px auto 23px; max-width: 47ch; }
@@ -631,3 +631,8 @@ a.practical-link, .calendar-link > span { text-decoration: underline; text-under
 .request-guest span { display: inline-flex; align-items: center; gap: 6px; }
 .request-actions { flex-wrap: wrap; justify-content: flex-end; }
 .is-guest-row { padding-left: 28px; }
+/* Invite page: the people the viewer brings to upcoming games. */
+.guest-overview { display: grid; gap: 0; margin: 22px 0 0; padding: 0; list-style: none; text-align: left; }
+.guest-overview li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-top: 1px solid var(--border); }
+.guest-overview a { display: grid; }
+.guest-overview a span { color: var(--muted); font-size: 13px; }
