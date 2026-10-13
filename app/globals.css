@@ -625,3 +625,9 @@ a.practical-link, .calendar-link > span { text-decoration: underline; text-under
 .guest-chip:hover, .guest-chip[aria-pressed="true"] { border-color: var(--gold); color: var(--parchment); }
 .guest-release { margin: 0; padding: 0; border: 0; }
 .guest-release legend { margin-bottom: 4px; color: var(--parchment); font-size: 14px; }
+/* Organizer: requests grouped by traveller, guests listed under the person who brings them. */
+.request-role { color: var(--muted); font-size: 13px; font-weight: 400; }
+.request-guest { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px solid #77678360; color: var(--ink); font-size: 13px; }
+.request-guest span { display: inline-flex; align-items: center; gap: 6px; }
+.request-actions { flex-wrap: wrap; justify-content: flex-end; }
+.is-guest-row { padding-left: 28px; }
