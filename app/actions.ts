@@ -3,7 +3,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { supabase, authenticatedClient } from '@/lib/supabase';
 import { isConfigured, isDemo } from '@/lib/config';
-import { profileSchema, sessionSchema } from '@/lib/schemas';
+import { profileSchema, sessionSchema, guestNameSchema } from '@/lib/schemas';
 import type { ActionResult } from '@/lib/types';
 function failure(e: unknown): ActionResult { return { ok: false, message: e instanceof z.ZodError ? e.issues[0].message : e instanceof Error ? e.message : 'La demande n’a pas abouti. Réessaie.' }; }
 function invalidate() { revalidatePath('/', 'layout'); }
@@ -49,7 +49,34 @@ export async function bookSession(id: string, seat?: number) {
   if (!result.ok) return result;
   return { ...result, message: result.value === 'confirmed' ? 'Ta place est réservée !' : result.value === 'pending' ? 'Demande envoyée. Un organisateur va la valider.' : result.value === 'waitlisted' ? 'Tu es sur la liste d’attente.' : 'Ta participation est déjà enregistrée.' };
 }
-export async function cancelBooking(id: string) { return rpc('cancel_booking', { p_id: id }, 'Ton désistement est enregistré. À une prochaine !'); }
+const isUuid = (value: string) => z.uuid().safeParse(value).success;
+export async function cancelBooking(id: string, guestIds: string[] = []) {
+  if (!isUuid(id) || !guestIds.every(isUuid)) return failure(new Error('Participation invalide.'));
+  // Guests the player chose to release go first, so their seats are offered in the same refresh.
+  for (const guestId of guestIds) { const released = await rpc('remove_guest', { p_booking: guestId }); if (!released.ok) return released; }
+  return rpc('cancel_booking', { p_id: id }, guestIds.length ? 'Vos places sont libérées. À une prochaine !' : 'Ton désistement est enregistré. À une prochaine !');
+}
+export async function addGuest(sessionId: string, name: string, seat?: number): Promise<ActionResult> {
+  if (!isUuid(sessionId)) return failure(new Error('Session invalide.'));
+  const parsed = guestNameSchema.safeParse(name);
+  if (!parsed.success) return failure(parsed.error);
+  if (seat !== undefined && !z.number().int().min(0).max(19).safeParse(seat).success) return failure(new Error('Place invalide.'));
+  const result = await rpc('add_guest', { p_session: sessionId, p_name: parsed.data, p_seat: seat ?? null });
+  if (!result.ok) return result;
+  const who = parsed.data;
+  return { ...result, message: result.value === 'confirmed' ? `${who} a sa place !` : result.value === 'pending' ? `Demande envoyée pour ${who}.` : result.value === 'offered' ? `Une place attend ${who} : confirme-la.` : `${who} est sur la liste d’attente.` };
+}
+export async function removeGuest(bookingId: string) { if (!isUuid(bookingId)) return failure(new Error('Invité·e introuvable.')); return rpc('remove_guest', { p_booking: bookingId }, 'Sa place est libérée.'); }
+export async function acceptGuestOffer(bookingId: string) { if (!isUuid(bookingId)) return failure(new Error('Invité·e introuvable.')); return rpc('accept_guest_offer', { p_booking: bookingId }, 'Sa place est confirmée !'); }
+export async function reviewRequest(sessionId: string, personId: string, approve: boolean, promote = false) {
+  if (!isUuid(sessionId) || !isUuid(personId)) return failure(new Error('Demande invalide.'));
+  const result = await rpc('review_request', { p_session: sessionId, p_person: personId, p_approve: approve, p_promote: promote });
+  if (!result.ok) return result;
+  // The toast follows the seat the person actually got, which can be a waitlist place even when approved.
+  const waitlisted = result.value === 'waitlisted';
+  const message = !approve ? 'La demande a été refusée.' : promote ? (waitlisted ? 'Passé·e membre, en liste d’attente faute de place.' : 'Demande validée : bienvenue au nouveau membre.') : (waitlisted ? 'Demande validée, en liste d’attente faute de place.' : 'La demande est validée.');
+  return { ...result, message };
+}
 export async function acceptOffer(id: string) { return rpc('accept_offer', { p_id: id }, 'Ta place est confirmée !'); }
 export async function reviewBooking(id: string, approve: boolean) { return rpc('review_booking', { p_booking: id, p_approve: approve }, approve ? 'La demande est validée.' : 'La participation a été retirée.'); }
 export async function createInvitation() { return rpc('create_invitation', {}, 'Ton lien d’invitation est prêt.'); }

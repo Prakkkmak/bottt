@@ -1,5 +1,6 @@
 import { getData, getAddress } from '@/lib/data';
 import { sessionCalendar } from '@/lib/calendar';
+import { canSeeAddress } from '@/lib/guests';
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -8,7 +9,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   const headers = { 'Cache-Control': 'private, no-store' };
   if (!session) return new Response('Session introuvable.', { status: 404, headers });
   if (session.status === 'cancelled') return new Response('Cette session est annulée.', { status: 410, headers });
-  const address = session.my_status === 'confirmed' || data.profile?.membership === 'organizer' ? await getAddress(id) : null;
+  const address = canSeeAddress(session, data.profile) ? await getAddress(id) : null;
   return new Response(sessionCalendar(session, address || session.location), { headers: {
     ...headers,
     'Content-Type': 'text/calendar; charset=utf-8',
