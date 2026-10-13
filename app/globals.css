@@ -501,7 +501,6 @@ a.practical-link, .calendar-link > span { text-decoration: underline; text-under
 .booking-circle button:disabled { opacity: .55; cursor: wait; }
 .booking-circle[aria-busy="true"] .village-center { opacity: .6; }
 .circle-roster { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 14px; width: 100%; padding: 16px 0 0; margin: 0; list-style: none; border-top: 1px solid #a186a4; }
-.circle-roster.narrow-roster { display: none; }
 .circle-roster li { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--ink); font-size: 14px; }
 .circle-roster li > span:nth-child(2) { min-width: 0; overflow-wrap: anywhere; }
 .circle-roster small { font-size: inherit; color: var(--gold); }
@@ -604,10 +603,25 @@ a.practical-link, .calendar-link > span { text-decoration: underline; text-under
   .booking-circle .village-center > span { font-size: 25px; }
   .booking-circle .village-center small { font-size: 11px; }
   .booking-circle .token-name { display: none; }
-  .circle-roster.narrow-roster { display: grid; }
 }
 /* Who brought whom: a dashed ring for travellers, a link badge for people brought by someone. */
 .village-token.taken.is-traveller { border-style: dashed; }
 .booking-circle .village-token.taken.is-traveller { background: #f1e2c4; border: 2px dashed #9b6a2f; }
 .token-guest { position: absolute; bottom: -4px; left: -4px; display: grid; place-items: center; width: 19px; height: 19px; border: 1px solid #e7c78f; border-radius: 50%; color: #f7d69e; background: #352526; pointer-events: none; }
 .booking-circle .village-token.is-my-guest { box-shadow: inset 0 0 0 3px #d4a94d55, 0 0 0 4px #f3c67540, 0 4px 0 #130f20; }
+/* The people a player brings, and the quick form to add one. */
+.circle-roster small.roster-role { display: block; font-size: 12px; color: var(--muted); }
+.my-guests { width: 100%; display: grid; gap: 8px; padding: 14px 16px; border: 1px solid #f3c67566; border-radius: 8px; background: #3e2a2f; }
+.my-guests-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.my-guests-heading p { color: var(--parchment); font-weight: 600; }
+.my-guests-heading span { color: var(--muted); font-weight: 400; }
+.my-guests-hint { color: var(--muted); font-size: 13px; }
+.my-guest-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; font-size: 14px; }
+.guest-status { color: var(--muted); font-size: 13px; }
+.guest-status-confirmed { color: var(--green); }
+.guest-status-offered { color: var(--gold); }
+.guest-suggestions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
+.guest-chip { min-height: 36px; padding: 4px 12px; border: 1px solid var(--border); border-radius: 999px; background: transparent; color: var(--ink); font-size: 13px; }
+.guest-chip:hover, .guest-chip[aria-pressed="true"] { border-color: var(--gold); color: var(--parchment); }
+.guest-release { margin: 0; padding: 0; border: 0; }
+.guest-release legend { margin-bottom: 4px; color: var(--parchment); font-size: 14px; }
