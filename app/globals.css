@@ -606,3 +606,8 @@ a.practical-link, .calendar-link > span { text-decoration: underline; text-under
   .booking-circle .token-name { display: none; }
   .circle-roster.narrow-roster { display: grid; }
 }
+/* Who brought whom: a dashed ring for travellers, a link badge for people brought by someone. */
+.village-token.taken.is-traveller { border-style: dashed; }
+.booking-circle .village-token.taken.is-traveller { background: #f1e2c4; border: 2px dashed #9b6a2f; }
+.token-guest { position: absolute; bottom: -4px; left: -4px; display: grid; place-items: center; width: 19px; height: 19px; border: 1px solid #e7c78f; border-radius: 50%; color: #f7d69e; background: #352526; pointer-events: none; }
+.booking-circle .village-token.is-my-guest { box-shadow: inset 0 0 0 3px #d4a94d55, 0 0 0 4px #f3c67540, 0 4px 0 #130f20; }
