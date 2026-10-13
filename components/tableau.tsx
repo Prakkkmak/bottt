@@ -35,7 +35,7 @@ export function VillageCircle({ reserved, capacity, occupiedSeats, participants 
       const person = participants.find(p => p.seat_index === i);
       const name = own ? 'Toi' : guest?.name ?? person?.display_name;
       const brought = !!guest || person?.role === 'guest' || person?.role === 'traveller_guest';
-      const traveller = person?.role === 'traveller' || person?.role === 'traveller_guest';
+      const traveller = !own && (person?.role === 'traveller' || person?.role === 'traveller_guest');
       const willing = taken && person?.can_storytell;
       const detail = guest ? guest.status === 'offered' ? 'place proposée · confirmer' : `${person ? participantLabel(person, { mine: true }) : 'ton invité·e'} · retirer` : person && !own ? participantLabel(person) : '';
       const seatLabel = own ? ownSeatLabel : taken ? [`Place ${i + 1}`, name || 'Réservée', detail].filter(Boolean).join(' · ') : onChoose ? `${chooseLabel} ${i + 1}` : `Place ${i + 1} · Libre`;
