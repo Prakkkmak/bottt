@@ -201,3 +201,122 @@ end; $$;
 
 revoke execute on function public.review_request(uuid,uuid,boolean,boolean),public.remove_guest(uuid),public.accept_guest_offer(uuid) from public,anon,authenticated;
 grant execute on function public.review_request(uuid,uuid,boolean,boolean),public.remove_guest(uuid),public.accept_guest_offer(uuid) to authenticated,service_role;
+
+create or replace function public.save_session(p_data jsonb) returns uuid language plpgsql security definer set search_path = '' as $$
+declare sid uuid; occupied integer;
+begin
+  if not public.is_organizer() then raise exception 'Accès organisateur requis.'; end if;
+  p_data=jsonb_build_object('capacity',15)||p_data;
+  if (p_data->>'starts_at')::timestamptz<=now() then raise exception 'Choisis une date à venir.'; end if;
+  sid=nullif(p_data->>'id','')::uuid;
+  if sid is not null then
+    perform 1 from public.sessions where id=sid for update;
+    if not found then raise exception 'Session introuvable.'; end if;
+    select count(*) into occupied from public.bookings where session_id=sid and (status='confirmed' or (status='offered' and offer_expires_at>now()));
+    if occupied>(p_data->>'capacity')::integer then raise exception 'La capacité ne peut pas être inférieure aux places déjà réservées.'; end if;
+    -- Travellers, and the friends they bring, cannot see a members-only session.
+    if exists(select 1 from public.sessions where id=sid and visibility='public') and p_data->>'visibility'='members'
+      and exists(select 1 from public.bookings b left join public.profiles p on p.id=b.user_id where b.session_id=sid
+        and b.status in ('pending','confirmed','offered','waitlisted') and (p.membership='newcomer' or (b.user_id is null and b.pool='newcomer')))
+      then raise exception 'Des voyageurs sont inscrits : garde cette session publique.'; end if;
+    update public.sessions set title=p_data->>'title', description=p_data->>'description',script=p_data->>'script',
+      starts_at=(p_data->>'starts_at')::timestamptz,ends_at=(p_data->>'ends_at')::timestamptz,
+      location=p_data->>'location',capacity=(p_data->>'capacity')::integer,
+      newcomer_seats=(p_data->>'newcomer_seats')::integer,release_hours=(p_data->>'release_hours')::integer,
+      beginners_welcome=(p_data->>'beginners_welcome')::boolean,visibility=p_data->>'visibility' where id=sid;
+    -- One message per person, naming the people they bring.
+    insert into public.notifications(user_id,session_id,title,body)
+      select recipient,sid,'Les informations de ta session ont changé','Consulte les nouveaux horaires et le lieu avant de venir.'||coalesce(' Préviens '||guests||'.','')
+      from (select coalesce(user_id,sponsor_id) as recipient,string_agg(guest_name,', ' order by guest_name) filter(where user_id is null) as guests
+        from public.bookings where session_id=sid and status in ('confirmed','offered','waitlisted','pending') group by 1) recipients;
+  else
+    insert into public.sessions(title,description,script,starts_at,ends_at,location,capacity,newcomer_seats,release_hours,beginners_welcome,visibility,created_by)
+      values(p_data->>'title',p_data->>'description',p_data->>'script',(p_data->>'starts_at')::timestamptz,(p_data->>'ends_at')::timestamptz,
+      p_data->>'location',(p_data->>'capacity')::integer,(p_data->>'newcomer_seats')::integer,(p_data->>'release_hours')::integer,
+      (p_data->>'beginners_welcome')::boolean,p_data->>'visibility',auth.uid()) returning id into sid;
+  end if;
+  insert into public.session_addresses(session_id,address) values(sid,coalesce(p_data->>'address','')) on conflict(session_id) do update set address=excluded.address;
+  perform public.rebalance(sid);
+  return sid;
+end; $$;
+
+create or replace function public.cancel_session(p_id uuid) returns void language plpgsql security definer set search_path = '' as $$
+begin
+  if not public.is_organizer() then raise exception 'Accès organisateur requis.'; end if;
+  perform 1 from public.sessions where id=p_id and status='published' for update;
+  if not found then return; end if;
+  update public.sessions set status='cancelled' where id=p_id;
+  insert into public.notifications(user_id,session_id,title,body,dedupe_key)
+    select recipient,p_id,'La session a été annulée','L’organisateur a annulé cette soirée.'||coalesce(' Préviens '||guests||'.','')||' Rendez-vous sur le site pour trouver une autre date.','cancel:'||p_id||':'||recipient
+    from (select coalesce(user_id,sponsor_id) as recipient,string_agg(guest_name,', ' order by guest_name) filter(where user_id is null) as guests
+      from public.bookings where session_id=p_id and status in ('pending','confirmed','waitlisted','offered') group by 1) recipients
+    on conflict(dedupe_key) do nothing;
+  update public.bookings set status='cancelled',offer_expires_at=null where session_id=p_id and status<>'declined';
+end; $$;
+
+create or replace function public.set_membership(p_user uuid,p_status text) returns void language plpgsql security definer set search_path = '' as $$
+declare sid uuid;
+begin
+  if not public.is_organizer() or p_user=auth.uid() or p_status not in ('member','suspended') then raise exception 'Action non autorisée.'; end if;
+  if exists(select 1 from public.profiles where id=p_user and membership='organizer') then raise exception 'Un autre organisateur ne peut pas être suspendu ici.'; end if;
+  update public.profiles set membership=p_status where id=p_user;
+  if p_status='suspended' then
+    -- A suspended sponsor no longer vouches for the people they bring.
+    for sid in select distinct session_id from public.bookings where (user_id=p_user or sponsor_id=p_user) and status in ('confirmed','offered','pending','waitlisted') order by session_id
+    loop
+      perform 1 from public.sessions where id=sid for update;
+      update public.bookings set status='cancelled',offer_expires_at=null
+        where session_id=sid and (user_id=p_user or sponsor_id=p_user) and status in ('confirmed','offered','pending','waitlisted');
+      perform public.rebalance(sid);
+    end loop;
+  end if;
+end; $$;
+
+create or replace function public.maintenance() returns void language plpgsql security definer set search_path = '' as $$
+declare sid uuid;
+begin
+  for sid in select id from public.sessions where status='published' and starts_at>now() order by id loop perform public.rebalance(sid); end loop;
+  -- One reminder per person, naming the people they bring.
+  insert into public.notifications(user_id,session_id,title,body,dedupe_key)
+    select recipient,session_id,'Ta session approche',
+      case when guests is null then 'Un imprévu ? Pense à libérer ta place depuis le site. À très vite !'
+        when attending then guests||case when guest_count>1 then ' viennent' else ' vient' end||' avec toi. Un imprévu ? Pense à libérer vos places depuis le site.'
+        else guests||case when guest_count>1 then ' sont attendu·es. Transmets-leur' else ' est attendu·e. Transmets-lui' end||' l’heure et le lieu.' end,
+      'reminder:'||session_id||':'||recipient
+    from (select coalesce(b.user_id,b.sponsor_id) as recipient,b.session_id,bool_or(b.user_id is not null) as attending,
+        count(*) filter(where b.user_id is null) as guest_count,
+        string_agg(b.guest_name,' et ' order by b.guest_name) filter(where b.user_id is null) as guests
+      from public.bookings b join public.sessions s on s.id=b.session_id
+      where b.status='confirmed' and s.status='published' and s.starts_at between now() and now()+interval '24 hours'
+      group by 1,2) reminders
+    on conflict(dedupe_key) do nothing;
+  -- Guests never created an account: keep their first name only while the evening is recent.
+  update public.bookings b set guest_name='Invité·e' from public.sessions s
+    where s.id=b.session_id and b.guest_name is not null and b.guest_name<>'Invité·e' and s.ends_at<now()-interval '30 days';
+  -- Notifications are only an e-mail outbox; drop them with the guest names they carry once the evening is long past.
+  delete from public.notifications n using public.sessions s where n.session_id=s.id and s.ends_at<now()-interval '30 days';
+  delete from public.action_limits where window_start<now()-interval '2 days';
+end; $$;
+
+-- Same as the first migration, except the pending message: travellers are reviewed for every game.
+create or replace function public.book_session(p_id uuid) returns text language plpgsql security definer set search_path = '' as $$
+declare s public.sessions; p public.profiles; existing public.bookings; result text; target_pool text;
+begin
+  perform public.rate_guard('booking',20,600);
+  select * into p from public.profiles where id=auth.uid();
+  select * into s from public.sessions where id=p_id for update;
+  if s.id is null or not public.can_see_session(p_id) then raise exception 'Cette session est inaccessible.'; end if;
+  if s.status<>'published' or s.starts_at<=now()+interval '30 minutes' then raise exception 'Les inscriptions sont closes.'; end if;
+  select * into existing from public.bookings where session_id=p_id and user_id=auth.uid();
+  if existing.status in ('pending','confirmed','waitlisted','offered') then return existing.status; end if;
+  if existing.status='declined' then raise exception 'Contacte un organisateur pour cette session.'; end if;
+  perform public.rebalance(p_id);
+  target_pool=case when p.membership='newcomer' then 'newcomer' else 'circle' end;
+  result=case when p.membership='newcomer' then 'pending' when public.seat_available(p_id,target_pool) then 'confirmed' else 'waitlisted' end;
+  insert into public.bookings(session_id,user_id,status,pool) values(p_id,auth.uid(),result,target_pool)
+    on conflict(session_id,user_id) do update set status=excluded.status,pool=excluded.pool,created_at=now(),offer_expires_at=null;
+  perform public.notify(auth.uid(),p_id,
+    case result when 'confirmed' then 'Ta place est réservée' when 'pending' then 'Demande envoyée' else 'Tu es sur la liste d’attente' end,
+    case result when 'confirmed' then 'Retrouve les informations pratiques dans ta session.' when 'pending' then 'Un organisateur va valider ta demande.' else 'Nous te proposerons une place dès qu’elle se libère.' end);
+  return result;
+end; $$;
