@@ -16,7 +16,7 @@ function Captcha({ onToken }: { onToken:(token:string)=>void }) {
 }
 export function SignInButton({ label='Se connecter', className='button primary', configured=true }: {label?:string;className?:string;configured?:boolean}) {
   const [open,setOpen]=useState(false);
-  return <><button className={className} onClick={()=>setOpen(true)}><LogIn size={16}/>{label}</button><Dialog open={open} onClose={()=>setOpen(false)} title="BOTTT"><AuthForm configured={configured} onSuccess={()=>setOpen(false)}/></Dialog></>;
+  return <><button className={className} onClick={()=>setOpen(true)}><LogIn size={16}/>{label}</button><Dialog open={open} onClose={()=>setOpen(false)} title="Se connecter"><AuthForm configured={configured} onSuccess={()=>setOpen(false)}/></Dialog></>;
 }
 export function AuthForm({ configured=true,onSuccess }: {configured?:boolean;onSuccess?:()=>void}) {
   const [step,setStep]=useState<'email'|'code'>('email'); const [email,setEmail]=useState(''); const [name,setName]=useState(''); const [code,setCode]=useState(''); const [captcha,setCaptcha]=useState(''); const [sentAt,setSentAt]=useState(0); const [cooldown,setCooldown]=useState(0);const a=useAction();

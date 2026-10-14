@@ -50,14 +50,14 @@ Les identifiants locaux sont générés automatiquement dans `.docker/` et `.env
 - Parties dépliables dans « Jouer » : sièges, inscriptions et désistements restent sur la même page. Plusieurs cercles peuvent être ouverts ensemble. L’ancien lien « Mes parties » redirige vers l’accueil.
 - Événements limités aux informations pratiques, sans champ de description.
 - Parties à partir de 7 joueurs ; capacité de 15 places par défaut, ajustable jusqu’à 20. Compteur des places réservées visible dans la liste des parties.
-- Quotas membres/nouveaux et réunion des quotas avant la soirée.
+- Quotas membres/voyageurs et réunion des quotas avant la soirée.
 - Pas de MJ désigné sur les parties : chaque personne peut se proposer dans son profil. Une petite icône de livre identifie les volontaires parmi les participants.
-- Première participation des nouveaux soumise à validation. Validation puis inscription confirmée ou liste d’attente selon les places. L’organisateur peut aussi valider un membre directement.
-- Parrainage à usage unique, valable 7 jours et limité à 5 invitations par jour. Le parrain n’accède jamais au compte de son invité.
+- Quatre statuts : membre, invité·e de membre, voyageur·se (compte pas encore membre) et voyageur·se amené·e par un voyageur. Un membre amène jusqu’à 2 personnes sans compte, qui ont leur place d’office sur les places membres. Les voyageurs et leurs amis prennent les places voyageurs et sont validés à chaque partie ; l’organisateur accepte le groupe en une fois et peut passer un voyageur membre. Les prénoms des invités sont effacés 30 jours après la soirée.
+- Parrainage à usage unique, valable 7 jours et limité à 5 invitations par jour. Le parrain n’accède jamais au compte de son invité. Le lien fait directement de l’invité·e un·e membre.
 - Désistement, liste d’attente chronologique par quota éligible, proposition réservée jusqu’à 12 heures (ou 30 minutes avant la session), acceptation explicite. Une proposition expirée est annulée pour permettre de passer au suivant.
 - Statuts dans « Jouer » et notifications par e-mail : confirmation, validation, proposition, désistement, changements, annulation et rappel à moins de 24 h.
 - Création et modification de sessions, validation/retrait des participants, suspension des membres.
-- Profil et couleur d’avatar, interface mobile et navigation clavier. Cliquer sur la date ouvre les liens préremplis Google Agenda, Outlook ou un fichier iCalendar. Une partie visible peut être ajoutée à l’agenda ; seuls les organisateurs et inscrits confirmés obtiennent l’adresse privée. L’ajout crée une copie et ne synchronise pas les changements ultérieurs.
+- Profil et couleur d’avatar, interface mobile et navigation clavier. Cliquer sur la date ouvre les liens préremplis Google Agenda, Outlook ou un fichier iCalendar. Une partie visible peut être ajoutée à l’agenda ; seuls les organisateurs, les inscrits confirmés et les personnes dont un·e invité·e est confirmé·e obtiennent l’adresse privée. L’ajout crée une copie et ne synchronise pas les changements ultérieurs.
 - Adresse texte ou lien partagé Google Maps, Apple Plans, Waze, etc. Le lien est conservé avec l’adresse privée, sans changement de schéma, et s’ouvre au clic.
 - Footer avec conditions d’utilisation, données personnelles et cookies ; coordonnées du responsable : Lévy MARQUES, bonjour@bottt.fr. Bandeau d’information à valider, mémorisé localement six mois et accessible via « Gérer les cookies ». Le site n’ajoute aucun traceur facultatif.
 - Polices variables servies localement avec leurs licences, cadre rendu côté serveur, formulaire organisateur chargé à l’ouverture, requêtes d’invitations réservées à leur page et suppression des requêtes de notifications inutilisées.
@@ -66,7 +66,7 @@ Les identifiants locaux sont générés automatiquement dans `.docker/` et `.env
 
 Les droits sont vérifiés côté serveur et dans PostgreSQL (RLS). Les joueurs ne peuvent pas écrire directement dans les réservations ni modifier leur statut de membre. Les fonctions transactionnelles identifient toujours l’appelant via sa session ; elles n’acceptent aucun identifiant de joueur à usurper. Le verrouillage de chaque session empêche deux réservations concurrentes de dépasser les quotas.
 
-L’adresse précise est dans une table distincte et accessible uniquement aux organisateurs et aux participants confirmés. Les e-mails ne sont pas exposés aux autres joueurs. Les invitations sont stockées sous forme d’empreinte ; le lien complet n’est affiché qu’à sa création.
+L’adresse précise est dans une table distincte et accessible uniquement aux organisateurs, aux participants confirmés et aux personnes dont un·e invité·e est confirmé·e. Les e-mails ne sont pas exposés aux autres joueurs. Les invitations sont stockées sous forme d’empreinte ; le lien complet n’est affiché qu’à sa création. Un invité n’a pas de compte : seul son prénom est enregistré, et la personne qui l’amène reçoit les messages qui le concernent.
 
 La pile locale ne comporte pas de CAPTCHA externe : les limites d’envoi et de tentatives d’Auth, ainsi que les limites des actions en base, sont actives. La boîte mail locale et Studio sont des outils de développement sans authentification destinés à cette machine. Utilise des comptes fictifs.
 
@@ -79,12 +79,12 @@ pnpm build
 node node_modules/tsx/dist/cli.mjs --env-file=.env.local tests/local-integration.ts
 ```
 
-Les tests SQL couvrent les droits, l’identité, les quotas, les doublons, le parrainage, l’expiration de session et les désistements. Le test d’intégration utilise la vraie pile Docker, effectue des réservations simultanées et supprime uniquement ses propres données temporaires.
+Les tests SQL couvrent les droits, l’identité, les quotas, les doublons, le parrainage, l’expiration de session, les désistements et les invités. Le test d’intégration utilise la vraie pile Docker, effectue des réservations simultanées et supprime uniquement ses propres données temporaires.
 
 ## Mise en ligne
 
 1. Créer un dépôt avec ce dossier, sans `.env*`, `.docker/`, `node_modules/` ou `.next/`, puis l’importer dans Vercel (projet Next.js).
-2. Appliquer les fichiers `supabase/migrations/` au projet Supabase distant avec le workflow GitHub décrit ci-dessous. Le premier lancement applique les quatre migrations ; les suivants appliquent seulement celles qui manquent. Les exemples locaux ne sont pas importés.
+2. Appliquer les fichiers `supabase/migrations/` au projet Supabase distant avec le workflow GitHub décrit ci-dessous. Le premier lancement applique les cinq migrations ; les suivants appliquent seulement celles qui manquent. Les exemples locaux ne sont pas importés.
 3. Renseigner les variables de `.env.example` dans Vercel. La clé de service reste côté serveur ; seule la clé publique peut avoir le préfixe `NEXT_PUBLIC_`.
 4. Configurer le fournisseur d’e-mails d’Auth, utiliser `supabase/templates/code.html` pour la confirmation et la connexion, choisir un code à 6 chiffres avec une expiration de 600 secondes. Vérifier l’URL réelle du site et les limites d’envoi.
 5. Activer la protection Turnstile dans Supabase Auth avec sa clé secrète, et renseigner `NEXT_PUBLIC_TURNSTILE_SITE_KEY` dans Vercel. Sans clé publique configurée, le formulaire bloque les inscriptions sur Vercel. Tester aussi le rejet des requêtes directes sans jeton par Supabase.

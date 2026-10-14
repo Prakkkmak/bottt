@@ -94,7 +94,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .button.full { width: 100%; }
 .icon-btn, .row-open { width: 44px; height: 44px; border: 1px solid transparent; background: transparent; color: var(--muted); border-radius: 6px; display: inline-flex; justify-content: center; align-items: center; flex-shrink: 0; }
 .icon-btn:hover, .row-open:hover { background: var(--raised); color: var(--parchment); border-color: var(--border); }
-.text-link { display: inline-flex; gap: 5px; align-items: center; color: var(--parchment); font-size: 13px; margin-top: 10px; min-height: 30px; }
+.text-link { display: inline-flex; gap: 5px; align-items: center; color: var(--parchment); font-size: 13px; margin-top: 10px; min-height: 44px; }
 .text-link:hover { text-decoration: underline; }
 
 /* The next game is an open grimoire; the rest stays deliberately quiet. */
@@ -148,6 +148,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .row-meta { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; color: var(--muted); font-size: 14px; margin-top: 10px; }
 .row-meta > span { display: inline-flex; gap: 6px; align-items: center; }
 .row-script svg { color: var(--gold); }
+.row-lock { color: var(--gold); }
 .row-state { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--green); }
 .row-state.active { color: #d4bbec; }
 .row-state.full { color: var(--muted); }
@@ -185,7 +186,6 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .otp-input { text-align: center; font-size: 30px!important; letter-spacing: 10px; font-variant-numeric: tabular-nums; }
 .local-hint { padding: 13px; font-size: 12px; line-height: 1.8; background: #342536; color: #c4afc5; border-radius: 5px; }
 .local-hint a { text-decoration: underline; }
-.local-hint strong { display: block; }
 .alert { padding: 13px 16px; background: #28372f; border: 1px solid #506752; border-radius: 6px; color: #d0e0c8; font-size: 14px; }
 .alert.error { background: #472534; color: #ffdae0; border-color: #985769; }
 .alert.info { background: #30253d; color: #d6c5e7; border-color: #60456f; }
@@ -254,17 +254,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .booking-panel .security-note { font-size: 11px; }
 .booking-panel .disclosure > summary { font-size: 12px; padding: 7px 0; }
 .booking-panel .disclosure .muted { font-size: 12px; }
-.notices h2 { font-size: 19px; }
-.notice { padding: 16px 0; border-bottom: 1px solid var(--border); }
-.notice:last-child { border-bottom: 0; }
-.notice h3 { font-size: 14px; margin: 5px 0; }
-.notice p { font-size: 14px; color: var(--muted); line-height: 1.8; }
-.notice small { font-size: 13px; color: var(--muted); }
-.notice.unread h3::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 6px; background: var(--gold); }
 .participation-grid .session-row { flex-wrap: wrap; gap: 14px; }
 .participation-grid .row-state { margin-left: 67px; }
 .participation-grid .row-open { margin-left: auto; }
-.invitation-layout { max-width: 700px; margin: 0 auto; }
+.invitation-layout { max-width: 700px; margin: 0 auto; display: grid; gap: 20px; }
 .invitation-main { text-align: center; padding: 36px; }
 .invitation-main h2 { font-size: 26px; margin: 22px auto 0; max-width: 25ch; }
 .invitation-main > .muted { margin: 14px auto 23px; max-width: 47ch; }
@@ -297,7 +290,6 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .account-note p { font-size: 14px; color: var(--muted); margin: 15px 0; }
 .account-note .button { width: 100%; margin-top: 8px; }
 .my-games { max-width: 850px; margin: 0 auto; }
-.my-games .notices { margin-top: 30px; }
 .admin-heading { align-items: center; }
 .admin-stats { display: flex; flex-wrap: wrap; gap: 24px; margin: -5px 0 26px; }
 .admin-stats > div { display: flex; align-items: center; gap: 10px; color: var(--muted); }
@@ -312,6 +304,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .admin-session-name { flex: 1; min-width: 150px; }
 .admin-session-name h2 { font-size: 18px; }
 .admin-session-name p { font-size: 14px; color: var(--muted); margin-top: 6px; }
+.admin-session-row.is-past, .admin-session-row.is-cancelled { opacity: .72; background: #1f1a2b; }
+.admin-session-row.is-past .date-tile, .admin-session-row.is-cancelled .date-tile { background: #d9ccc0; box-shadow: none; }
+.admin-session-row .session-state { color: var(--gold); font-weight: 600; }
+.admin-session-row.is-cancelled .session-state { color: #ffd7e0; }
 .row-actions { display: flex; gap: 7px; align-items: center; }
 .request-row, .member-row { display: flex; align-items: center; gap: 14px; padding: 17px 0; border-bottom: 1px solid var(--border); }
 .request-row:last-child, .member-row:last-child { border-bottom: 0; }
@@ -326,7 +322,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .form-section .text-link { margin: 0; }
 .session-options > summary { padding: 12px 0; }
 .session-options summary span { display: inline-flex; gap: 8px; align-items: center; }
-.session-form > .button { position: sticky; bottom: -28px; z-index: 1; }
+/* The submit stays reachable while the form scrolls; a paper halo turns it into a footer bar rather than a floating overlap. */
+.session-form > .button { position: sticky; bottom: -28px; z-index: 1; margin-top: 4px; box-shadow: 0 0 0 14px var(--paper), inset 0 1px #ffffff12, 0 3px 0 #431c2e; }
 .practical-link { display: inline-flex; align-items: center; gap: 8px; padding: 0; color: inherit; font: inherit; background: transparent; border: 0; text-align: left; min-height: 44px; }
 .practical-link:hover { color: var(--gold); }
 a.practical-link, .calendar-link > span { text-decoration: underline; text-underline-offset: 4px; }
@@ -504,7 +501,6 @@ a.practical-link, .calendar-link > span { text-decoration: underline; text-under
 .booking-circle button:disabled { opacity: .55; cursor: wait; }
 .booking-circle[aria-busy="true"] .village-center { opacity: .6; }
 .circle-roster { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 14px; width: 100%; padding: 16px 0 0; margin: 0; list-style: none; border-top: 1px solid #a186a4; }
-.circle-roster.narrow-roster { display: none; }
 .circle-roster li { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--ink); font-size: 14px; }
 .circle-roster li > span:nth-child(2) { min-width: 0; overflow-wrap: anywhere; }
 .circle-roster small { font-size: inherit; color: var(--gold); }
@@ -529,6 +525,8 @@ a.practical-link, .calendar-link > span { text-decoration: underline; text-under
   .booking-circle { width: min(100%, 350px); }
   .booking-circle .village-token { width: 44px; }
   .booking-circle.dense-circle .village-token { width: 38px; }
+  /* Tokens shrink visually on narrow screens; the invisible halo keeps a 44px tap target. */
+  .booking-circle button.village-token::after { content: ''; position: absolute; inset: -4px; border-radius: 50%; }
   .booking-circle .village-center > span { font-size: 28px; }
   .booking-circle .village-center small { font-size: 12px; }
   .detail-when { gap: 10px 17px; font-size: 13px; margin-top: 16px; }
@@ -538,8 +536,10 @@ a.practical-link, .calendar-link > span { text-decoration: underline; text-under
   .session-table { padding-inline: 17px; }
   .booking-circle .village-token { width: 39px; }
   .booking-circle.dense-circle .village-token { width: 30px; }
+  .booking-circle button.village-token::after { inset: -7px; }
 }
-@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto!important; transition: none!important; animation: none!important; } }
+/* Keep end states (chevron rotation, hover colours) but make them instantaneous. */
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto!important; transition-duration: .01ms!important; animation-duration: .01ms!important; animation-iteration-count: 1!important; } }
 
 /* Each session opens its own circle within the list. */
 .session-list { gap: 16px; }
@@ -603,5 +603,36 @@ a.practical-link, .calendar-link > span { text-decoration: underline; text-under
   .booking-circle .village-center > span { font-size: 25px; }
   .booking-circle .village-center small { font-size: 11px; }
   .booking-circle .token-name { display: none; }
-  .circle-roster.narrow-roster { display: grid; }
 }
+/* Who brought whom: a dashed ring for travellers, a link badge for people brought by someone. */
+.village-token.taken.is-traveller { border-style: dashed; }
+.booking-circle .village-token.taken.is-traveller { background: #f1e2c4; border: 2px dashed #9b6a2f; }
+.token-guest { position: absolute; bottom: -4px; left: -4px; display: grid; place-items: center; width: 19px; height: 19px; border: 1px solid #e7c78f; border-radius: 50%; color: #f7d69e; background: #352526; pointer-events: none; }
+.booking-circle .village-token.is-my-guest { box-shadow: inset 0 0 0 3px #d4a94d55, 0 0 0 4px #f3c67540, 0 4px 0 #130f20; }
+/* The people a player brings, and the quick form to add one. */
+.circle-roster small.roster-role { display: block; font-size: 12px; color: var(--muted); }
+.my-guests { width: 100%; display: grid; gap: 8px; padding: 14px 16px; border: 1px solid #f3c67566; border-radius: 8px; background: #3e2a2f; }
+.my-guests-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.my-guests-heading p { color: var(--parchment); font-weight: 600; }
+.my-guests-heading span { color: var(--muted); font-weight: 400; }
+.my-guests-hint { color: var(--muted); font-size: 13px; }
+.my-guest-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; font-size: 14px; }
+.guest-status { color: var(--muted); font-size: 13px; }
+.guest-status-confirmed { color: var(--green); }
+.guest-status-offered { color: var(--gold); }
+.guest-suggestions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
+.guest-chip { min-height: 36px; padding: 4px 12px; border: 1px solid var(--border); border-radius: 999px; background: transparent; color: var(--ink); font-size: 13px; }
+.guest-chip:hover, .guest-chip[aria-pressed="true"] { border-color: var(--gold); color: var(--parchment); }
+.guest-release { margin: 0; padding: 0; border: 0; }
+.guest-release legend { margin-bottom: 4px; color: var(--parchment); font-size: 14px; }
+/* Organizer: requests grouped by traveller, guests listed under the person who brings them. */
+.request-row .request-role { color: var(--muted); font-size: 13px; font-weight: 400; }
+.request-guest { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px solid #77678360; color: var(--ink); font-size: 13px; }
+.request-guest span { display: inline-flex; align-items: center; gap: 6px; }
+.request-actions { flex-wrap: wrap; justify-content: flex-end; }
+.is-guest-row { padding-left: 28px; }
+/* Invite page: the people the viewer brings to upcoming games. */
+.guest-overview { display: grid; gap: 0; margin: 22px 0 0; padding: 0; list-style: none; text-align: left; }
+.guest-overview li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-top: 1px solid var(--border); }
+.guest-overview a { display: grid; }
+.guest-overview a span { color: var(--muted); font-size: 13px; }

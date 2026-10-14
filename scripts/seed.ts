@@ -15,7 +15,7 @@ for(let i=0;i<names.length;i++){
 const sessionIds=['10000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000002','10000000-0000-4000-8000-000000000003','10000000-0000-4000-8000-000000000004'];
 for(const [index,s] of demoSessions().entries()){
  const {data:existing}=await db.from('sessions').select('id').eq('id',sessionIds[index]).maybeSingle();if(existing)continue;
- const {id,confirmed_count,waitlist_count,my_status,participants,...session}=s;
+ const {id,confirmed_count,waitlist_count,my_status,participants,occupied_seats,my_seat,my_guests,member_seats_free,traveller_seats_free,...session}=s;
  const sid=sessionIds[index];const {error}=await db.from('sessions').insert({...session,id:sid,created_by:ids[0]});if(error)throw error;
  await db.from('session_addresses').insert({session_id:sid,address:'Adresse fictive de démonstration — à remplacer avant une vraie session.'});
  const players=index===2?[0,1,2,12]:Array.from({length:confirmed_count},(_,j)=>j+1);
@@ -23,5 +23,7 @@ for(const [index,s] of demoSessions().entries()){
  if(index===1){rows.push({session_id:sid,user_id:ids[0],status:'waitlisted',pool:'circle'},{session_id:sid,user_id:ids[14],status:'waitlisted',pool:'newcomer'});}
  if(index===0)rows.push({session_id:sid,user_id:ids[13],status:'pending',pool:'newcomer'});
  const {error:bError}=await db.from('bookings').insert(rows);if(bError)throw bError;
+ // Guests have no account: Léa's guest has a seat at once, Maxime's friend waits with him for review.
+ if(index===0){const {error:gError}=await db.from('bookings').insert([{session_id:sid,guest_name:'Paul',sponsor_id:ids[1],status:'confirmed',pool:'circle'},{session_id:sid,guest_name:'Nora',sponsor_id:ids[13],status:'pending',pool:'newcomer'}]);if(gError)throw gError;}
 }
 console.log('Exemples locaux prêts : 4 sessions, 16 profils. Compte organisateur : camille@cercle.test.');

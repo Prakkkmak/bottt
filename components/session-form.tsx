@@ -37,15 +37,15 @@ export function SessionForm({ session, address = '', template, onSaved }: { sess
       a.run(() => saveSession(payload), onSaved);
     } catch (err) { a.setResult({ ok: false, message: err instanceof Error ? err.message : 'Vérifie la date.' }); }
   }}>
-    <p className="muted">{!session && template ? 'Les réglages de la dernière partie sont repris. Ajuste ce dont tu as besoin.' : 'Choisis le début de la soirée, vérifie le lieu et publie.'}</p>
+    <p className="muted">{!session && template ? 'Le lieu, le script et les réglages de la dernière partie sont repris. Donne un nom à cette soirée et ajuste ce dont tu as besoin.' : 'Choisis le début de la soirée, vérifie le lieu et publie.'}</p>
     <fieldset className="form-section"><legend><CalendarDays size={18} />La soirée</legend>
-      <label className="field">Nom de la partie<input name="title" required minLength={3} maxLength={100} defaultValue={defaults?.title || 'Soirée Blood on the Clocktower'} /></label>
+      <label className="field">Nom de la partie<input name="title" required minLength={3} maxLength={100} defaultValue={session?.title || ''} placeholder="Soirée Blood on the Clocktower" autoFocus={!session} data-autofocus={!session || undefined} /></label>
       <div className="form-grid"><label className="field">Début · heure de Paris<input name="starts_at" required type="datetime-local" value={start} onChange={e => setStart(e.target.value)} /></label><label className="field">Script<input name="script" required list="session-scripts" minLength={2} maxLength={100} defaultValue={defaults?.script || 'Trouble Brewing'} /><datalist id="session-scripts"><option>Trouble Brewing</option><option>Bad Moon Rising</option><option>Sects &amp; Violets</option></datalist></label></div>
       <p className="field-note">{session ? 'La durée de la partie est conservée.' : `Durée estimée de ${DEFAULT_SESSION_HOURS} h pour l’agenda.`}{endLabel && ` Fin prévue : ${endLabel}.`}</p>
     </fieldset>
     <fieldset className="form-section"><legend><MapPin size={18} />Le lieu</legend>
       <label className="field">Lieu affiché à tous<input name="location" required minLength={2} maxLength={150} value={location} onChange={e => setLocation(e.target.value)} placeholder="Brest · quartier ou lieu de rendez-vous" /></label>
-      <label className="field">Adresse précise <span className="field-note">Visible uniquement des inscrits confirmés</span><textarea name="address" maxLength={500} rows={2} value={preciseAddress} onChange={e => setPreciseAddress(e.target.value)} onPaste={e => {
+      <label className="field">Adresse précise <span className="field-note">Visible des inscrits confirmés et des personnes dont un·e invité·e est confirmé·e</span><textarea name="address" maxLength={500} rows={2} value={preciseAddress} onChange={e => setPreciseAddress(e.target.value)} onPaste={e => {
         const pasted = splitAddress(e.clipboardData.getData('text'));
         if (!pasted.mapsUrl) return;
         e.preventDefault();
@@ -57,8 +57,8 @@ export function SessionForm({ session, address = '', template, onSaved }: { sess
       {(map || preciseAddress) && <a className="text-link" href={mapsUrl([preciseAddress, map].filter(Boolean).join('\n'))} target="_blank" rel="noopener noreferrer">Vérifier le lieu sur la carte ↗</a>}
     </fieldset>
     <details className="disclosure session-options"><summary><span><Settings2 size={16} />Réglages de la partie</span></summary><div className="stack">
-      <div className="form-grid"><label className="field">Places joueurs<input name="capacity" type="number" required min={MIN_PLAYERS} max={MAX_CAPACITY} defaultValue={defaults?.capacity ?? DEFAULT_CAPACITY} /></label><label className="field">Dont nouveaux<input name="newcomer_seats" type="number" required min={0} max={MAX_CAPACITY} defaultValue={defaults?.newcomer_seats ?? 3} /></label></div>
-      <div className="form-grid"><label className="field">Quotas réunis à<select name="release_hours" defaultValue={releaseHours}>{releaseOptions.map(hours => <option key={hours} value={hours}>{hours === 0 ? 'L’heure de début' : hours % 24 === 0 ? `J−${hours / 24}` : `${hours} h avant`}</option>)}</select></label><label className="field">Visibilité<select name="visibility" defaultValue={defaults?.visibility || 'public'}><option value="public">Ouverte à tous</option><option value="members">Membres et personnes parrainées</option></select></label></div>
+      <div className="form-grid"><label className="field">Places joueurs<input name="capacity" type="number" required min={MIN_PLAYERS} max={MAX_CAPACITY} defaultValue={defaults?.capacity ?? DEFAULT_CAPACITY} /></label><label className="field">Dont places voyageurs<input name="newcomer_seats" type="number" required min={0} max={MAX_CAPACITY} defaultValue={defaults?.newcomer_seats ?? 3} /></label></div>
+      <div className="form-grid"><label className="field">Quotas réunis à<select name="release_hours" defaultValue={releaseHours}>{releaseOptions.map(hours => <option key={hours} value={hours}>{hours === 0 ? 'L’heure de début' : hours % 24 === 0 ? `J−${hours / 24}` : `${hours} h avant`}</option>)}</select></label><label className="field">Visibilité<select name="visibility" defaultValue={defaults?.visibility || 'public'}><option value="public">Ouverte à tous</option><option value="members">Membres et leurs invités</option></select></label></div>
     </div></details>
     <Feedback result={a.result} /><button className="button primary full" disabled={a.pending}>{a.pending ? 'Enregistrement…' : session ? 'Enregistrer les modifications' : 'Publier la partie'}</button>
   </form>;

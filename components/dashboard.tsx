@@ -13,9 +13,11 @@ export function Dashboard({ data, addresses, initialSessionId }: { data: AppData
   const toggle = (id: string) => setExpanded(current => { const ids = new Set(current); if (ids.has(id)) ids.delete(id); else ids.add(id); return ids; });
   const rest = upcoming.slice(1).filter(s => filter === 'all' || filter === 'available' && s.confirmed_count < s.capacity);
   const offer = upcoming.find(s => s.my_status === 'offered');
+  const guestOffer = offer ? undefined : upcoming.map(s => ({ session: s, guest: (s.my_guests ?? []).find(g => g.status === 'offered') })).find(o => o.guest);
+  const banner = offer ? { session: offer, text: <>Une place t’attend pour <strong>{offer.title}</strong>.</> } : guestOffer?.guest ? { session: guestOffer.session, text: <>Une place attend {guestOffer.guest.name} pour <strong>{guestOffer.session.title}</strong>.</> } : null;
   return <div className="lobby">
     <div className="page-heading lobby-heading"><h1>La prochaine session</h1>{data.profile?.membership === 'organizer' && <Link href="/organiser?nouvelle=1" className="button secondary compact" aria-label="Créer une partie"><Plus size={17} />Créer une partie</Link>}</div>
-    {offer && <a className="offer-banner" href={`#partie-${offer.id}`} onClick={() => { setFilter('all'); setExpanded(current => new Set([...current, offer.id])); }}><BellRing size={18} /><span>Une place t’attend pour <strong>{offer.title}</strong>.</span><span>Confirmer</span></a>}
+    {banner && <a className="offer-banner" href={`#partie-${banner.session.id}`} onClick={() => { setFilter('all'); setExpanded(current => new Set([...current, banner.session.id])); }}><BellRing size={18} /><span>{banner.text}</span><span>Confirmer</span></a>}
     {next ? <>
       <SessionCard data={data} session={next} address={addresses[next.id] || null} expanded={expanded.has(next.id)} onToggle={() => toggle(next.id)} featured />
       {upcoming.length > 1 && <section className="upcoming-section" aria-label="Sessions suivantes">

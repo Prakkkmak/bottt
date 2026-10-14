@@ -1,18 +1,6 @@
-import {test} from 'node:test';import assert from 'node:assert/strict';import {readFile,readdir} from 'node:fs/promises';import {PGlite} from '@electric-sql/pglite';
+import {test} from 'node:test';import assert from 'node:assert/strict';import {createDatabase,uuid} from './sql-harness';
 test('Règles de réservation et isolation des comptes',async t=>{
- const db=new PGlite();
- await db.exec(`create role anon;create role authenticated;create role service_role bypassrls;create schema auth;
- create table auth.users(id uuid primary key,email text,email_confirmed_at timestamptz,raw_user_meta_data jsonb default '{}');
- create table auth.sessions(id uuid primary key,user_id uuid references auth.users(id),created_at timestamptz default now(),not_after timestamptz);
- create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;
- create function auth.jwt() returns jsonb language sql stable as $$select coalesce(nullif(current_setting('request.jwt.claims',true),''),'{}')::jsonb$$;
- grant usage on schema auth to anon,authenticated,service_role;
- grant execute on all functions in schema auth to anon,authenticated,service_role;`);
- const migrations=new URL('../supabase/migrations/',import.meta.url);
- for(const name of (await readdir(migrations)).filter(n=>n.endsWith('.sql')).sort())await db.exec(await readFile(new URL(name,migrations),'utf8'));
- const uuid=(n:number)=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
- async function root(){await db.exec(`reset role; select set_config('request.jwt.claim.sub','',false); select set_config('request.jwt.claims','{}',false);`);}
- async function login(n:number){await root();await db.query(`select set_config('request.jwt.claim.sub',$1,false),set_config('request.jwt.claims',$2,false)`,[uuid(n),JSON.stringify({sub:uuid(n),session_id:uuid(n+1000)})]);await db.exec('set role authenticated');}
+ const {db,root,login}=await createDatabase();
  async function user(n:number,membership='member'){await root();await db.query(`insert into auth.users values($1,$2,now(),$3)`,[uuid(n),`test${n}@cercle.test`,JSON.stringify({display_name:`Joueur ${n}`,membership:'organizer'})]);await db.query(`insert into auth.sessions(id,user_id) values($1,$2)`,[uuid(n+1000),uuid(n)]);if(membership!=='newcomer')await db.query('update public.profiles set membership=$1 where id=$2',[membership,uuid(n)]);}
  for(let i=1;i<=12;i++)await user(i,i===1?'organizer':i===7||i===8||i===11?'newcomer':'member');
  const sid=uuid(100);await root();await db.query(`insert into public.sessions(id,title,script,starts_at,ends_at,location,storyteller,capacity,newcomer_seats,created_by) values($1,'Soirée de test','Trouble Brewing',now()+interval '10 days',now()+interval '10 days 4 hours','Paris','Alex',7,4,$2)`,[sid,uuid(1)]);await db.query(`insert into public.session_addresses values($1,'Adresse privée')`,[sid]);
