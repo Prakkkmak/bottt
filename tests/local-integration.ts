@@ -1,7 +1,7 @@
 import {createClient,type SupabaseClient} from '@supabase/supabase-js';import assert from 'node:assert/strict';import {randomUUID} from 'node:crypto';
 const url=process.env.NEXT_PUBLIC_SUPABASE_URL!;if(!url||new URL(url).hostname!=='127.0.0.1')throw new Error('Tests strictement locaux.');
 const publicKey=process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!;const admin=createClient(url,process.env.SUPABASE_SERVICE_ROLE_KEY!,{auth:{persistSession:false,autoRefreshToken:false}});
-const ids:string[]=[];const actors:SupabaseClient[]=[];let sid:string|undefined;const batch=randomUUID().slice(0,8);
+const ids:string[]=[];const actors:SupabaseClient[]=[];let sid:string|undefined;let guestSid:string|undefined;const batch=randomUUID().slice(0,8);
 try{
  for(let i=0;i<7;i++){
   const email=`qa-${batch}-${i}@cercle.test`;const created=await admin.auth.admin.createUser({email,email_confirm:true,user_metadata:{display_name:`Test ${i}`}});if(created.error)throw created.error;
@@ -37,8 +37,16 @@ try{
  const accepted=await actors[waiterIndex].rpc('accept_offer',{p_id:sid});assert.equal(accepted.data,'confirmed');
  const final=await admin.from('bookings').select('id',{count:'exact'}).eq('session_id',sid).eq('status','confirmed');assert.equal(final.count,5);
  console.log('OK : validation, désistement, proposition puis confirmation sans sur-réservation.');
+ const guestGame=await actors[0].rpc('save_session',{p_data:{title:'Test invités local',description:'',script:'Trouble Brewing',starts_at:date,ends_at:end,location:'Lieu de test',address:'',capacity:7,newcomer_seats:5,release_hours:72,beginners_welcome:true,visibility:'public'}});if(guestGame.error)throw guestGame.error;guestSid=guestGame.data;
+ const host=await actors[1].rpc('book_session',{p_id:guestSid});assert.equal(host.data,'confirmed');
+ const guests=await Promise.all([actors[2].rpc('add_guest',{p_session:guestSid,p_name:'Invité A'}),actors[3].rpc('add_guest',{p_session:guestSid,p_name:'Invité B'})]);
+ assert.ok(guests.every(r=>!r.error));assert.deepEqual(guests.map(r=>r.data).sort(),['confirmed','waitlisted']);
+ const embedded=await actors[0].from('bookings').select('*,profile:profiles(*)').eq('session_id',guestSid);
+ assert.equal(embedded.error,null);assert.equal(embedded.data?.filter((b:{guest_name:string|null})=>b.guest_name).length,2);
+ console.log('OK : deux invités ajoutés en même temps sur la dernière place membre, sans sur-réservation ; la requête organisateur reste valide.');
 }finally{
  if(sid)await admin.from('sessions').delete().eq('id',sid);
+ if(guestSid)await admin.from('sessions').delete().eq('id',guestSid);
  if(ids.length)await admin.from('action_limits').delete().in('user_id',ids);
  for(const id of ids)await admin.auth.admin.deleteUser(id);
  console.log('Données temporaires des tests supprimées ; exemples du site conservés.');
