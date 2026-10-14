@@ -39,13 +39,13 @@ export function SessionForm({ session, address = '', template, onSaved }: { sess
   }}>
     <p className="muted">{!session && template ? 'Le lieu, le script et les réglages de la dernière partie sont repris. Donne un nom à cette soirée et ajuste ce dont tu as besoin.' : 'Choisis le début de la soirée, vérifie le lieu et publie.'}</p>
     <fieldset className="form-section"><legend><CalendarDays size={18} />La soirée</legend>
-      <label className="field">Nom de la partie<input name="title" required minLength={3} maxLength={100} defaultValue={session?.title || ''} placeholder="Soirée Blood on the Clocktower" autoFocus={!session} /></label>
+      <label className="field">Nom de la partie<input name="title" required minLength={3} maxLength={100} defaultValue={session?.title || ''} placeholder="Soirée Blood on the Clocktower" autoFocus={!session} data-autofocus={!session || undefined} /></label>
       <div className="form-grid"><label className="field">Début · heure de Paris<input name="starts_at" required type="datetime-local" value={start} onChange={e => setStart(e.target.value)} /></label><label className="field">Script<input name="script" required list="session-scripts" minLength={2} maxLength={100} defaultValue={defaults?.script || 'Trouble Brewing'} /><datalist id="session-scripts"><option>Trouble Brewing</option><option>Bad Moon Rising</option><option>Sects &amp; Violets</option></datalist></label></div>
       <p className="field-note">{session ? 'La durée de la partie est conservée.' : `Durée estimée de ${DEFAULT_SESSION_HOURS} h pour l’agenda.`}{endLabel && ` Fin prévue : ${endLabel}.`}</p>
     </fieldset>
     <fieldset className="form-section"><legend><MapPin size={18} />Le lieu</legend>
       <label className="field">Lieu affiché à tous<input name="location" required minLength={2} maxLength={150} value={location} onChange={e => setLocation(e.target.value)} placeholder="Brest · quartier ou lieu de rendez-vous" /></label>
-      <label className="field">Adresse précise <span className="field-note">Visible uniquement des inscrits confirmés</span><textarea name="address" maxLength={500} rows={2} value={preciseAddress} onChange={e => setPreciseAddress(e.target.value)} onPaste={e => {
+      <label className="field">Adresse précise <span className="field-note">Visible des inscrits confirmés et des personnes dont un·e invité·e est confirmé·e</span><textarea name="address" maxLength={500} rows={2} value={preciseAddress} onChange={e => setPreciseAddress(e.target.value)} onPaste={e => {
         const pasted = splitAddress(e.clipboardData.getData('text'));
         if (!pasted.mapsUrl) return;
         e.preventDefault();

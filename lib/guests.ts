@@ -83,6 +83,21 @@ export function groupRequests(bookings: Booking[], profiles: Profile[]): Request
   return [...groups.values()];
 }
 
+/** What an organizer card says under the name: the person's own request, or why only their friends are waiting. */
+export function requestNote(group: RequestGroup, attending: boolean): string {
+  if (group.own) return group.person?.beginner ? 'Découvre le jeu' : 'Connaît déjà le jeu';
+  return attending ? 'Déjà inscrit·e, amène quelqu’un' : 'Ne vient pas, amène quelqu’un';
+}
+
+/** Asks an organizer to confirm refusing a whole group, naming the friends and who gets the message. */
+export function refusalText(group: RequestGroup): string {
+  const names = group.guests.map(g => g.guest_name).join(' et ');
+  const several = group.guests.length > 1;
+  const person = group.person?.display_name;
+  if (group.own) return `La demande de ${person ?? 'cette personne'} sera refusée${group.guests.length ? `, ainsi que ${several ? 'celles' : 'celle'} de ${names}` : ''}. Un message lui sera envoyé.`;
+  return `${several ? `Les demandes pour ${names} seront refusées` : `La demande pour ${names} sera refusée`}. ${person ?? 'Cette personne'} sera prévenu·e.`;
+}
+
 /** Each account's booking followed by the people it brings; guests of absent sponsors come last. */
 export function orderBySponsor(bookings: Booking[]): Booking[] {
   const people = bookings.filter(b => b.user_id);
@@ -91,9 +106,9 @@ export function orderBySponsor(bookings: Booking[]): Booking[] {
   return [...people.flatMap(b => [b, ...guests.filter(g => g.sponsor_id === b.user_id)]), ...guests.filter(g => !present.has(g.sponsor_id))];
 }
 
-/** Names the viewer brought recently, newest first, without the people already coming. */
+/** Names the viewer brought recently, newest first, without anyone already listed for this game, refused ones included. */
 export function recentGuestNames(sessions: GameSession[], current: GameSession, limit = 5): string[] {
-  const seen = new Set(activeGuests(current).map(g => g.name.toLocaleLowerCase('fr')));
+  const seen = new Set((current.my_guests ?? []).map(g => g.name.toLocaleLowerCase('fr')));
   const names: string[] = [];
   for (const s of [...sessions].sort((x, y) => Date.parse(y.starts_at) - Date.parse(x.starts_at))) {
     for (const g of s.my_guests ?? []) {

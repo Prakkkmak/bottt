@@ -5,8 +5,8 @@ import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { Plus, CalendarDays, UsersRound, Clock3, Check, X, Pencil, ShieldCheck, BookOpen, Link2 } from 'lucide-react';
 import type { AppData, GameSession, Booking, Profile } from '@/lib/types';
-import { time, shortDate, statusLabels, sessionUrl } from '@/lib/utils';
-import { bookingLabel, groupRequests, membershipLabels, orderBySponsor, type RequestGroup } from '@/lib/guests';
+import { time, shortDate, statusLabels, sessionUrl, activeBooking } from '@/lib/utils';
+import { bookingLabel, groupRequests, membershipLabels, orderBySponsor, refusalText, requestNote, type RequestGroup } from '@/lib/guests';
 import { cancelSession, reviewBooking, reviewRequest, setMembership } from '@/app/actions';
 import { Dialog } from './dialog';
 import { Avatar } from './ui';
@@ -41,12 +41,14 @@ export function Admin({ data, bookings, profiles, addresses, initialCreate = fal
       const session = data.sessions.find(s => s.id === r.sessionId);
       const name = r.person?.display_name ?? 'Voyageur·se';
       const count = (r.own ? 1 : 0) + r.guests.length;
+      // Tells apart a sponsor who is already registered from one who only sends friends.
+      const attending = bookings.some(b => b.session_id === r.sessionId && b.user_id === r.personId && activeBooking(b.status));
       return <div className="request-row" key={r.key}>
         <Avatar name={name} color={r.person?.avatar_color} />
         <div>
           <h3>{name} <small className="request-role">· {membershipLabels[r.person?.membership ?? 'newcomer']}</small></h3>
           <p>{session ? `${session.title} · ${shortDate(session.starts_at)}` : 'Partie'}</p>
-          <small>{r.own ? r.person?.beginner ? 'Découvre le jeu' : 'Connaît déjà le jeu' : 'Ne vient pas, amène quelqu’un'}</small>
+          <small>{requestNote(r, attending)}</small>
           {r.guests.map(g => <div className="request-guest" key={g.id}><span><Link2 size={14} aria-hidden="true" />{g.guest_name} · voyageur·se de {name}</span><button className="icon-btn" disabled={a.pending} aria-label={`Refuser ${g.guest_name}`} onClick={() => setRemoving(g)}><X size={16} /></button></div>)}
         </div>
         <div className="row-actions request-actions">
@@ -70,7 +72,7 @@ export function Admin({ data, bookings, profiles, addresses, initialCreate = fal
       <Feedback result={a.result} />
     </div></Dialog>
     <Dialog title="Retirer cette participation ?" open={!!removing} onClose={() => setRemoving(null)}><div className="stack"><p>{removing && !removing.user_id ? `${sponsorOf(removing)?.display_name ?? 'La personne qui l’amène'} sera prévenu·e.` : `${removing ? nameOf(removing) : ''} sera prévenu·e.`} Une éventuelle place libérée sera proposée à la liste d’attente.</p><button className="button danger" disabled={a.pending} onClick={() => removing && a.run(() => reviewBooking(removing.id, false), () => setRemoving(null))}>Retirer la participation</button><Feedback result={a.result} /></div></Dialog>
-    <Dialog title="Refuser cette demande ?" open={!!refusing} onClose={() => setRefusing(null)}><div className="stack"><p>La demande de {refusing?.person?.display_name ?? 'cette personne'}{refusing?.guests.length ? ` et celle de ${refusing.guests.map(g => g.guest_name).join(', ')}` : ''} sera refusée. Un message lui sera envoyé.</p><button className="button danger" disabled={a.pending} onClick={() => refusing && a.run(() => reviewRequest(refusing.sessionId, refusing.personId, false), () => setRefusing(null))}>Refuser la demande</button><Feedback result={a.result} /></div></Dialog>
+    <Dialog title="Refuser cette demande ?" open={!!refusing} onClose={() => setRefusing(null)}><div className="stack"><p>{refusing && refusalText(refusing)}</p><button className="button danger" disabled={a.pending} onClick={() => refusing && a.run(() => reviewRequest(refusing.sessionId, refusing.personId, false), () => setRefusing(null))}>Refuser la demande</button><Feedback result={a.result} /></div></Dialog>
     <Dialog title="Annuler cette soirée ?" open={!!cancel} onClose={() => setCancel(null)}><div className="stack"><p>La session « {cancel?.title} » sera annulée et les participants seront prévenus.</p><button className="button danger" disabled={a.pending} onClick={() => cancel && a.run(() => cancelSession(cancel.id), () => setCancel(null))}>Confirmer l’annulation</button><Feedback result={a.result} /></div></Dialog>
     <Dialog title={`Le compte de ${member?.display_name || ''}`} open={!!member} onClose={() => setMember(null)}><div className="stack"><p>{member?.membership === 'suspended' ? 'Réactiver ce compte lui permettra de participer à nouveau.' : 'La suspension bloque les inscriptions et libère les places futures de cette personne et de ses invités.'}</p><button className={`button ${member?.membership === 'suspended' ? 'primary' : 'danger'}`} disabled={a.pending} onClick={() => member && a.run(() => setMembership(member.id, member.membership === 'suspended' ? 'member' : 'suspended'), () => setMember(null))}>{member?.membership === 'suspended' ? 'Réactiver le compte' : 'Suspendre le compte'}</button>{member?.membership === 'newcomer' && <button className="button secondary" disabled={a.pending} onClick={() => a.run(() => setMembership(member.id, 'member'), () => setMember(null))}>Passer membre</button>}<Feedback result={a.result} /></div></Dialog>
   </>;

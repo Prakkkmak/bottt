@@ -21,7 +21,7 @@ export function SessionGuests({ session, hint, busy, onAdd, onRemove, onConfirm 
         <span>{g.name} <small className={`guest-status guest-status-${g.status}`}>· {g.status === 'offered' && !live ? 'proposition expirée' : guestStatusLabels[g.status]}{live && g.offer_expires_at ? ` jusqu’au ${dateLong(g.offer_expires_at)} à ${time(g.offer_expires_at)}` : ''}</small></span>
         <span className="row-actions">
           {live && <button type="button" className="button quiet compact" disabled={busy} onClick={() => onConfirm(g)}><Check size={15} />Confirmer pour {g.name}</button>}
-          {g.status !== 'declined' && <button type="button" className="button ghost compact" disabled={busy} onClick={() => onRemove(g)}>Retirer</button>}
+          {g.status !== 'declined' && <button type="button" className="button ghost compact" disabled={busy} aria-label={`Retirer ${g.name}`} onClick={() => onRemove(g)}>Retirer</button>}
         </span>
       </div>;
     })}

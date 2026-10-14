@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { Booking, GameSession, MyGuest, Profile } from '../lib/types';
-import { bookingLabel, canSeeAddress, groupRequests, orderBySponsor, participantLabel, recentGuestNames, seatPlan, waitlistHint } from '../lib/guests';
+import { bookingLabel, canSeeAddress, groupRequests, orderBySponsor, participantLabel, recentGuestNames, refusalText, requestNote, seatPlan, waitlistHint, type RequestGroup } from '../lib/guests';
 
 const now = Date.parse('2026-10-12T10:00:00Z');
 const session = (changes: Partial<GameSession> = {}): GameSession => ({ id: 's1', title: 'Soirée', script: 'Trouble Brewing', starts_at: '2026-10-20T17:30:00Z', ends_at: '2026-10-20T21:30:00Z', location: 'Brest', capacity: 8, newcomer_seats: 2, release_hours: 72, beginners_welcome: true, visibility: 'public', status: 'published', confirmed_count: 3, waitlist_count: 0, my_status: null, participants: [], member_seats_free: 3, traveller_seats_free: 2, my_guests: [], ...changes });
@@ -54,6 +54,29 @@ test('regroupement des demandes pour l’organisateur', () => {
   assert.deepEqual(groupRequests(bookings, profiles).map(g => [g.key, g.own?.id, g.guests.map(b => b.id), g.person?.display_name]), [['s1:u3', 'b1', ['b2'], 'Sami'], ['s1:u9', undefined, ['b3'], undefined]]);
 });
 
+test('cartes de demande et confirmation de refus pour l’organisateur', () => {
+  const sami = { id: 'u3', display_name: 'Sami', membership: 'newcomer', beginner: true } as Profile;
+  const base = { session_id: 's1', pool: 'newcomer' as const, created_at: '2026-10-12T10:00:00Z', offer_expires_at: null, status: 'pending' as const };
+  const own: Booking = { ...base, id: 'b1', user_id: 'u3', guest_name: null, sponsor_id: null };
+  const nora: Booking = { ...base, id: 'b2', user_id: null, guest_name: 'Nora', sponsor_id: 'u3' };
+  const yann: Booking = { ...base, id: 'b3', user_id: null, guest_name: 'Yann', sponsor_id: 'u3' };
+  const group = (guests: Booking[], withOwn: boolean, person: Profile | null = sami): RequestGroup => ({ key: 's1:u3', sessionId: 's1', personId: 'u3', person: person ?? undefined, ...(withOwn ? { own } : {}), guests });
+  // Own pending request: the beginner line, whether or not the person is also counted as attending.
+  assert.equal(requestNote(group([nora], true), true), 'Découvre le jeu');
+  assert.equal(requestNote(group([], true, { ...sami, beginner: false }), true), 'Connaît déjà le jeu');
+  // Only friends pending: already registered, or not coming at all.
+  assert.equal(requestNote(group([nora], false), true), 'Déjà inscrit·e, amène quelqu’un');
+  assert.equal(requestNote(group([nora], false), false), 'Ne vient pas, amène quelqu’un');
+  assert.equal(refusalText(group([], true)), 'La demande de Sami sera refusée. Un message lui sera envoyé.');
+  assert.equal(refusalText(group([nora], true)), 'La demande de Sami sera refusée, ainsi que celle de Nora. Un message lui sera envoyé.');
+  assert.equal(refusalText(group([nora, yann], true)), 'La demande de Sami sera refusée, ainsi que celles de Nora et Yann. Un message lui sera envoyé.');
+  assert.equal(refusalText(group([nora], false)), 'La demande pour Nora sera refusée. Sami sera prévenu·e.');
+  assert.equal(refusalText(group([nora, yann], false)), 'Les demandes pour Nora et Yann seront refusées. Sami sera prévenu·e.');
+  // Without a profile the person is still named, capitalised only where a sentence starts.
+  assert.equal(refusalText(group([], true, null)), 'La demande de cette personne sera refusée. Un message lui sera envoyé.');
+  assert.equal(refusalText(group([nora], false, null)), 'La demande pour Nora sera refusée. Cette personne sera prévenu·e.');
+});
+
 test('ordre des participants et libellés organisateur', () => {
   const base = { session_id: 's1', created_at: '2026-10-12T10:00:00Z', offer_expires_at: null, status: 'confirmed' as const };
   const lea: Booking = { ...base, id: 'b1', user_id: 'u1', guest_name: null, sponsor_id: null, pool: 'circle', profile: { membership: 'member' } as Profile };
@@ -69,6 +92,9 @@ test('suggestions de prénoms', () => {
   const newer = session({ id: 'new', starts_at: '2026-10-08T17:30:00Z', my_guests: [guest('Yann'), guest('Marie', 'declined', null)] });
   const current = session({ my_guests: [guest('Paul')] });
   assert.deepEqual(recentGuestNames([past, newer, current], current), ['Yann', 'Marie']);
+  // A name refused for this very game is not suggested again, whatever the older games say.
+  const refused = session({ my_guests: [guest('Zoé', 'declined', null)] });
+  assert.deepEqual(recentGuestNames([session({ id: 'older', starts_at: '2026-10-01T17:30:00Z', my_guests: [guest('Zoé'), guest('Léo')] }), refused], refused), ['Léo']);
 });
 
 test('accès à l’adresse', () => {

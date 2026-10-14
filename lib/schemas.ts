@@ -8,5 +8,5 @@ export const sessionSchema = z.object({
   location: z.string().trim().min(2).max(150), address: z.string().trim().max(500, 'L’adresse et le lien Maps doivent tenir en 500 caractères.'),
   capacity: z.number().int().min(MIN_PLAYERS, 'Prévois au moins 7 places joueurs.').max(MAX_CAPACITY).default(DEFAULT_CAPACITY), newcomer_seats: z.number().int().min(0).max(MAX_CAPACITY), release_hours: z.number().int().min(0).max(336),
   visibility: z.enum(['public','members'])
-}).transform(s => ({ ...s, ends_at: s.ends_at ?? sessionEnd(s.starts_at) })).refine(s => s.newcomer_seats <= s.capacity, 'Le quota des nouveaux dépasse la capacité.').refine(s => new Date(s.ends_at)>new Date(s.starts_at), 'La fin doit être après le début.').refine(s=>new Date(s.starts_at)>new Date(), 'Choisis une date à venir.');
+}).transform(s => ({ ...s, ends_at: s.ends_at ?? sessionEnd(s.starts_at) })).refine(s => s.newcomer_seats <= s.capacity, 'Les places voyageurs dépassent la capacité.').refine(s => new Date(s.ends_at)>new Date(s.starts_at), 'La fin doit être après le début.').refine(s=>new Date(s.starts_at)>new Date(), 'Choisis une date à venir.');
 export const guestNameSchema = z.string().trim().min(2, 'Indique un prénom ou un pseudo de 2 à 40 caractères.').max(40, 'Indique un prénom ou un pseudo de 2 à 40 caractères.');
