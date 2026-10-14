@@ -129,7 +129,7 @@ begin
   if b.user_id is null then
     perform public.notify(b.sponsor_id,b.session_id,
       case when result='confirmed' then b.guest_name||' a sa place' when result='waitlisted' then b.guest_name||' est en liste d’attente'
-        when previous='pending' then 'La participation de '||b.guest_name||' n’a pas été retenue' else b.guest_name||' a été retiré·e de la partie' end,
+        when previous='pending' then b.guest_name||' n’a pas été retenu·e pour cette partie' else b.guest_name||' a été retiré·e de la partie' end,
       case result when 'declined' then 'Contacte un organisateur si tu as une question.' else 'Retrouve les détails dans la partie.' end);
   else
     perform public.notify(b.user_id,b.session_id,
@@ -142,7 +142,7 @@ end; $$;
 
 -- Accepts or refuses, in one transaction and one message, a traveller's request and the friends they bring.
 create function public.review_request(p_session uuid,p_person uuid,p_approve boolean,p_promote boolean default false) returns text language plpgsql security definer set search_path='' as $$
-declare s public.sessions; b public.bookings; result text; own_result text; lines text[]=array[]::text[];
+declare s public.sessions; b public.bookings; result text; own_result text; lines text[]=array[]::text[]; friends text[]=array[]::text[];
 begin
   if not public.is_organizer() then raise exception 'Accès organisateur requis.'; end if;
   select * into s from public.sessions where id=p_session for update;
@@ -150,23 +150,27 @@ begin
   if not exists(select 1 from public.bookings where session_id=p_session and status='pending' and (user_id=p_person or sponsor_id=p_person)) then
     raise exception 'Cette demande a déjà été traitée.';
   end if;
-  if p_approve and p_promote then
-    update public.profiles set membership='member' where id=p_person and membership='newcomer';
-    update public.bookings set pool='circle' where session_id=p_session and user_id=p_person and status='pending';
+  if p_approve then
+    if p_promote then update public.profiles set membership='member' where id=p_person and membership='newcomer'; end if;
+    -- A member, promoted just now or earlier with set_membership, takes a member seat rather than a traveller one.
+    update public.bookings set pool='circle' where session_id=p_session and user_id=p_person and status='pending'
+      and exists(select 1 from public.profiles where id=p_person and membership in ('member','organizer'));
+    perform public.rebalance(p_session);
   end if;
-  if p_approve then perform public.rebalance(p_session); end if;
   -- The traveller's own request is seated first, then the friends in the order they were added.
   for b in select * from public.bookings where session_id=p_session and status='pending' and (user_id=p_person or sponsor_id=p_person)
     order by user_id is null,created_at,id for update
   loop
     result=case when not p_approve then 'declined' when public.seat_available(p_session,b.pool) then 'confirmed' else 'waitlisted' end;
     update public.bookings set status=result,offer_expires_at=null where id=b.id;
-    if b.user_id is not null then own_result=result; end if;
+    if b.user_id is not null then own_result=result; else friends=friends||b.guest_name; end if;
     lines=lines||(coalesce(b.guest_name,'Toi')||' : '||case result when 'confirmed' then 'place confirmée' when 'waitlisted' then 'liste d’attente' else 'non retenu·e' end);
   end loop;
+  -- Without a request of their own (already registered, or not coming), the sponsor is told about the friends alone.
   perform public.notify(p_person,p_session,
-    case when not p_approve then 'Participation non retenue' when own_result='confirmed' then 'Bienvenue, ta place est confirmée !'
-      when own_result='waitlisted' then 'Demande validée, tu es en attente' else 'Demande validée' end,
+    case when own_result is null then case when p_approve then 'Demande validée pour ' else 'Demande refusée pour ' end||array_to_string(friends,' et ')
+      when not p_approve then 'Participation non retenue' when own_result='confirmed' then 'Bienvenue, ta place est confirmée !'
+      else 'Demande validée, tu es en attente' end,
     array_to_string(lines,E'\n')||case when p_approve then E'\nRetrouve les détails dans la partie.' else E'\nContacte un organisateur si tu as une question.' end);
   perform public.rebalance(p_session);
   return coalesce(own_result,case when p_approve then 'confirmed' else 'declined' end);
@@ -227,7 +231,7 @@ begin
     -- One message per person, naming the people they bring.
     insert into public.notifications(user_id,session_id,title,body)
       select recipient,sid,'Les informations de ta session ont changé','Consulte les nouveaux horaires et le lieu avant de venir.'||coalesce(' Préviens '||guests||'.','')
-      from (select coalesce(user_id,sponsor_id) as recipient,string_agg(guest_name,', ' order by guest_name) filter(where user_id is null) as guests
+      from (select coalesce(user_id,sponsor_id) as recipient,string_agg(guest_name,' et ' order by guest_name) filter(where user_id is null) as guests
         from public.bookings where session_id=sid and status in ('confirmed','offered','waitlisted','pending') group by 1) recipients;
   else
     insert into public.sessions(title,description,script,starts_at,ends_at,location,capacity,newcomer_seats,release_hours,beginners_welcome,visibility,created_by)
@@ -248,7 +252,7 @@ begin
   update public.sessions set status='cancelled' where id=p_id;
   insert into public.notifications(user_id,session_id,title,body,dedupe_key)
     select recipient,p_id,'La session a été annulée','L’organisateur a annulé cette soirée.'||coalesce(' Préviens '||guests||'.','')||' Rendez-vous sur le site pour trouver une autre date.','cancel:'||p_id||':'||recipient
-    from (select coalesce(user_id,sponsor_id) as recipient,string_agg(guest_name,', ' order by guest_name) filter(where user_id is null) as guests
+    from (select coalesce(user_id,sponsor_id) as recipient,string_agg(guest_name,' et ' order by guest_name) filter(where user_id is null) as guests
       from public.bookings where session_id=p_id and status in ('pending','confirmed','waitlisted','offered') group by 1) recipients
     on conflict(dedupe_key) do nothing;
   update public.bookings set status='cancelled',offer_expires_at=null where session_id=p_id and status<>'declined';

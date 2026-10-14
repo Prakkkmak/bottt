@@ -22,13 +22,13 @@ test('Modifications, annulation, rappels et effacement des invités',async t=>{
   await t.test('modifier la partie envoie un seul message par personne, qui cite ses invités',async()=>{
     await h.login(1);await h.call('select save_session($1::jsonb)',[input(game)]);
     const two=await notices(2,'Les informations de ta session ont changé');const four=await notices(4,'Les informations de ta session ont changé');
-    assert.equal(two.length,1);assert.match(two[0].body,/Préviens Lou, Paul\./);
-    assert.equal(four.length,1);assert.match(four[0].body,/Préviens Inès, Tom\./);
+    assert.equal(two.length,1);assert.match(two[0].body,/Préviens Lou et Paul\./);
+    assert.equal(four.length,1);assert.match(four[0].body,/Préviens Inès et Tom\./);
   });
   await t.test('annuler la partie prévient chaque parrain une seule fois',async()=>{
     await h.login(1);await h.call('select cancel_session($1)',[game]);
     const two=await notices(2,'La session a été annulée');
-    assert.equal(two.length,1);assert.match(two[0].body,/Préviens Lou, Paul\./);
+    assert.equal(two.length,1);assert.match(two[0].body,/Préviens Lou et Paul\./);
   });
   const open=uuid(101);await h.session(open);
   await t.test('une session ne passe pas « membres » quand un ami de voyageur y est inscrit',async()=>{
