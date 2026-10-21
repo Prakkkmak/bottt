@@ -35,11 +35,11 @@ export function invitationMail(sponsorName: string, link: string) {
     subject: `${sponsor} t’invite à rejoindre Blood on the Tanguy Tower`,
     text: [
       'Bonjour,',
-      `${sponsor} t’invite à rejoindre Blood on the Tanguy Tower, le groupe de joueurs de Blood on the Clocktower à Brest. Débutants comme habitués, tout le monde est le bienvenu.`,
+      `${sponsor} t’invite à rejoindre Blood on the Tanguy Tower, le groupe de joueurs de Blood on the Clocktower à Brest. Débutant·es comme habitué·es, tout le monde est bienvenu.`,
       'Ouvre ce lien, crée ton compte avec ton adresse e-mail (un code suffit, sans mot de passe) puis accepte l’invitation : tu entres directement comme membre du cercle et tu choisis ta place aux prochaines parties.',
       link,
-      `Le lien est valable 7 jours et ne sert qu’une fois. Si tu ne connais pas ${sponsor}, ignore simplement ce message.`,
-      'Blood on the Tanguy Tower',
+      `Le lien est valable 7 jours et ne sert qu’une fois. Si cette invitation ne te dit rien, ignore simplement ce message : ton adresse, indiquée par ${sponsor}, ne sert qu’à cet envoi et sera effacée au plus tard 37 jours après. Pour la faire effacer dès maintenant, ne plus recevoir d’invitation ou pour toute question : bonjour@bottt.fr. Tes données : ${new URL(link).origin}/confidentialite`,
+      'Blood on the Tanguy Tower (Lévy MARQUES)',
     ].join('\n\n'),
   };
 }

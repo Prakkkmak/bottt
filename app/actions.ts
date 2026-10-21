@@ -1,6 +1,5 @@
 'use server';
 import { revalidatePath } from 'next/cache';
-import { headers } from 'next/headers';
 import { z } from 'zod';
 import { supabase, authenticatedClient } from '@/lib/supabase';
 import { isConfigured, isDemo } from '@/lib/config';
@@ -9,12 +8,14 @@ import { canSendMail, invitationMail, sendMail, siteUrl } from '@/lib/mail';
 import type { ActionResult, Membership } from '@/lib/types';
 function failure(e: unknown): ActionResult { return { ok: false, message: e instanceof z.ZodError ? e.issues[0].message : e instanceof Error ? e.message : 'La demande n’a pas abouti. Réessaie.' }; }
 function invalidate() { revalidatePath('/', 'layout'); }
+// Only the French messages raised by our own functions reach the player, never PostgREST internals.
+function databaseMessage(error: { code?: string; message: string }) { return error.code === 'P0001' ? error.message : 'La demande n’a pas abouti. Réessaie.'; }
 async function rpc(name: string, args: Record<string, unknown> = {}, message = 'C’est enregistré.'): Promise<ActionResult> {
   try {
     if (isDemo()) return { ok: false, message: 'L’aperçu est en cours de raccordement à la base locale.' };
     const { db } = await authenticatedClient();
     const { data, error } = await db.rpc(name, args);
-    if (error) throw new Error(error.message);
+    if (error) throw new Error(databaseMessage(error));
     invalidate(); return { ok: true, message, value: typeof data === 'string' ? data : undefined };
   } catch(e) { return failure(e); }
 }
@@ -89,13 +90,19 @@ export async function sendInvitation(input: string): Promise<ActionResult> {
     if (isDemo()) return { ok: false, message: 'L’aperçu est en cours de raccordement à la base locale.' };
     const email = invitationEmailSchema.parse(input);
     const { db, user } = await authenticatedClient();
-    const { data: token, error } = await db.rpc('create_email_invitation', { p_email: email });
-    if (error) throw new Error(error.message);
-    invalidate();
     const manual = 'Copie le lien ci-dessous et transmets-le toi-même.';
-    if (!canSendMail()) return { ok: true, message: `L’envoi d’e-mails n’est pas encore configuré. ${manual}`, value: token };
+    // Without a provider, or without the site's public address for the link, no e-mail leaves and no address is kept.
+    if (!canSendMail() || (process.env.VERCEL && !process.env.NEXT_PUBLIC_SITE_URL)) {
+      const { data: token, error } = await db.rpc('create_invitation');
+      if (error) throw new Error(databaseMessage(error));
+      invalidate();
+      return { ok: true, message: `L’envoi d’e-mails n’est pas encore configuré. ${manual}`, value: token };
+    }
+    const { data: token, error } = await db.rpc('create_email_invitation', { p_email: email });
+    if (error) throw new Error(databaseMessage(error));
+    invalidate();
     const { data: sponsor } = await db.from('profiles').select('display_name').eq('id', user.id).maybeSingle();
-    const link = `${siteUrl((await headers()).get('origin') || undefined)}/invite/${token}`;
+    const link = `${siteUrl()}/invite/${token}`;
     try { await sendMail({ to: email, ...invitationMail(sponsor?.display_name ?? '', link) }); }
     catch { return { ok: true, message: `L’e-mail n’a pas pu partir. ${manual}`, value: token }; }
     return { ok: true, message: `Invitation envoyée à ${email}.` };
@@ -105,7 +112,7 @@ export async function revokeInvitation(id: string) { return rpc('revoke_invitati
 export async function saveSession(input: unknown) { const parsed = sessionSchema.safeParse(input); if (!parsed.success) return failure(parsed.error); return rpc('save_session', { p_data: { ...parsed.data, beginners_welcome: true } }, 'La session est publiée.'); }
 export async function cancelSession(id: string) { return rpc('cancel_session', { p_id: id }, 'La session est annulée. Les participants seront prévenus.'); }
 export async function deleteSession(id: string) { if (!isUuid(id)) return failure(new Error('Session invalide.')); return rpc('delete_session', { p_id: id }, 'La partie est supprimée.'); }
-const rankMessages: Record<Membership, string> = { newcomer: 'Le compte est repassé voyageur·se.', member: 'Le compte est passé membre.', organizer: 'Le compte rejoint l’organisation.', suspended: 'Le compte est suspendu.' };
+const rankMessages: Record<Membership, string> = { newcomer: 'Le compte est passé voyageur·se.', member: 'Le compte est passé membre.', organizer: 'Le compte rejoint l’organisation.', suspended: 'Le compte est suspendu.' };
 export async function setMembership(id: string, status: Membership) { if (!isUuid(id) || !Object.hasOwn(rankMessages, status)) return failure(new Error('Action non autorisée.')); return rpc('set_membership', { p_user: id, p_status: status }, rankMessages[status]); }
 export async function saveProfile(input: unknown): Promise<ActionResult> {
   try { const parsed = profileSchema.parse(input); const { db, user } = await authenticatedClient(); const { error } = await db.from('profiles').update(parsed).eq('id', user.id); if (error) throw new Error('Le profil n’a pas pu être enregistré.'); invalidate(); return { ok: true, message: 'Ton profil a été mis à jour.' }; } catch(e) { return failure(e); }

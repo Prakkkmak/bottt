@@ -27,8 +27,13 @@ test('ce que fait un + selon la personne', () => {
   assert.deepEqual(seatPlan(session({ member_seats_free: 0 }), member, now), { ...none, waitlist: 'self', canBringOther: true });
   assert.deepEqual(seatPlan(session({ my_status: 'confirmed' }), member, now), { ...none, onFreeSeat: 'guest' });
   assert.deepEqual(seatPlan(session({ my_status: 'confirmed', member_seats_free: 0 }), member, now), { ...none, waitlist: 'guest' });
-  // Members bring as many people as member seats allow; travellers stop at two.
+  // Members bring as many people as member seats allow, then 2 on the waitlist; travellers stop at two.
   assert.deepEqual(seatPlan(session({ my_status: 'confirmed', my_guests: [guest('Paul'), guest('Lou', 'waitlisted', null)] }), member, now), { ...none, onFreeSeat: 'guest' });
+  const waiting = [guest('Lou', 'waitlisted', null), guest('Tim', 'offered', null)];
+  assert.deepEqual(seatPlan(session({ my_status: 'confirmed', member_seats_free: 0, my_guests: [guest('Paul'), guest('Lou', 'waitlisted', null)] }), member, now), { ...none, waitlist: 'guest' });
+  assert.deepEqual(seatPlan(session({ my_status: 'confirmed', member_seats_free: 0, my_guests: waiting }), member, now), { ...none, limitReached: true });
+  assert.deepEqual(seatPlan(session({ member_seats_free: 0, my_guests: waiting }), member, now), { ...none, waitlist: 'self', limitReached: true });
+  assert.deepEqual(seatPlan(session({ my_status: 'confirmed', my_guests: waiting }), member, now), { ...none, onFreeSeat: 'guest' });
   assert.deepEqual(seatPlan(session({ my_status: 'pending', my_guests: [guest('Nora', 'pending', null), guest('Yann', 'pending', null)] }), traveller, now), { ...none, limitReached: true });
   assert.deepEqual(seatPlan(session({ my_guests: [guest('Nora', 'pending', null), guest('Yann', 'pending', null)] }), traveller, now), { ...none, onFreeSeat: 'book', limitReached: true });
   assert.deepEqual(seatPlan(session({ my_status: 'confirmed', my_guests: [guest('Paul', 'cancelled', null), guest('Lou', 'declined', null)] }), member, now), { ...none, onFreeSeat: 'guest' });

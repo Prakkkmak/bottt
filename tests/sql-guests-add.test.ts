@@ -22,12 +22,14 @@ test('Ajout des invités',async t=>{
     assert.equal(await add(game,'paul',6),'confirmed');
     assert.equal((await rows()).length,1);
   });
-  await t.test('un membre amène autant de personnes que les places membres le permettent',async()=>{
+  await t.test('un membre amène autant de personnes que les places membres le permettent, puis deux en liste d’attente',async()=>{
     const crowd=uuid(105);await h.session(crowd,{capacity:7,travellerSeats:2});
     await h.login(2);
     await add(game,'Ami 1');
     for(const name of ['Jo','Lu','Max','Néo','Sam'])assert.equal(await add(crowd,name),'confirmed');
     assert.equal(await add(crowd,'Tim'),'waitlisted');
+    assert.equal(await add(crowd,'Ugo'),'waitlisted');
+    await assert.rejects(add(crowd,'Val'),/déjà 2 personnes en liste d’attente/);
   });
   await t.test('le prénom et le jeton sont contrôlés',async()=>{
     await h.login(3);

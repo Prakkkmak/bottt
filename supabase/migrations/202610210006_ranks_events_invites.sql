@@ -8,18 +8,22 @@ alter table public.profiles add column experience text not null default 'beginne
 update public.profiles set experience=case when beginner then 'beginner' else 'some' end;
 create function public.sync_experience() returns trigger language plpgsql set search_path='' as $$
 begin
-  if new.experience is distinct from old.experience then new.beginner=new.experience='beginner';
+  if tg_op='INSERT' then
+    -- A level given explicitly wins; otherwise the beginner flag sets it.
+    if new.experience<>'beginner' then new.beginner=false; elsif not new.beginner then new.experience='some'; end if;
+  elsif new.experience is distinct from old.experience then new.beginner=new.experience='beginner';
   elsif new.beginner is distinct from old.beginner then
     new.experience=case when new.beginner then 'beginner' when old.experience='beginner' then 'some' else old.experience end;
   end if;
   return new;
 end; $$;
-create trigger sync_experience before update of experience,beginner on public.profiles
+create trigger sync_experience before insert or update of experience,beginner on public.profiles
   for each row execute function public.sync_experience();
 revoke execute on function public.sync_experience() from public,anon,authenticated;
 grant update(experience) on public.profiles to authenticated;
 
--- Members vouch for the people they bring, as many as member seats allow; travellers keep a limit of 2.
+-- Members vouch for the people they bring without limit while member seats remain, then at most 2 wait
+-- for a seat, so that one member cannot fill the waitlist; travellers keep a limit of 2 in all.
 create or replace function public.add_guest(p_session uuid,p_name text,p_seat integer default null) returns text language plpgsql security definer set search_path='' as $$
 declare s public.sessions; p public.profiles; existing public.bookings; clean text; guest_pool text; result text; brought integer;
 begin
@@ -46,6 +50,10 @@ begin
   if p_seat is not null and exists(select 1 from public.bookings where session_id=p_session and seat_index=p_seat and status in ('confirmed','offered')) then
     raise exception 'Cette place vient d’être prise. Choisis un autre +.';
   end if;
+  if guest_pool='circle' and not public.seat_available(p_session,guest_pool) and (select count(*) from public.bookings
+    where session_id=p_session and sponsor_id=auth.uid() and status in ('waitlisted','offered'))>=2 then
+    raise exception 'La partie est complète : tu as déjà 2 personnes en liste d’attente.';
+  end if;
   result=case when guest_pool='newcomer' then 'pending' when public.seat_available(p_session,guest_pool) then 'confirmed' else 'waitlisted' end;
   insert into public.bookings(session_id,guest_name,sponsor_id,status,pool,preferred_seat,seat_index)
     values(p_session,clean,auth.uid(),result,guest_pool,p_seat,case when result='confirmed' then p_seat end);
@@ -61,7 +69,10 @@ begin
   select membership into previous from public.profiles where id=p_user for update;
   if previous is null then raise exception 'Ce compte est introuvable.'; end if;
   if previous='organizer' then raise exception 'Le rang d’un autre organisateur ne se change pas ici.'; end if;
-  if previous=p_status then return; end if;
+  -- Organizers are chosen among members, so that a suspended account cannot be brought back straight to organizer.
+  if p_status='organizer' and previous<>'member' then raise exception 'Passe d’abord ce compte membre.'; end if;
+  -- Suspending again still releases places, for an account suspended directly in the database.
+  if previous=p_status and p_status<>'suspended' then return; end if;
   -- Bookings already made keep their seat; the new rank applies to the next ones.
   update public.profiles set membership=p_status where id=p_user;
   if p_status='suspended' then
@@ -73,10 +84,22 @@ begin
         where session_id=sid and (user_id=p_user or sponsor_id=p_user) and status in ('confirmed','offered','pending','waitlisted');
       perform public.rebalance(sid);
     end loop;
+  elsif p_status='newcomer' then
+    -- A traveller cannot see members-only games: their places there, and their guests', are released.
+    for sid in select distinct b.session_id from public.bookings b join public.sessions s on s.id=b.session_id
+      where (b.user_id=p_user or b.sponsor_id=p_user) and b.status in ('confirmed','offered','pending','waitlisted')
+        and s.visibility='members' and s.status='published' and s.starts_at>now() order by b.session_id
+    loop
+      perform 1 from public.sessions where id=sid for update;
+      update public.bookings set status='cancelled',offer_expires_at=null
+        where session_id=sid and (user_id=p_user or sponsor_id=p_user) and status in ('confirmed','offered','pending','waitlisted');
+      perform public.notify(p_user,sid,'Ta participation a été retirée','Cette partie est réservée aux membres. Contacte un organisateur si tu as une question.');
+      perform public.rebalance(sid);
+    end loop;
   elsif p_status='member' and previous='newcomer' then
-    perform public.notify(p_user,null,'Bienvenue parmi les membres','Tu réserves désormais tes places sans validation et tu peux faire entrer tes ami·es dans le cercle.');
+    perform public.notify(p_user,null,'Bienvenue parmi les membres','Tu réserves désormais tes places sans validation et tu peux faire entrer tes ami·es dans le cercle.','welcome:'||p_user);
   elsif p_status='organizer' then
-    perform public.notify(p_user,null,'Tu rejoins l’organisation','L’espace « Organiser » est ouvert sur le site : tu peux créer des parties, valider les demandes et gérer les membres.');
+    perform public.notify(p_user,null,'Tu rejoins l’organisation','L’espace « Organiser » est ouvert sur le site : tu peux créer des parties, valider les demandes et gérer les membres.','organizer:'||p_user);
   end if;
 end; $$;
 
@@ -95,11 +118,26 @@ begin
   if not found then return; end if;
   update public.sessions set status='cancelled' where id=p_id;
   insert into public.notifications(user_id,session_id,title,body,dedupe_key)
-    select recipient,p_id,'La session a été annulée','L’organisateur a annulé la soirée « '||s.title||' ».'||coalesce(' Préviens '||guests||'.','')||' Rendez-vous sur le site pour trouver une autre date.','cancel:'||p_id||':'||recipient
+    select recipient,p_id,'La session a été annulée','L’organisateur a annulé la soirée « '||s.title||' » du '||to_char(s.starts_at at time zone 'Europe/Paris','DD/MM')||'.'||coalesce(' Préviens '||guests||'.','')||' Rendez-vous sur le site pour trouver une autre date.','cancel:'||p_id||':'||recipient
     from (select coalesce(user_id,sponsor_id) as recipient,string_agg(guest_name,' et ' order by guest_name) filter(where user_id is null) as guests
       from public.bookings where session_id=p_id and status in ('pending','confirmed','waitlisted','offered') group by 1) recipients
     on conflict(dedupe_key) do nothing;
   update public.bookings set status='cancelled',offer_expires_at=null where session_id=p_id and status<>'declined';
+end; $$;
+
+-- A game deleted between the first read and the lock leaves nothing to confirm.
+create or replace function public.accept_guest_offer(p_booking uuid) returns text language plpgsql security definer set search_path='' as $$
+declare b public.bookings; s public.sessions;
+begin
+  perform public.rate_guard('booking',20,600);
+  select * into b from public.bookings where id=p_booking;
+  if b.id is null or b.sponsor_id is distinct from auth.uid() then raise exception 'Action non autorisée.'; end if;
+  select * into s from public.sessions where id=b.session_id for update;
+  if s.id is null or s.status<>'published' or s.starts_at<=now() then raise exception 'Cette session est close.'; end if;
+  select * into b from public.bookings where id=p_booking for update;
+  if b.id is null or b.status<>'offered' or b.offer_expires_at<=now() then raise exception 'Cette proposition a expiré.'; end if;
+  update public.bookings set status='confirmed',offer_expires_at=null where id=b.id;
+  return 'confirmed';
 end; $$;
 
 create function public.delete_session(p_id uuid) returns void language plpgsql security definer set search_path='' as $$
@@ -119,12 +157,38 @@ end; $$;
 -- they invited, then erased 30 days after the link stops working. The token itself is never stored.
 alter table public.invitations add column sent_to text check (sent_to is null or char_length(sent_to) between 3 and 254);
 grant select(sent_to) on public.invitations to authenticated;
+create or replace function public.accept_invitation(p_token text) returns void language plpgsql security definer set search_path = '' as $$
+declare inv public.invitations;
+begin
+  perform public.rate_guard('accept-invitation',10,600);
+  if char_length(p_token)<>64 then raise exception 'Invitation invalide.'; end if;
+  select * into inv from public.invitations where token_hash=encode(sha256(convert_to(p_token,'UTF8')),'hex') for update;
+  if inv.id is null or inv.expires_at<=now() or inv.used_by is not null then raise exception 'Cette invitation a expiré ou a déjà été utilisée.'; end if;
+  if inv.sponsor_id=auth.uid() then raise exception 'Ce lien est destiné à ton invité.'; end if;
+  if not exists(select 1 from public.profiles where id=inv.sponsor_id and membership in ('member','organizer')) then raise exception 'Cette invitation n’est plus active.'; end if;
+  update public.invitations set used_by=auth.uid(),expires_at=least(expires_at,now()) where id=inv.id;
+  update public.profiles set membership='member',sponsored_by=inv.sponsor_id where id=auth.uid() and membership='newcomer';
+end; $$;
+
+-- Someone who objects to invitations is kept as a hash of their address, added by an administrator,
+-- so that no member can invite them again. Nobody reads this table through the API.
+create table public.invitation_optouts (
+  email_hash text primary key check (email_hash ~ '^[0-9a-f]{64}$'),
+  created_at timestamptz not null default now()
+);
+alter table public.invitation_optouts enable row level security;
+revoke all on public.invitation_optouts from anon,authenticated;
+grant all on public.invitation_optouts to service_role;
+
 create function public.create_email_invitation(p_email text) returns text language plpgsql security definer set search_path='' as $$
 declare token text; clean text=lower(trim(coalesce(p_email,'')));
 begin
   if not public.is_member() then raise exception 'Ta première participation doit être validée avant de parrainer.'; end if;
   if char_length(clean)>254 or clean !~ '^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$' then raise exception 'Cette adresse e-mail est invalide.'; end if;
   if exists(select 1 from auth.users where id=auth.uid() and lower(email)=clean) then raise exception 'C’est ta propre adresse : indique celle de la personne à inviter.'; end if;
+  if exists(select 1 from public.invitation_optouts where email_hash=encode(sha256(convert_to(clean,'UTF8')),'hex')) then
+    raise exception 'Cette personne a demandé à ne plus recevoir d’invitation.';
+  end if;
   -- Shares the daily limit of sponsorship links.
   perform public.rate_guard('invitation',5,86400);
   token=replace(gen_random_uuid()::text,'-','')||replace(gen_random_uuid()::text,'-','');

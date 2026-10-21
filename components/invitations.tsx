@@ -8,10 +8,11 @@ import { useAction, Feedback } from './action-feedback';
 import { SignInButton } from './auth';
 import { shortDate, sessionUrl } from '@/lib/utils';
 import { guestStatusLabels } from '@/lib/guests';
-import { MAX_TRAVELLER_GUESTS } from '@/lib/session-rules';
+import { MAX_TRAVELLER_GUESTS, MAX_WAITING_GUESTS } from '@/lib/session-rules';
 
 export function Invitations({ data }: { data: AppData }) {
   const a = useAction();
+  const mail = useAction();
   const [link, setLink] = useState('');
   const [copied, setCopied] = useState(false);
   const [email, setEmail] = useState('');
@@ -26,7 +27,7 @@ export function Invitations({ data }: { data: AppData }) {
       <section className="panel invitation-main">
         <span className="invite-icon"><UsersRound size={28} /></span>
         <h2>Amener quelqu’un à une partie.</h2>
-        <p className="muted">{traveller ? `Ouvre une partie et clique sur un + libre. Ton ami·e n’a pas besoin de compte ; un organisateur validera sa place avec la tienne. Jusqu’à ${MAX_TRAVELLER_GUESTS} personnes par partie.` : 'Ouvre une partie et clique sur un + libre. Ton invité·e n’a pas besoin de compte et a sa place tout de suite. Amène autant de monde que les places membres le permettent.'}</p>
+        <p className="muted">{traveller ? `Ouvre une partie et clique sur un + libre. Ton ami·e n’a pas besoin de compte ; un organisateur validera sa place avec la tienne. Jusqu’à ${MAX_TRAVELLER_GUESTS} personnes par partie.` : `Ouvre une partie et clique sur un + libre. Ton invité·e n’a pas besoin de compte et a sa place tout de suite. Pas de limite tant qu’il reste des places membres ; une fois la partie complète, jusqu’à ${MAX_WAITING_GUESTS} invité·es en liste d’attente.`}</p>
         {data.profile ? <Link className="button primary" href="/">Choisir une partie</Link> : <SignInButton configured={data.configured} />}
         {upcoming.length > 0 && <ul className="guest-overview" aria-label="Tes invités aux prochaines parties">{upcoming.map(({ session, guest }) => <li key={guest.id}><Link href={sessionUrl(session.id)}><strong>{guest.name}</strong><span>{session.title} · {shortDate(session.starts_at)}</span></Link><span className="badge">{guestStatusLabels[guest.status]}</span></li>)}</ul>}
       </section>
@@ -35,12 +36,14 @@ export function Invitations({ data }: { data: AppData }) {
         <h2>Faire entrer quelqu’un dans le cercle.</h2>
         <p className="muted">Envoie-lui une invitation par e-mail : ton ami·e crée son compte avec un simple code et entre directement comme membre, sans validation.</p>
         {!eligible ? <div className="alert info">Le parrainage est réservé aux membres. Un organisateur peut te passer membre.</div> : <div className="stack">
-          <form className="invite-email" onSubmit={e => { e.preventDefault(); a.run(() => sendInvitation(email), r => { if (r.value) showLink(r.value); else { setLink(''); setEmail(''); } }); }}>
+          <form className="invite-email" onSubmit={e => { e.preventDefault(); a.setResult(null); mail.run(() => sendInvitation(email), r => { if (r.value) showLink(r.value); else { setLink(''); setEmail(''); } }); }}>
             <label className="field">Son adresse e-mail<input type="email" required maxLength={254} autoComplete="off" placeholder="ami@exemple.fr" value={email} onChange={e => setEmail(e.target.value)} /></label>
-            <button className="button primary" disabled={a.pending}><Mail size={17} />{a.pending ? 'Envoi…' : 'Envoyer l’invitation'}</button>
+            <p className="field-note">N’invite qu’une personne qui te connaît et accepte de recevoir ce message ; l’e-mail indique ton pseudo.</p>
+            <button className="button primary" disabled={mail.pending || a.pending}><Mail size={17} />{mail.pending ? 'Envoi…' : 'Envoyer l’invitation'}</button>
           </form>
+          <Feedback result={mail.result} />
           {link && <div className="share-link"><label className="field">Ton lien d’invitation<input readOnly value={link} onFocus={e => e.target.select()} /></label><button className="button secondary" onClick={async () => { try { await navigator.clipboard.writeText(link); setCopied(true); } catch { a.setResult({ ok: false, message: 'Sélectionne et copie le lien ci-dessus.' }); } }}>{copied ? <Check size={17} /> : <Copy size={17} />}{copied ? 'Copié !' : 'Copier le lien'}</button></div>}
-          <button className="button ghost" disabled={a.pending} onClick={() => a.run(createInvitation, r => { if (r.value) showLink(r.value); })}><Link2 size={17} />{link ? 'Créer un autre lien' : 'Ou crée un lien à partager toi-même'}</button>
+          <button className="button ghost" disabled={a.pending || mail.pending} onClick={() => { mail.setResult(null); a.run(createInvitation, r => { if (r.value) showLink(r.value); }); }}><Link2 size={17} />{a.pending ? 'Création…' : link ? 'Créer un autre lien' : 'Ou crée un lien à partager toi-même'}</button>
           <Feedback result={a.result} />
         </div>}
         <details className="disclosure invitation-rules"><summary>Comment ça marche ?</summary><div><p>Le lien est valable 7 jours, pour une seule personne. Tu peux en créer jusqu’à 5 par jour, envoyés par e-mail ou partagés toi-même.</p><p>Pour une invitation par e-mail, l’adresse est gardée pour te montrer qui tu as invité, puis effacée 30 jours après la fin de validité du lien.</p><p>Ton ami·e utilise son propre compte. Le lien lui donne directement le statut de membre ; il ou elle réserve ensuite sa place dans une partie.</p></div></details>

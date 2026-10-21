@@ -7,7 +7,7 @@ import type { ActionResult, AppData, GameSession, MyGuest } from '@/lib/types';
 import { dateLong, time, activeBooking } from '@/lib/utils';
 import { mapsUrl } from '@/lib/locations';
 import { activeGuests, canSeeAddress, participantLabel, recentGuestNames, seatPlan, waitlistHint } from '@/lib/guests';
-import { MAX_TRAVELLER_GUESTS } from '@/lib/session-rules';
+import { MAX_TRAVELLER_GUESTS, MAX_WAITING_GUESTS } from '@/lib/session-rules';
 import { CalendarLink } from './calendar-link';
 import { Dialog } from './dialog';
 import { AuthForm } from './auth';
@@ -53,7 +53,7 @@ export function SessionDetail({ data, session: s, address, embedded = false }: {
   const guestAdded = (result: ActionResult) => { setGuestRequest(null); a.setResult(result); };
   const heading = s.status === 'cancelled' ? 'Partie annulée' : s.my_status === 'confirmed' ? 'Tu es inscrit·e.' : closed ? 'Inscriptions closes' : offered ? liveOffer ? 'Une place pour toi.' : 'Proposition expirée.' : s.my_status === 'pending' ? 'Demande envoyée.' : s.my_status === 'waitlisted' ? 'Tu es en attente.' : s.my_status === 'declined' ? 'Participation non retenue' : 'Inscris-toi';
   const hint = s.status === 'cancelled' ? 'On se retrouve à une prochaine soirée.' : s.my_status === 'confirmed' ? '' : closed ? 'Rendez-vous à la prochaine partie.' : offered ? liveOffer ? 'Clique sur ton jeton pour confirmer.' : 'Retire ta demande pour rejoindre à nouveau la liste d’attente.' : s.my_status === 'pending' ? 'Un organisateur va valider ta demande.' : s.my_status === 'waitlisted' ? 'On te prévient par e-mail dès qu’une place se libère.' : s.my_status === 'declined' ? 'Contacte un organisateur pour en discuter.' : plan.waitlist === 'self' ? waitlistHint(s, traveller) : data.profile ? 'Clique sur un + pour choisir ta place.' : 'Clique sur un + pour choisir ta place. Il te faudra juste ton e-mail.';
-  const guestHint = plan.limitReached ? `Tu amènes déjà ${MAX_TRAVELLER_GUESTS} personnes, le maximum pour un·e voyageur·se.` : plan.onFreeSeat === 'guest' ? traveller ? 'Clique sur un + libre pour demander une place pour un·e ami·e.' : 'Clique sur un + libre pour placer quelqu’un.' : plan.waitlist === 'guest' ? waitlistHint(s, traveller) : '';
+  const guestHint = plan.limitReached ? traveller ? `Tu amènes déjà ${MAX_TRAVELLER_GUESTS} personnes, le maximum pour un·e voyageur·se.` : `La partie est complète et ${MAX_WAITING_GUESTS} de tes invité·es attendent déjà une place.` : plan.onFreeSeat === 'guest' ? traveller ? 'Clique sur un + libre pour demander une place pour un·e ami·e.' : 'Clique sur un + libre pour placer quelqu’un.' : plan.waitlist === 'guest' ? waitlistHint(s, traveller) : '';
   const showGuests = !!data.profile && s.status !== 'cancelled' && (active || (s.my_guests ?? []).some(g => g.status !== 'cancelled'));
   const privateAddress = canSeeAddress(s, data.profile) ? address : null;
   const practical = <div className={`detail-when ${embedded ? 'session-practical' : ''}`}>

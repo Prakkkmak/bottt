@@ -6,7 +6,7 @@ type Notice={title:string;body:string;session_id:string|null};
 
 test('Rangs, suppression des parties, niveau d’expérience et invitations par e-mail',async t=>{
   const h=await createDatabase();
-  for(const [n,m] of [[1,'organizer'],[2,'member'],[3,'newcomer'],[4,'member'],[5,'organizer'],[6,'member'],[7,'newcomer'],[8,'member']] as const)await h.user(n,m);
+  for(const [n,m] of [[1,'organizer'],[2,'member'],[3,'newcomer'],[4,'member'],[5,'organizer'],[6,'member'],[7,'newcomer'],[8,'member'],[9,'member'],[10,'newcomer']] as const)await h.user(n,m);
   const membership=async(n:number)=>{await h.root();return (await h.call<{membership:string}>('select membership from profiles where id=$1',[uuid(n)]))[0].membership;};
   const notices=async(n:number)=>{await h.root();return h.call<Notice>('select title,body,session_id from notifications where user_id=$1 order by created_at,id',[uuid(n)]);};
 
@@ -32,6 +32,28 @@ test('Rangs, suppression des parties, niveau d’expérience et invitations par 
     await h.login(1);await h.call(`select set_membership($1,'newcomer')`,[uuid(8)]);
     assert.equal(await membership(8),'newcomer');
     assert.equal((await notices(8)).length,0);
+  });
+  await t.test('un membre repassé voyageur perd ses places aux parties réservées aux membres, et en est prévenu',async()=>{
+    const closed=uuid(102);await h.session(closed,{visibility:'members'});const open=uuid(103);await h.session(open);
+    await h.login(9);
+    await h.call('select book_session($1)',[closed]);await h.call('select add_guest($1,$2)',[closed,'Inès']);
+    await h.call('select book_session($1)',[open]);
+    await h.login(1);await h.call(`select set_membership($1,'newcomer')`,[uuid(9)]);
+    await h.root();
+    assert.deepEqual(await h.call('select session_id,status from bookings where user_id=$1 or sponsor_id=$1 order by session_id,guest_name nulls first',[uuid(9)]),
+      [{session_id:closed,status:'cancelled'},{session_id:closed,status:'cancelled'},{session_id:open,status:'confirmed'}]);
+    assert.deepEqual((await notices(9)).filter(n=>n.title!=='Ta place est réservée').map(n=>[n.title,n.session_id]),[['Ta participation a été retirée',closed]]);
+  });
+  await t.test('le message de bienvenue ne part qu’une fois, et on ne devient organisateur qu’après avoir été membre',async()=>{
+    await h.login(1);
+    for(const rank of ['member','newcomer','member'])await h.call('select set_membership($1,$2)',[uuid(10),rank]);
+    assert.deepEqual((await notices(10)).map(n=>n.title),['Bienvenue parmi les membres']);
+    await h.login(1);
+    for(const rank of ['newcomer','suspended']){
+      await h.call('select set_membership($1,$2)',[uuid(10),rank]);
+      await assert.rejects(h.call(`select set_membership($1,'organizer')`,[uuid(10)]),/Passe d’abord ce compte membre/);
+    }
+    assert.equal(await membership(10),'suspended');
   });
   await t.test('le rang d’un autre organisateur, le sien et les valeurs inconnues sont refusés',async()=>{
     await h.login(1);
@@ -59,7 +81,7 @@ test('Rangs, suppression des parties, niveau d’expérience et invitations par 
     const cancel=(await notices(2)).filter(n=>n.title==='La session a été annulée');
     assert.equal(cancel.length,1);
     assert.equal(cancel[0].session_id,null);
-    assert.match(cancel[0].body,/« Soirée de test »/);assert.match(cancel[0].body,/Préviens Paul\./);
+    assert.match(cancel[0].body,/« Soirée de test » du \d{2}\/\d{2}\./);assert.match(cancel[0].body,/Préviens Paul\./);
   });
   await t.test('une partie vide ou passée se supprime directement',async()=>{
     const empty=uuid(111);await h.session(empty);const past=uuid(112);await h.session(past,{startsIn:'-3 days'});
@@ -96,6 +118,18 @@ test('Rangs, suppression des parties, niveau d’expérience et invitations par 
     await assert.rejects(h.call('select create_email_invitation($1)',['x@exemple.fr']),/parrainer/);
     await h.call('select accept_invitation($1)',[token]);
     assert.equal(await membership(7),'member');
+    // A used link no longer counts as pending, so its address is erased on the usual schedule.
+    assert.deepEqual(await h.call('select expires_at<=now() as spent from invitations where used_by=$1',[uuid(7)]),[{spent:true}]);
+  });
+  await t.test('une personne qui a refusé les invitations n’en reçoit plus, et seuls les membres connectés invitent',async()=>{
+    await h.root();
+    await h.call(`insert into invitation_optouts(email_hash) values(encode(sha256(convert_to('stop@exemple.fr','UTF8')),'hex'))`);
+    await h.login(2);
+    await assert.rejects(h.call('select create_email_invitation($1)',['Stop@Exemple.fr']),/ne plus recevoir/);
+    await assert.rejects(h.call('select * from invitation_optouts'),/permission denied/);
+    await h.anonymous();
+    await assert.rejects(h.call('select create_email_invitation($1)',['x@exemple.fr']),/permission denied/);
+    await assert.rejects(h.call('select delete_session($1)',[uuid(100)]),/permission denied/);
   });
   await t.test('une adresse invalide ou la sienne est refusée sans entamer la limite, partagée avec les liens',async()=>{
     await h.login(6);
