@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { Booking, GameSession, MyGuest, Profile } from '../lib/types';
-import { bookingLabel, canSeeAddress, groupRequests, orderBySponsor, participantLabel, recentGuestNames, refusalText, requestNote, seatPlan, waitlistHint, type RequestGroup } from '../lib/guests';
+import { bookingLabel, canSeeAddress, experienceOf, groupRequests, orderBySponsor, participantLabel, recentGuestNames, refusalText, requestNote, seatPlan, waitlistHint, type RequestGroup } from '../lib/guests';
 
 const now = Date.parse('2026-10-12T10:00:00Z');
 const session = (changes: Partial<GameSession> = {}): GameSession => ({ id: 's1', title: 'Soirée', script: 'Trouble Brewing', starts_at: '2026-10-20T17:30:00Z', ends_at: '2026-10-20T21:30:00Z', location: 'Brest', capacity: 8, newcomer_seats: 2, release_hours: 72, beginners_welcome: true, visibility: 'public', status: 'published', confirmed_count: 3, waitlist_count: 0, my_status: null, participants: [], member_seats_free: 3, traveller_seats_free: 2, my_guests: [], ...changes });
@@ -27,7 +27,10 @@ test('ce que fait un + selon la personne', () => {
   assert.deepEqual(seatPlan(session({ member_seats_free: 0 }), member, now), { ...none, waitlist: 'self', canBringOther: true });
   assert.deepEqual(seatPlan(session({ my_status: 'confirmed' }), member, now), { ...none, onFreeSeat: 'guest' });
   assert.deepEqual(seatPlan(session({ my_status: 'confirmed', member_seats_free: 0 }), member, now), { ...none, waitlist: 'guest' });
-  assert.deepEqual(seatPlan(session({ my_status: 'confirmed', my_guests: [guest('Paul'), guest('Lou', 'waitlisted', null)] }), member, now), { ...none, limitReached: true });
+  // Members bring as many people as member seats allow; travellers stop at two.
+  assert.deepEqual(seatPlan(session({ my_status: 'confirmed', my_guests: [guest('Paul'), guest('Lou', 'waitlisted', null)] }), member, now), { ...none, onFreeSeat: 'guest' });
+  assert.deepEqual(seatPlan(session({ my_status: 'pending', my_guests: [guest('Nora', 'pending', null), guest('Yann', 'pending', null)] }), traveller, now), { ...none, limitReached: true });
+  assert.deepEqual(seatPlan(session({ my_guests: [guest('Nora', 'pending', null), guest('Yann', 'pending', null)] }), traveller, now), { ...none, onFreeSeat: 'book', limitReached: true });
   assert.deepEqual(seatPlan(session({ my_status: 'confirmed', my_guests: [guest('Paul', 'cancelled', null), guest('Lou', 'declined', null)] }), member, now), { ...none, onFreeSeat: 'guest' });
   assert.deepEqual(seatPlan(session({ my_status: 'pending', traveller_seats_free: 0 }), traveller, now), { ...none, waitlist: 'guest' });
   assert.deepEqual(seatPlan(session({ traveller_seats_free: 0 }), traveller, now), { ...none, waitlist: 'self', canBringOther: true });
@@ -61,9 +64,11 @@ test('cartes de demande et confirmation de refus pour l’organisateur', () => {
   const nora: Booking = { ...base, id: 'b2', user_id: null, guest_name: 'Nora', sponsor_id: 'u3' };
   const yann: Booking = { ...base, id: 'b3', user_id: null, guest_name: 'Yann', sponsor_id: 'u3' };
   const group = (guests: Booking[], withOwn: boolean, person: Profile | null = sami): RequestGroup => ({ key: 's1:u3', sessionId: 's1', personId: 'u3', person: person ?? undefined, ...(withOwn ? { own } : {}), guests });
-  // Own pending request: the beginner line, whether or not the person is also counted as attending.
-  assert.equal(requestNote(group([nora], true), true), 'Découvre le jeu');
-  assert.equal(requestNote(group([], true, { ...sami, beginner: false }), true), 'Connaît déjà le jeu');
+  // Own pending request: the declared level, whether or not the person is also counted as attending.
+  assert.equal(requestNote(group([nora], true), true), 'Débutant·e');
+  assert.equal(requestNote(group([], true, { ...sami, experience: 'experienced' }), true), 'Expérimenté·e');
+  // Before the experience column exists, the beginner flag still gives a level.
+  assert.equal(requestNote(group([], true, { ...sami, beginner: false }), true), 'Quelques parties');
   // Only friends pending: already registered, or not coming at all.
   assert.equal(requestNote(group([nora], false), true), 'Déjà inscrit·e, amène quelqu’un');
   assert.equal(requestNote(group([nora], false), false), 'Ne vient pas, amène quelqu’un');
@@ -103,4 +108,11 @@ test('accès à l’adresse', () => {
   assert.equal(canSeeAddress(session({ my_guests: [guest('Paul')] }), { membership: 'member' } as Profile), true);
   assert.equal(canSeeAddress(session({ my_status: 'waitlisted', my_guests: [guest('Paul', 'pending', null)] }), { membership: 'newcomer' } as Profile), false);
   assert.equal(canSeeAddress(session(), null), false);
+});
+
+test('niveau déclaré, avec repli sur l’ancienne case « débutant »', () => {
+  assert.equal(experienceOf({ beginner: true }), 'beginner');
+  assert.equal(experienceOf({ beginner: false }), 'some');
+  assert.equal(experienceOf({ beginner: false, experience: 'experienced' }), 'experienced');
+  assert.equal(experienceOf({ beginner: true, experience: 'some' }), 'some');
 });

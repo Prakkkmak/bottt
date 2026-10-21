@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { MIN_PLAYERS, DEFAULT_CAPACITY, MAX_CAPACITY } from './session-rules';
 import { sessionEnd } from './session-defaults';
-export const profileSchema = z.object({ display_name: z.string().trim().min(2,'Choisis un pseudo d’au moins 2 caractères.').max(40), bio: z.string().trim().max(300), avatar_color: z.enum(['rose','blue','sage','ochre','lilac']), beginner: z.boolean(), can_storytell: z.boolean().optional() });
+export const profileSchema = z.object({ display_name: z.string().trim().min(2,'Choisis un pseudo d’au moins 2 caractères.').max(40), bio: z.string().trim().max(300), avatar_color: z.enum(['rose','blue','sage','ochre','lilac']), experience: z.enum(['beginner','some','experienced'], 'Choisis ton niveau.'), can_storytell: z.boolean().optional() });
 export const sessionSchema = z.object({
   id: z.uuid().optional(), title: z.string().trim().min(3).max(100), description: z.string().trim().max(4000).default(''),
   script: z.string().trim().min(2).max(100), starts_at: z.iso.datetime({ offset: true }), ends_at: z.iso.datetime({ offset: true }).optional(),
@@ -10,3 +10,4 @@ export const sessionSchema = z.object({
   visibility: z.enum(['public','members'])
 }).transform(s => ({ ...s, ends_at: s.ends_at ?? sessionEnd(s.starts_at) })).refine(s => s.newcomer_seats <= s.capacity, 'Les places voyageurs dépassent la capacité.').refine(s => new Date(s.ends_at)>new Date(s.starts_at), 'La fin doit être après le début.').refine(s=>new Date(s.starts_at)>new Date(), 'Choisis une date à venir.');
 export const guestNameSchema = z.string().trim().min(2, 'Indique un prénom ou un pseudo de 2 à 40 caractères.').max(40, 'Indique un prénom ou un pseudo de 2 à 40 caractères.');
+export const invitationEmailSchema = z.string().trim().toLowerCase().pipe(z.email('Cette adresse e-mail est invalide.').max(254, 'Cette adresse e-mail est invalide.'));

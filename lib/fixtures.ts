@@ -1,5 +1,5 @@
 import type { AppData, GameSession, Participant, Profile } from './types';
-export const demoProfile: Profile = { id: 'demo-camille', display_name: 'Camille', bio: 'Toujours partante pour une bonne histoire.', avatar_color: 'rose', beginner: false, can_storytell: false, membership: 'organizer', sponsored_by: null };
+export const demoProfile: Profile = { id: 'demo-camille', display_name: 'Camille', bio: 'Toujours partante pour une bonne histoire.', avatar_color: 'rose', beginner: false, experience: 'experienced', can_storytell: false, membership: 'organizer', sponsored_by: null };
 const people = [ ['Léa', 'rose'], ['Thomas', 'blue'], ['Manon', 'sage'], ['Hugo', 'ochre'], ['Sarah', 'lilac'] ].map(([display_name, avatar_color]) => ({ display_name, avatar_color }));
 /** The four statuses around one table: members, a member's guests, a traveller and the friend they bring. */
 const village: Participant[] = [

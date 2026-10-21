@@ -6,6 +6,8 @@ import { Avatar } from './ui';
 import { AuthForm } from './auth';
 import { useAction, Feedback } from './action-feedback';
 import { saveProfile, signOut } from '@/app/actions';
+import { experienceLabels, experienceOf } from '@/lib/guests';
+import type { Experience } from '@/lib/types';
 
 export function ProfileView({ data }: { data: AppData }) {
   const p = data.profile;
@@ -22,7 +24,7 @@ export function ProfileView({ data }: { data: AppData }) {
           display_name: name,
           bio: String(f.get('bio')),
           avatar_color: color,
-          beginner: f.get('beginner') === 'on',
+          experience: String(f.get('experience')),
           can_storytell: f.get('can_storytell') === 'on',
         }));
       }}>
@@ -31,10 +33,8 @@ export function ProfileView({ data }: { data: AppData }) {
         <fieldset className="color-options"><legend>Ta couleur</legend>{['rose', 'blue', 'sage', 'ochre', 'lilac'].map(c => <label key={c} className={`color-option color-${c}`} title={c}><input type="radio" name="color" value={c} checked={color === c} onChange={() => setColor(c)} aria-label={`Couleur ${c}`} /><span /></label>)}</fieldset>
         <label className="field">Prénom ou pseudo<input required minLength={2} maxLength={40} value={name} onChange={e => setName(e.target.value)} /></label>
         <label className="field">Quelques mots sur toi <span className="field-note">Facultatif</span><textarea name="bio" rows={3} maxLength={300} defaultValue={p.bio} placeholder="Plutôt bon menteur ou détective du dimanche ?" /></label>
-        <div>
-          <label className="check-field"><input type="checkbox" name="beginner" defaultChecked={p.beginner} /><span>Je découvre Blood on the Clocktower</span></label>
-          <label className="check-field"><input type="checkbox" name="can_storytell" defaultChecked={p.can_storytell} /><span>Je veux bien être MJ (conteur ou conteuse)</span></label>
-        </div>
+        <fieldset className="choice-options"><legend>Ton expérience de Blood on the Clocktower</legend>{(Object.entries(experienceLabels) as [Experience, string][]).map(([value, label]) => <label key={value} className="check-field"><input type="radio" name="experience" value={value} defaultChecked={experienceOf(p) === value} /><span>{label}</span></label>)}</fieldset>
+        <label className="check-field"><input type="checkbox" name="can_storytell" defaultChecked={p.can_storytell} /><span>Je veux bien être MJ (conteur ou conteuse)</span></label>
         <button className="button primary" disabled={a.pending}><Save size={17} />Enregistrer mon profil</button>
         <Feedback result={a.result} />
       </form>
