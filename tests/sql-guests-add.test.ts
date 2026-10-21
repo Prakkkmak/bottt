@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {createDatabase,uuid} from './sql-harness';
-import {MAX_GUESTS_PER_PERSON} from '../lib/session-rules';
+import {MAX_TRAVELLER_GUESTS} from '../lib/session-rules';
 
 type Row={guest_name:string|null;sponsor_id:string|null;user_id:string|null;status:string;pool:string;seat_index:number|null};
 
@@ -22,10 +22,12 @@ test('Ajout des invités',async t=>{
     assert.equal(await add(game,'paul',6),'confirmed');
     assert.equal((await rows()).length,1);
   });
-  await t.test(`un parrain amène au plus ${MAX_GUESTS_PER_PERSON} personnes par partie`,async()=>{
+  await t.test('un membre amène autant de personnes que les places membres le permettent',async()=>{
+    const crowd=uuid(105);await h.session(crowd,{capacity:7,travellerSeats:2});
     await h.login(2);
-    for(let i=1;i<MAX_GUESTS_PER_PERSON;i++)await add(game,`Ami ${i}`);
-    await assert.rejects(add(game,'Un de trop'),/déjà 2 personnes/);
+    await add(game,'Ami 1');
+    for(const name of ['Jo','Lu','Max','Néo','Sam'])assert.equal(await add(crowd,name),'confirmed');
+    assert.equal(await add(crowd,'Tim'),'waitlisted');
   });
   await t.test('le prénom et le jeton sont contrôlés',async()=>{
     await h.login(3);
@@ -46,9 +48,14 @@ test('Ajout des invités',async t=>{
     const nora=(await rows()).find(r=>r.guest_name==='Nora')!;
     assert.deepEqual([nora.status,nora.pool,nora.seat_index],['pending','newcomer',null]);
   });
+  await t.test(`un voyageur amène au plus ${MAX_TRAVELLER_GUESTS} personnes par partie`,async()=>{
+    await h.login(4);
+    assert.equal(await add(game,'Lina'),'pending');
+    await assert.rejects(add(game,'Un de trop'),new RegExp(`déjà ${MAX_TRAVELLER_GUESTS} personnes`));
+  });
   await t.test('un parrain lit ses invités, personne d’autre ; personne n’écrit directement',async()=>{
     await h.login(2);
-    assert.equal((await h.call('select * from bookings where sponsor_id=$1',[uuid(2)])).length,MAX_GUESTS_PER_PERSON);
+    assert.equal((await h.call('select * from bookings where sponsor_id=$1 and session_id=$2',[uuid(2),game])).length,2);
     await h.login(6);
     assert.equal((await h.call('select * from bookings')).length,0);
     await assert.rejects(h.call(`insert into bookings(session_id,guest_name,sponsor_id,status,pool) values($1,'Pirate',$2,'confirmed','circle')`,[game,uuid(6)]),/permission denied/);
