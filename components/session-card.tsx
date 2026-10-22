@@ -2,7 +2,7 @@
 import { useId } from 'react';
 import { Clock3, Check, ChevronDown, Moon, Flame, Flower2, LockKeyhole, UsersRound, BellRing, X } from 'lucide-react';
 import type { AppData, GameSession } from '@/lib/types';
-import { dateLong, time, statusLabels, activeBooking } from '@/lib/utils';
+import { dateLong, time, statusLabels, activeBooking, sessionName } from '@/lib/utils';
 import { activeGuests } from '@/lib/guests';
 import { SessionDetail } from './session-detail';
 import { DateTile } from './date-tile';
@@ -22,10 +22,10 @@ export function SessionCard({ data, session: s, address, expanded, onToggle, fea
   const StateIcon = cancelled ? X : s.my_status === 'confirmed' ? Check : s.my_status === 'offered' ? BellRing : stateType === 'pending' || stateType === 'waitlisted' ? Clock3 : UsersRound;
   return <article id={`partie-${s.id}`} data-script={s.script} className={`session-accordion ${expanded ? 'is-expanded' : ''} ${featured ? 'is-next' : ''} ${cancelled ? 'is-cancelled' : ''}`}>
     <h2 className="session-summary">
-      <button type="button" className="session-row session-toggle" id={`${id}-summary`} aria-expanded={expanded} aria-controls={`${id}-panel`} aria-label={`${expanded ? 'Replier' : 'Déplier'} la partie ${s.title} · ${dateLong(s.starts_at)} · ${s.confirmed_count} places réservées sur ${s.capacity} · ${state}`} onClick={onToggle}>
+      <button type="button" className="session-row session-toggle" id={`${id}-summary`} aria-expanded={expanded} aria-controls={`${id}-panel`} aria-label={`${expanded ? 'Replier' : 'Déplier'} la partie ${sessionName(s)} · ${dateLong(s.starts_at)} · ${s.confirmed_count} places réservées sur ${s.capacity} · ${state}`} onClick={onToggle}>
         <DateTile date={s.starts_at} />
         <span className="session-row-copy">
-          <span className="session-title">{s.title}</span>
+          <span className="session-title">{sessionName(s)}</span>
           <span className="row-meta"><span className="row-script"><Icon size={14} />{s.script}</span><span><Clock3 size={13} />{time(s.starts_at)}</span><span className="row-seats"><UsersRound size={14} aria-hidden="true" />{s.confirmed_count} / {s.capacity}<span className="sr-only"> places réservées</span></span>{s.visibility === 'members' && <span className="row-lock" title="Réservée aux membres et à leurs invités"><LockKeyhole size={13} aria-hidden="true" />Membres</span>}</span>
         </span>
         <span className={`row-state row-state-${stateType}`}><StateIcon size={15} aria-hidden="true" />{state}</span>

@@ -6,7 +6,7 @@ import type { AppData } from '@/lib/types';
 import { createInvitation, revokeInvitation, acceptInvitation, sendInvitation } from '@/app/actions';
 import { useAction, Feedback } from './action-feedback';
 import { SignInButton } from './auth';
-import { shortDate, sessionUrl } from '@/lib/utils';
+import { shortDate, sessionUrl, sessionName } from '@/lib/utils';
 import { guestStatusLabels } from '@/lib/guests';
 import { MAX_TRAVELLER_GUESTS, MAX_WAITING_GUESTS } from '@/lib/session-rules';
 
@@ -29,7 +29,7 @@ export function Invitations({ data }: { data: AppData }) {
         <h2>Amener quelqu’un à une partie.</h2>
         <p className="muted">{traveller ? `Ouvre une partie et clique sur un + libre. Ton ami·e n’a pas besoin de compte ; un organisateur validera sa place avec la tienne. Jusqu’à ${MAX_TRAVELLER_GUESTS} personnes par partie.` : `Ouvre une partie et clique sur un + libre. Ton invité·e n’a pas besoin de compte et a sa place tout de suite. Pas de limite tant qu’il reste des places membres ; une fois la partie complète, jusqu’à ${MAX_WAITING_GUESTS} invité·es en liste d’attente.`}</p>
         {data.profile ? <Link className="button primary" href="/">Choisir une partie</Link> : <SignInButton configured={data.configured} />}
-        {upcoming.length > 0 && <ul className="guest-overview" aria-label="Tes invités aux prochaines parties">{upcoming.map(({ session, guest }) => <li key={guest.id}><Link href={sessionUrl(session.id)}><strong>{guest.name}</strong><span>{session.title} · {shortDate(session.starts_at)}</span></Link><span className="badge">{guestStatusLabels[guest.status]}</span></li>)}</ul>}
+        {upcoming.length > 0 && <ul className="guest-overview" aria-label="Tes invités aux prochaines parties">{upcoming.map(({ session, guest }) => <li key={guest.id}><Link href={sessionUrl(session.id)}><strong>{guest.name}</strong><span>{sessionName(session)} · {shortDate(session.starts_at)}</span></Link><span className="badge">{guestStatusLabels[guest.status]}</span></li>)}</ul>}
       </section>
       {data.profile && <section className="panel invitation-main">
         <span className="invite-icon"><UserPlus size={28} /></span>

@@ -37,9 +37,9 @@ export function SessionForm({ session, address = '', template, onSaved }: { sess
       a.run(() => saveSession(payload), onSaved);
     } catch (err) { a.setResult({ ok: false, message: err instanceof Error ? err.message : 'Vérifie la date.' }); }
   }}>
-    <p className="muted">{!session && template ? 'Le lieu, le script et les réglages de la dernière partie sont repris. Donne un nom à cette soirée et ajuste ce dont tu as besoin.' : 'Choisis le début de la soirée, vérifie le lieu et publie.'}</p>
+    <p className="muted">{!session && template ? 'Le lieu, le script et les réglages de la dernière partie sont repris. Choisis la date et ajuste ce dont tu as besoin.' : 'Choisis le début de la soirée, vérifie le lieu et publie.'}</p>
     <fieldset className="form-section"><legend><CalendarDays size={18} />La soirée</legend>
-      <label className="field">Nom de la partie<input name="title" required minLength={3} maxLength={100} defaultValue={session?.title || ''} placeholder="Soirée Blood on the Clocktower" autoFocus={!session} data-autofocus={!session || undefined} /></label>
+      <label className="field">Nom de la partie <span className="field-note">Facultatif · sans nom, la partie prend celui du script</span><input name="title" maxLength={100} defaultValue={session?.title || ''} placeholder="Soirée Blood on the Clocktower" autoFocus={!session} data-autofocus={!session || undefined} /></label>
       <div className="form-grid"><label className="field">Début · heure de Paris<input name="starts_at" required type="datetime-local" value={start} onChange={e => setStart(e.target.value)} /></label><label className="field">Script<input name="script" required list="session-scripts" minLength={2} maxLength={100} defaultValue={defaults?.script || 'Trouble Brewing'} /><datalist id="session-scripts"><option>Trouble Brewing</option><option>Bad Moon Rising</option><option>Sects &amp; Violets</option></datalist></label></div>
       <p className="field-note">{session ? 'La durée de la partie est conservée.' : `Durée estimée de ${DEFAULT_SESSION_HOURS} h pour l’agenda.`}{endLabel && ` Fin prévue : ${endLabel}.`}</p>
     </fieldset>

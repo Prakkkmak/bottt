@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { CalendarDays, Clock3, MapPin, ChevronLeft, LockKeyhole, BookOpen } from 'lucide-react';
 import type { ActionResult, AppData, GameSession, MyGuest } from '@/lib/types';
-import { dateLong, time, activeBooking } from '@/lib/utils';
+import { dateLong, time, activeBooking, sessionName } from '@/lib/utils';
 import { mapsUrl } from '@/lib/locations';
 import { activeGuests, canSeeAddress, participantLabel, recentGuestNames, seatPlan, waitlistHint } from '@/lib/guests';
 import { MAX_TRAVELLER_GUESTS, MAX_WAITING_GUESTS } from '@/lib/session-rules';
@@ -63,12 +63,12 @@ export function SessionDetail({ data, session: s, address, embedded = false }: {
   return <>
     {!embedded && <Link className="back-link" href="/"><ChevronLeft size={16} />Les parties</Link>}
     {!embedded && <div className="detail-heading">
-      <h1>{s.title}</h1>
+      <h1>{sessionName(s)}</h1>
       <div className="detail-badges"><span className="script-tag">{s.script}</span>{s.visibility === 'members' && <span className="badge"><LockKeyhole size={14} />Membres et invités</span>}</div>
       {practical}
     </div>}
     {embedded && practical}
-    <section className="session-table" aria-label={`Inscriptions pour ${s.title}`}>
+    <section className="session-table" aria-label={`Inscriptions pour ${sessionName(s)}`}>
       {(s.my_status !== 'confirmed' || s.status === 'cancelled') && <div className="session-table-status">
         <p className="session-status-title" aria-live="polite">{heading}</p>
         {hint && <p className="table-hint">{hint}</p>}
