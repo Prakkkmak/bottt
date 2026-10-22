@@ -15,6 +15,7 @@ export function SessionForm({ session, address = '', template, onSaved }: { sess
   const releaseHours = defaults?.release_hours ?? 72;
   const releaseOptions = [...new Set([0, 24, 48, 72, 168, releaseHours])].sort((a, b) => a - b);
   const [start, setStart] = useState(() => session ? parisInput(session.starts_at) : nextSessionStart());
+  const [script, setScript] = useState(defaults?.script || 'Trouble Brewing');
   const [location, setLocation] = useState(defaults?.location || 'Brest');
   const previousAddress = splitAddress(address);
   const [preciseAddress, setPreciseAddress] = useState(previousAddress.address);
@@ -39,8 +40,8 @@ export function SessionForm({ session, address = '', template, onSaved }: { sess
   }}>
     <p className="muted">{!session && template ? 'Le lieu, le script et les réglages de la dernière partie sont repris. Choisis la date et ajuste ce dont tu as besoin.' : 'Choisis le début de la soirée, vérifie le lieu et publie.'}</p>
     <fieldset className="form-section"><legend><CalendarDays size={18} />La soirée</legend>
-      <label className="field">Nom de la partie <span className="field-note">Facultatif · sans nom, la partie prend celui du script</span><input name="title" maxLength={100} defaultValue={session?.title || ''} placeholder="Soirée Blood on the Clocktower" autoFocus={!session} data-autofocus={!session || undefined} /></label>
-      <div className="form-grid"><label className="field">Début · heure de Paris<input name="starts_at" required type="datetime-local" value={start} onChange={e => setStart(e.target.value)} /></label><label className="field">Script<input name="script" required list="session-scripts" minLength={2} maxLength={100} defaultValue={defaults?.script || 'Trouble Brewing'} /><datalist id="session-scripts"><option>Trouble Brewing</option><option>Bad Moon Rising</option><option>Sects &amp; Violets</option></datalist></label></div>
+      <label className="field">Nom de la partie <span className="field-note">Facultatif · sans nom, la partie prend celui du script</span><input name="title" maxLength={100} defaultValue={session?.title || ''} placeholder={script.trim() || 'Trouble Brewing'} autoFocus={!session} data-autofocus={!session || undefined} /></label>
+      <div className="form-grid"><label className="field">Début · heure de Paris<input name="starts_at" required type="datetime-local" value={start} onChange={e => setStart(e.target.value)} /></label><label className="field">Script<input name="script" required list="session-scripts" minLength={2} maxLength={100} value={script} onChange={e => setScript(e.target.value)} /><datalist id="session-scripts"><option>Trouble Brewing</option><option>Bad Moon Rising</option><option>Sects &amp; Violets</option></datalist></label></div>
       <p className="field-note">{session ? 'La durée de la partie est conservée.' : `Durée estimée de ${DEFAULT_SESSION_HOURS} h pour l’agenda.`}{endLabel && ` Fin prévue : ${endLabel}.`}</p>
     </fieldset>
     <fieldset className="form-section"><legend><MapPin size={18} />Le lieu</legend>
