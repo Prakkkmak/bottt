@@ -7,7 +7,7 @@ function Bone({ width = '100%', height = 14, round = false, style }: { width?: n
 
 /** The page's real title shows at once; the rest of the page fades in as placeholders when loading takes a moment. */
 function Loading({ title, intro, action, children }: { title: string; intro?: string; action?: boolean; children: React.ReactNode }) {
-  return <div className="page-loading" aria-busy="true">
+  return <div className="page-loading">
     <p className="sr-only" role="status">Chargement de la page…</p>
     <div className="page-heading"><div><h1>{title}</h1>{intro && <p>{intro}</p>}</div>{action && <Bone width={160} height={40} />}</div>
     <div className="page-loading-body" aria-hidden="true">{children}</div>
@@ -62,7 +62,7 @@ export function OrganiserLoading() {
 }
 
 export function TextLoading() {
-  return <div className="page-loading" aria-busy="true">
+  return <div className="page-loading">
     <p className="sr-only" role="status">Chargement de la page…</p>
     <div className="page-loading-body skeleton-text" aria-hidden="true"><Bone width="65%" height={34} />{[92, 100, 84, 96, 70].map((width, i) => <Bone key={i} width={`${width}%`} />)}</div>
   </div>;

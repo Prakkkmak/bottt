@@ -8,11 +8,11 @@ import { Navigation } from './navigation';
 import { CookieSettings } from './cookies';
 import { NicknameStep } from './nickname';
 import { ActivityBar } from './activity';
+import { ViewerCheck } from './viewer';
 
 /** Header and footer, rendered once by the root layout so they stay in place while a page loads. */
 export function SiteFrame({ data, children }: { data: AppData; children: React.ReactNode }) {
-  // A new account chooses its pseudo before anything else, then lands on the page it opened.
-  // Until the migration adds the flag, it is undefined and nobody is held back.
+  // While a new account chooses its pseudo (see Shell), the header offers nowhere else to go.
   const welcome = data.profile?.nickname_chosen === false;
   return <div className="app-shell">
     <ActivityBar />
@@ -22,7 +22,7 @@ export function SiteFrame({ data, children }: { data: AppData; children: React.R
       {!welcome && <Navigation organizer={data.profile?.membership === 'organizer' || data.demo} />}
       <div className="header-account">{welcome ? null : data.profile ? <Link href="/profil" className="account-link" aria-label={`Mon profil : ${data.profile.display_name}`}><Avatar name={data.profile.display_name} color={data.profile.avatar_color} /><span>{data.profile.display_name}</span></Link> : <SignInButton configured={data.configured} className="button secondary compact" />}</div>
     </header>
-    <main id="main-content" className="main-content">{welcome ? <NicknameStep /> : children}</main>
+    <main id="main-content" className="main-content">{children}</main>
     <footer className="footer">
       <div className="footer-about">
         <h2>Blood on the Tanguy Tower</h2>
@@ -35,10 +35,14 @@ export function SiteFrame({ data, children }: { data: AppData; children: React.R
 
 /** What a page adds inside the frame: the notices of its own request and the browser tools for its sessions. */
 export function Shell({ data, children }: { data: AppData; children: React.ReactNode }) {
+  // A new account chooses its pseudo before anything else, then lands on the page it opened.
+  // Until the migration adds the flag, it is undefined and nobody is held back.
+  const welcome = data.profile?.nickname_chosen === false;
   return <>
+    <ViewerCheck signedIn={!!data.profile} welcome={welcome} />
     <WebTools sessions={data.sessions} />
     {data.error && <div className="alert error site-error" role="alert">{data.error}</div>}
     {data.accountNotice && <div className="alert info site-error" role="status">{data.accountNotice}</div>}
-    {children}
+    {welcome ? <NicknameStep /> : children}
   </>;
 }

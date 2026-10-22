@@ -8,5 +8,5 @@ export const metadata: Metadata = { title: { default: 'Blood on the Tanguy Tower
 // The header lives here so it stays on screen while the next page loads; getData is shared with the page in the same request.
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const data = await getData();
-  return <html lang="fr"><head><link rel="preload" href="/fonts/dm-sans-latin.woff2" as="font" type="font/woff2" crossOrigin="anonymous" /><link rel="preload" href="/fonts/cinzel-latin.woff2" as="font" type="font/woff2" crossOrigin="anonymous" /></head><body><ViewerProvider value={{ signedIn: !!data.profile, configured: data.configured }}><SiteFrame data={data}>{children}</SiteFrame></ViewerProvider><CookieBanner /></body></html>;
+  return <html lang="fr"><head><link rel="preload" href="/fonts/dm-sans-latin.woff2" as="font" type="font/woff2" crossOrigin="anonymous" /><link rel="preload" href="/fonts/cinzel-latin.woff2" as="font" type="font/woff2" crossOrigin="anonymous" /></head><body><ViewerProvider value={{ signedIn: !!data.profile, welcome: data.profile?.nickname_chosen === false, configured: data.configured }}><SiteFrame data={data}>{children}</SiteFrame></ViewerProvider><CookieBanner /></body></html>;
 }
