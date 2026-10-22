@@ -30,9 +30,9 @@ for(const [index,s] of demoSessions().entries()){
  const players=index===2?[0,1,2,12]:Array.from({length:confirmed_count},(_,j)=>j+1);
  const rows=players.map(p=>({session_id:sid,user_id:ids[p],status:'confirmed',pool:p>11?'newcomer':'circle'}));
  if(index===1){rows.push({session_id:sid,user_id:ids[0],status:'waitlisted',pool:'circle'},{session_id:sid,user_id:ids[14],status:'waitlisted',pool:'newcomer'});}
- if(index===0)rows.push({session_id:sid,user_id:ids[13],status:'pending',pool:'newcomer'});
+ if(index===0)rows.push({session_id:sid,user_id:ids[13],status:'confirmed',pool:'newcomer'});
  const {error:bError}=await db.from('bookings').insert(rows);if(bError)throw bError;
- // Guests have no account: Léa's guest has a seat at once, Maxime's friend waits with him for review.
- if(index===0){const {error:gError}=await db.from('bookings').insert([{session_id:sid,guest_name:'Paul',sponsor_id:ids[1],status:'confirmed',pool:'circle'},{session_id:sid,guest_name:'Nora',sponsor_id:ids[13],status:'pending',pool:'newcomer'}]);if(gError)throw gError;}
+ // Guests have no account: Léa and Maxime, a traveller, each bring one.
+ if(index===0){const {error:gError}=await db.from('bookings').insert([{session_id:sid,guest_name:'Paul',sponsor_id:ids[1],status:'confirmed',pool:'circle'},{session_id:sid,guest_name:'Nora',sponsor_id:ids[13],status:'confirmed',pool:'newcomer'}]);if(gError)throw gError;}
 }
 console.log('Exemples locaux prêts : 2 lieux, 4 sessions, 16 profils. Compte organisateur : camille@cercle.test.');

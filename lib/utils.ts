@@ -1,5 +1,5 @@
 import type { BookingStatus, GameSession } from './types';
-export const statusLabels: Record<BookingStatus, string> = { confirmed: 'Inscrit·e', waitlisted: 'En liste d’attente', pending: 'À valider', offered: 'Une place pour toi', cancelled: 'Désisté·e', declined: 'Non retenu·e' };
+export const statusLabels: Record<BookingStatus, string> = { confirmed: 'Inscrit·e', waitlisted: 'En liste d’attente', pending: 'En attente', offered: 'Une place pour toi', cancelled: 'Désisté·e', declined: 'Non retenu·e' };
 export const dateLong = (date: string) => new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Paris' }).format(new Date(date));
 export const shortDate = (date: string) => new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short', timeZone: 'Europe/Paris' }).format(new Date(date));
 export const time = (date: string) => new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' }).format(new Date(date)).replace(':', 'h');

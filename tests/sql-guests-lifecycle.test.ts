@@ -13,7 +13,6 @@ test('Modifications, annulation, rappels et effacement des invités',async t=>{
   await h.login(2);await h.call('select book_session($1)',[game]);for(const name of ['Paul','Lou'])await h.call('select add_guest($1,$2)',[game,name]);
   await h.login(4);await h.call('select book_session($1)',[game]);for(const name of ['Tom','Inès'])await h.call('select add_guest($1,$2)',[game,name]);
   await h.login(3);await h.call('select book_session($1)',[game]);await h.call('select add_guest($1,$2)',[game,'Nora']);
-  await h.login(1);await h.call('select review_request($1,$2,true)',[game,uuid(3)]);
 
   await t.test('la capacité ne descend pas sous les places prises, invités compris',async()=>{
     await h.login(1);
@@ -24,6 +23,16 @@ test('Modifications, annulation, rappels et effacement des invités',async t=>{
     const two=await notices(2,'Les informations de ta session ont changé');const four=await notices(4,'Les informations de ta session ont changé');
     assert.equal(two.length,1);assert.match(two[0].body,/Préviens Lou et Paul\./);
     assert.equal(four.length,1);assert.match(four[0].body,/Préviens Inès et Tom\./);
+  });
+  await t.test('seul un changement de date ou de lieu écrit aux inscrits, plus un nouveau nom ou un réglage',async()=>{
+    await h.root();const [{starts_at}]=await h.call<{starts_at:Date}>('select starts_at from sessions where id=$1',[game]);
+    const same=(changes:Record<string,unknown>)=>input(game,{starts_at:starts_at.toISOString(),...changes});
+    await h.login(1);await h.call('select save_session($1::jsonb)',[same({title:'Nouveau nom',visibility:'public'})]);
+    assert.equal((await notices(2,'Les informations de ta session ont changé')).length,1);
+    await h.login(1);await h.call('select save_session($1::jsonb)',[same({location:'Quimper'})]);
+    assert.equal((await notices(2,'Les informations de ta session ont changé')).length,2);
+    await h.login(1);await h.call('select save_session($1::jsonb)',[same({location:'Quimper',address:'1 rue du Port'})]);
+    assert.equal((await notices(2,'Les informations de ta session ont changé')).length,3);
   });
   await t.test('annuler la partie prévient chaque parrain une seule fois',async()=>{
     await h.login(1);await h.call('select cancel_session($1)',[game]);

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { Booking, GameSession, MyGuest, Profile } from '../lib/types';
-import { bookingLabel, canSeeAddress, experienceOf, groupRequests, orderBySponsor, participantLabel, recentGuestNames, refusalText, requestNote, seatPlan, waitlistHint, type RequestGroup } from '../lib/guests';
+import { bookingLabel, canSeeAddress, experienceOf, orderBySponsor, participantLabel, recentGuestNames, seatPlan, waitingLabel, waitlistHint, waitlistPositions } from '../lib/guests';
 
 const now = Date.parse('2026-10-12T10:00:00Z');
 const session = (changes: Partial<GameSession> = {}): GameSession => ({ id: 's1', title: 'Soirée', script: 'Trouble Brewing', starts_at: '2026-10-20T17:30:00Z', ends_at: '2026-10-20T21:30:00Z', location: 'Brest', capacity: 8, newcomer_seats: 2, release_hours: 72, beginners_welcome: true, visibility: 'public', status: 'published', confirmed_count: 3, waitlist_count: 0, my_status: null, participants: [], member_seats_free: 3, traveller_seats_free: 2, my_guests: [], ...changes });
@@ -24,67 +24,52 @@ test('ce que fait un + selon la personne', () => {
   assert.deepEqual(seatPlan(session(), null, now), { ...none, onFreeSeat: 'signin' });
   assert.deepEqual(seatPlan(session({ confirmed_count: 8 }), null, now), { ...none, waitlist: 'self' });
   assert.deepEqual(seatPlan(session(), member, now), { ...none, onFreeSeat: 'book', canBringOther: true });
-  assert.deepEqual(seatPlan(session({ member_seats_free: 0 }), member, now), { ...none, waitlist: 'self', canBringOther: true });
+  assert.deepEqual(seatPlan(session({ confirmed_count: 8 }), member, now), { ...none, waitlist: 'self', canBringOther: true });
   assert.deepEqual(seatPlan(session({ my_status: 'confirmed' }), member, now), { ...none, onFreeSeat: 'guest' });
-  assert.deepEqual(seatPlan(session({ my_status: 'confirmed', member_seats_free: 0 }), member, now), { ...none, waitlist: 'guest' });
-  // Members bring as many people as member seats allow, then 2 on the waitlist; travellers stop at two.
+  assert.deepEqual(seatPlan(session({ my_status: 'confirmed', confirmed_count: 8 }), member, now), { ...none, waitlist: 'guest' });
+  // One pool: the former per-rank counts no longer hide a free token from anyone.
+  assert.deepEqual(seatPlan(session({ member_seats_free: 0, traveller_seats_free: 0 }), member, now), { ...none, onFreeSeat: 'book', canBringOther: true });
+  assert.deepEqual(seatPlan(session({ member_seats_free: 0, traveller_seats_free: 0 }), traveller, now), { ...none, onFreeSeat: 'book', canBringOther: true });
+  // Members bring as many people as tokens allow, then 2 on the waitlist; travellers stop at two.
   assert.deepEqual(seatPlan(session({ my_status: 'confirmed', my_guests: [guest('Paul'), guest('Lou', 'waitlisted', null)] }), member, now), { ...none, onFreeSeat: 'guest' });
-  const waiting = [guest('Lou', 'waitlisted', null), guest('Tim', 'offered', null)];
-  assert.deepEqual(seatPlan(session({ my_status: 'confirmed', member_seats_free: 0, my_guests: [guest('Paul'), guest('Lou', 'waitlisted', null)] }), member, now), { ...none, waitlist: 'guest' });
-  assert.deepEqual(seatPlan(session({ my_status: 'confirmed', member_seats_free: 0, my_guests: waiting }), member, now), { ...none, limitReached: true });
-  assert.deepEqual(seatPlan(session({ member_seats_free: 0, my_guests: waiting }), member, now), { ...none, waitlist: 'self', limitReached: true });
+  const waiting = [guest('Lou', 'waitlisted', null), guest('Tim', 'waitlisted', null)];
+  assert.deepEqual(seatPlan(session({ my_status: 'confirmed', confirmed_count: 8, my_guests: [guest('Paul'), guest('Lou', 'waitlisted', null)] }), member, now), { ...none, waitlist: 'guest' });
+  assert.deepEqual(seatPlan(session({ my_status: 'confirmed', confirmed_count: 8, my_guests: waiting }), member, now), { ...none, limitReached: true });
+  assert.deepEqual(seatPlan(session({ confirmed_count: 8, my_guests: waiting }), member, now), { ...none, waitlist: 'self', limitReached: true });
   assert.deepEqual(seatPlan(session({ my_status: 'confirmed', my_guests: waiting }), member, now), { ...none, onFreeSeat: 'guest' });
-  assert.deepEqual(seatPlan(session({ my_status: 'pending', my_guests: [guest('Nora', 'pending', null), guest('Yann', 'pending', null)] }), traveller, now), { ...none, limitReached: true });
-  assert.deepEqual(seatPlan(session({ my_guests: [guest('Nora', 'pending', null), guest('Yann', 'pending', null)] }), traveller, now), { ...none, onFreeSeat: 'book', limitReached: true });
+  assert.deepEqual(seatPlan(session({ my_status: 'confirmed', my_guests: [guest('Nora'), guest('Yann', 'waitlisted', null)] }), traveller, now), { ...none, limitReached: true });
+  assert.deepEqual(seatPlan(session({ my_guests: [guest('Nora'), guest('Yann')] }), traveller, now), { ...none, onFreeSeat: 'book', limitReached: true });
   assert.deepEqual(seatPlan(session({ my_status: 'confirmed', my_guests: [guest('Paul', 'cancelled', null), guest('Lou', 'declined', null)] }), member, now), { ...none, onFreeSeat: 'guest' });
-  assert.deepEqual(seatPlan(session({ my_status: 'pending', traveller_seats_free: 0 }), traveller, now), { ...none, waitlist: 'guest' });
-  assert.deepEqual(seatPlan(session({ traveller_seats_free: 0 }), traveller, now), { ...none, waitlist: 'self', canBringOther: true });
+  assert.deepEqual(seatPlan(session({ my_status: 'waitlisted', confirmed_count: 8 }), traveller, now), { ...none, waitlist: 'guest' });
+  assert.deepEqual(seatPlan(session({ confirmed_count: 8 }), traveller, now), { ...none, waitlist: 'self', canBringOther: true });
   assert.deepEqual(seatPlan(session({ my_status: 'declined' }), member, now), none);
   assert.deepEqual(seatPlan(session({ starts_at: '2026-10-12T10:20:00Z' }), member, now), none);
   assert.deepEqual(seatPlan(session({ status: 'cancelled' }), member, now), none);
 });
 
-test('explication de la liste d’attente', () => {
-  assert.equal(waitlistHint(session({ confirmed_count: 8 }), false, now), 'Le cercle est complet, mais une place se libère souvent.');
-  assert.equal(waitlistHint(session({ confirmed_count: 6 }), false, now), 'Les places membres sont prises. Les 2 places restantes sont réservées aux voyageurs jusqu’au samedi 17 octobre.');
-  assert.equal(waitlistHint(session({ confirmed_count: 7 }), true, now), 'Les places voyageurs sont prises. La place restante est réservée aux membres jusqu’au samedi 17 octobre.');
+test('explication et rang de la liste d’attente', () => {
+  assert.equal(waitlistHint(session({ confirmed_count: 8 })), 'Le cercle est complet. Si une place se libère jusqu’à 30 minutes avant le début, elle revient à la première personne de la liste, sans autre démarche, et un e-mail la prévient.');
+  assert.equal(waitlistHint(session({ confirmed_count: 8, waitlist_count: 1 })), 'Le cercle est complet. 1 personne attend déjà. Si une place se libère jusqu’à 30 minutes avant le début, elle revient à la première personne de la liste, sans autre démarche, et un e-mail la prévient.');
+  assert.match(waitlistHint(session({ confirmed_count: 8, waitlist_count: 3 })), /3 personnes attendent déjà\./);
+  assert.equal(waitingLabel(2), 'n° 2 sur la liste d’attente');
+  assert.equal(waitingLabel(null), 'en liste d’attente');
 });
 
-test('regroupement des demandes pour l’organisateur', () => {
-  const profiles = [{ id: 'u3', display_name: 'Sami', membership: 'newcomer' }] as Profile[];
-  const base = { session_id: 's1', pool: 'newcomer' as const, created_at: '2026-10-12T10:00:00Z', offer_expires_at: null };
+test('rang de chacun dans la file, pour l’organisateur', () => {
+  const base = { pool: 'circle' as const, offer_expires_at: null, user_id: null, guest_name: 'X', sponsor_id: 'u1' };
   const bookings: Booking[] = [
-    { ...base, id: 'b1', user_id: 'u3', guest_name: null, sponsor_id: null, status: 'pending' },
-    { ...base, id: 'b2', user_id: null, guest_name: 'Nora', sponsor_id: 'u3', status: 'pending' },
-    { ...base, id: 'b3', user_id: null, guest_name: 'Yann', sponsor_id: 'u9', status: 'pending' },
-    { ...base, id: 'b4', user_id: 'u5', guest_name: null, sponsor_id: null, status: 'confirmed' },
+    { ...base, id: 'b', session_id: 's1', status: 'waitlisted', created_at: '2026-10-12T10:05:00Z' },
+    { ...base, id: 'a', session_id: 's1', status: 'confirmed', created_at: '2026-10-12T10:00:00Z' },
+    { ...base, id: 'd', session_id: 's1', status: 'waitlisted', created_at: '2026-10-12T10:01:00Z' },
+    { ...base, id: 'c', session_id: 's1', status: 'waitlisted', created_at: '2026-10-12T10:01:00Z' },
+    { ...base, id: 'e', session_id: 's2', status: 'waitlisted', created_at: '2026-10-12T11:00:00Z' },
+    // Within the same millisecond, the microseconds Postgres keeps still decide, as in the database.
+    { ...base, id: 'f', session_id: 's3', status: 'waitlisted', created_at: '2026-10-12T11:00:00.123456+00:00' },
+    { ...base, id: 'g', session_id: 's3', status: 'waitlisted', created_at: '2026-10-12T11:00:00.12345+00:00' },
+    { ...base, id: 'h', session_id: 's3', status: 'waitlisted', created_at: '2026-10-12T11:00:00.1234+00:00' },
   ];
-  assert.deepEqual(groupRequests(bookings, profiles).map(g => [g.key, g.own?.id, g.guests.map(b => b.id), g.person?.display_name]), [['s1:u3', 'b1', ['b2'], 'Sami'], ['s1:u9', undefined, ['b3'], undefined]]);
-});
-
-test('cartes de demande et confirmation de refus pour l’organisateur', () => {
-  const sami = { id: 'u3', display_name: 'Sami', membership: 'newcomer', beginner: true } as Profile;
-  const base = { session_id: 's1', pool: 'newcomer' as const, created_at: '2026-10-12T10:00:00Z', offer_expires_at: null, status: 'pending' as const };
-  const own: Booking = { ...base, id: 'b1', user_id: 'u3', guest_name: null, sponsor_id: null };
-  const nora: Booking = { ...base, id: 'b2', user_id: null, guest_name: 'Nora', sponsor_id: 'u3' };
-  const yann: Booking = { ...base, id: 'b3', user_id: null, guest_name: 'Yann', sponsor_id: 'u3' };
-  const group = (guests: Booking[], withOwn: boolean, person: Profile | null = sami): RequestGroup => ({ key: 's1:u3', sessionId: 's1', personId: 'u3', person: person ?? undefined, ...(withOwn ? { own } : {}), guests });
-  // Own pending request: the declared level, whether or not the person is also counted as attending.
-  assert.equal(requestNote(group([nora], true), true), 'Débutant·e');
-  assert.equal(requestNote(group([], true, { ...sami, experience: 'experienced' }), true), 'Expérimenté·e');
-  // Before the experience column exists, the beginner flag still gives a level.
-  assert.equal(requestNote(group([], true, { ...sami, beginner: false }), true), 'Quelques parties');
-  // Only friends pending: already registered, or not coming at all.
-  assert.equal(requestNote(group([nora], false), true), 'Déjà inscrit·e, amène quelqu’un');
-  assert.equal(requestNote(group([nora], false), false), 'Ne vient pas, amène quelqu’un');
-  assert.equal(refusalText(group([], true)), 'La demande de Sami sera refusée. Un message lui sera envoyé.');
-  assert.equal(refusalText(group([nora], true)), 'La demande de Sami sera refusée, ainsi que celle de Nora. Un message lui sera envoyé.');
-  assert.equal(refusalText(group([nora, yann], true)), 'La demande de Sami sera refusée, ainsi que celles de Nora et Yann. Un message lui sera envoyé.');
-  assert.equal(refusalText(group([nora], false)), 'La demande pour Nora sera refusée. Sami sera prévenu·e.');
-  assert.equal(refusalText(group([nora, yann], false)), 'Les demandes pour Nora et Yann seront refusées. Sami sera prévenu·e.');
-  // Without a profile the person is still named, capitalised only where a sentence starts.
-  assert.equal(refusalText(group([], true, null)), 'La demande de cette personne sera refusée. Un message lui sera envoyé.');
-  assert.equal(refusalText(group([nora], false, null)), 'La demande pour Nora sera refusée. Cette personne sera prévenu·e.');
+  // Arrival order first, then the id for two people who arrived at the same instant, game by game.
+  assert.deepEqual([...waitlistPositions(bookings)].sort(), [['b', 3], ['c', 1], ['d', 2], ['e', 1], ['f', 3], ['g', 2], ['h', 1]]);
 });
 
 test('ordre des participants et libellés organisateur', () => {
@@ -111,8 +96,16 @@ test('accès à l’adresse', () => {
   assert.equal(canSeeAddress(session(), { membership: 'organizer' } as Profile), true);
   assert.equal(canSeeAddress(session({ my_status: 'confirmed' }), { membership: 'member' } as Profile), true);
   assert.equal(canSeeAddress(session({ my_guests: [guest('Paul')] }), { membership: 'member' } as Profile), true);
-  assert.equal(canSeeAddress(session({ my_status: 'waitlisted', my_guests: [guest('Paul', 'pending', null)] }), { membership: 'newcomer' } as Profile), false);
+  assert.equal(canSeeAddress(session({ my_status: 'waitlisted', my_guests: [guest('Paul', 'waitlisted', null)] }), { membership: 'newcomer' } as Profile), false);
   assert.equal(canSeeAddress(session(), null), false);
+  // Travellers book without an organizer: the exact address comes 48 hours before the game, for them and their friends.
+  const starts = '2026-10-20T17:30:00Z';
+  const early = Date.parse(starts) - 49 * 3600000, close = Date.parse(starts) - 47 * 3600000;
+  assert.equal(canSeeAddress(session({ starts_at: starts, my_status: 'confirmed' }), traveller, early), false);
+  assert.equal(canSeeAddress(session({ starts_at: starts, my_status: 'confirmed' }), traveller, close), true);
+  assert.equal(canSeeAddress(session({ starts_at: starts, my_guests: [guest('Nora')] }), traveller, close), true);
+  assert.equal(canSeeAddress(session({ starts_at: starts, my_status: 'waitlisted' }), traveller, close), false);
+  assert.equal(canSeeAddress(session({ starts_at: starts, my_status: 'confirmed' }), member, early), true);
 });
 
 test('niveau déclaré, avec repli sur l’ancienne case « débutant »', () => {

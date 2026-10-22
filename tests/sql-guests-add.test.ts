@@ -22,14 +22,15 @@ test('Ajout des invités',async t=>{
     assert.equal(await add(game,'paul',6),'confirmed');
     assert.equal((await rows()).length,1);
   });
-  await t.test('un membre amène autant de personnes que les places membres le permettent, puis deux en liste d’attente',async()=>{
+  await t.test('un membre amène autant de personnes que le cercle le permet, puis deux en liste d’attente',async()=>{
     const crowd=uuid(105);await h.session(crowd,{capacity:7,travellerSeats:2});
     await h.login(2);
     await add(game,'Ami 1');
-    for(const name of ['Jo','Lu','Max','Néo','Sam'])assert.equal(await add(crowd,name),'confirmed');
-    assert.equal(await add(crowd,'Tim'),'waitlisted');
-    assert.equal(await add(crowd,'Ugo'),'waitlisted');
-    await assert.rejects(add(crowd,'Val'),/déjà 2 personnes en liste d’attente/);
+    // The former traveller seats are open to everyone.
+    for(const name of ['Jo','Lu','Max','Néo','Sam','Tim','Ugo'])assert.equal(await add(crowd,name),'confirmed');
+    assert.equal(await add(crowd,'Val'),'waitlisted');
+    assert.equal(await add(crowd,'Wes'),'waitlisted');
+    await assert.rejects(add(crowd,'Xav'),/déjà 2 personnes en liste d’attente/);
   });
   await t.test('le prénom et le jeton sont contrôlés',async()=>{
     await h.login(3);
@@ -42,17 +43,21 @@ test('Ajout des invités',async t=>{
     await add(game,'  Marie   Hélène  ');
     assert.ok((await rows()).some(r=>r.guest_name==='Marie Hélène'&&r.sponsor_id===uuid(5)));
   });
-  await t.test('un voyageur et son ami attendent la validation, sans jeton, sur les places voyageurs',async()=>{
+  await t.test('un voyageur et son ami ont leur place tout de suite, au jeton choisi, sans validation',async()=>{
     // Seats 0 and 1 went to « Ami 1 » and « Marie Hélène » (first free tokens), seat 5 to Paul.
     await h.login(4);
-    assert.equal((await h.call<{book_circle_seat:string}>('select book_circle_seat($1,2)',[game]))[0].book_circle_seat,'pending');
-    assert.equal(await add(game,'Nora',3),'pending');
+    assert.equal((await h.call<{book_circle_seat:string}>('select book_circle_seat($1,2)',[game]))[0].book_circle_seat,'confirmed');
+    assert.equal(await add(game,'Nora',3),'confirmed');
     const nora=(await rows()).find(r=>r.guest_name==='Nora')!;
-    assert.deepEqual([nora.status,nora.pool,nora.seat_index],['pending','newcomer',null]);
+    // The pool still tells a traveller's friend from a member's guest.
+    assert.deepEqual([nora.status,nora.pool,nora.seat_index],['confirmed','newcomer',3]);
+    await h.root();
+    const notices=await h.call<{title:string}>('select title from notifications where user_id=$1 order by created_at,id',[uuid(4)]);
+    assert.deepEqual(notices.map(n=>n.title),['Ta place est réservée','Nora a sa place']);
   });
   await t.test(`un voyageur amène au plus ${MAX_TRAVELLER_GUESTS} personnes par partie`,async()=>{
     await h.login(4);
-    assert.equal(await add(game,'Lina'),'pending');
+    assert.equal(await add(game,'Lina'),'confirmed');
     await assert.rejects(add(game,'Un de trop'),new RegExp(`déjà ${MAX_TRAVELLER_GUESTS} personnes`));
   });
   await t.test('un parrain lit ses invités, personne d’autre ; personne n’écrit directement',async()=>{
@@ -71,12 +76,12 @@ test('Ajout des invités',async t=>{
     await h.login(3);
     assert.equal(await add(closed,'Lou'),'confirmed');
   });
-  await t.test('l’invité d’un membre attend son tour quand les places membres sont prises',async()=>{
+  await t.test('l’invité d’un membre prend n’importe quel jeton libre, même sur une partie qui avait des places voyageurs',async()=>{
     const small=uuid(102);await h.session(small,{capacity:7,travellerSeats:5});
     await h.login(3);
     assert.equal((await h.call<{book_session:string}>('select book_session($1)',[small]))[0].book_session,'confirmed');
     assert.equal(await add(small,'Yann'),'confirmed');
-    assert.equal(await add(small,'Zoé'),'waitlisted');
+    assert.equal(await add(small,'Zoé'),'confirmed');
   });
   await t.test('après la réunion des quotas, l’invité d’un membre prend n’importe quelle place libre',async()=>{
     const merged=uuid(103);await h.session(merged,{capacity:7,travellerSeats:6,startsIn:'1 day',releaseHours:72});

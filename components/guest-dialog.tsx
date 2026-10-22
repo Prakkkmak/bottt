@@ -8,17 +8,16 @@ import { useAction, Feedback } from './action-feedback';
 import { Spinner } from './ui';
 
 /** Brings someone without an account: a first name is all we keep. */
-export function GuestForm({ sessionId, seat, traveller, waitlist, suggestions, onDone }: { sessionId: string; seat?: number; traveller: boolean; waitlist: boolean; suggestions: string[]; onDone: (result: ActionResult) => void }) {
+export function GuestForm({ sessionId, seat, waitlist, suggestions, onDone }: { sessionId: string; seat?: number; waitlist: boolean; suggestions: string[]; onDone: (result: ActionResult) => void }) {
   const a = useAction();
   const router = useRouter();
   const [name, setName] = useState('');
   // The typed name keeps its case; the stand-in is lower case except where it starts the sentence.
   const typed = name.trim();
   const who = typed || 'cette personne';
-  const note = traveller ? `Comme toi, ${who} attendra la validation d’un organisateur.`
-    : waitlist ? `Les places membres sont prises : ${who} rejoint la liste d’attente et tu seras prévenu·e dès qu’une place se libère.`
-    : `${typed || 'Cette personne'} a sa place tout de suite, affiché·e comme ton invité·e. Préviens-le·la de l’heure et du lieu.`;
-  const label = traveller ? 'Demander sa place' : waitlist ? 'Mettre en liste d’attente' : typed ? `Placer ${typed}` : 'Placer cette personne';
+  const note = waitlist ? `Le cercle est complet : ${who} rejoint la liste d’attente. Si une place se libère jusqu’à 30 minutes avant le début, elle lui revient automatiquement et tu recevras un e-mail.`
+    : `${typed || 'Cette personne'} a sa place tout de suite, affiché·e comme ton invité·e. Tu recevras un e-mail de confirmation ; préviens-le·la de l’heure et du lieu.`;
+  const label = waitlist ? 'Mettre en liste d’attente' : typed ? `Placer ${typed}` : 'Placer cette personne';
   // A failure often means the seats on screen are stale (a + just taken), so load the current ones.
   const submit = () => a.run(async () => {
     const result = await addGuest(sessionId, name, seat);

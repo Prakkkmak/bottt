@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer';
+import { dateLong, sessionName, time } from './utils';
 
 export type Mail = { to: string; subject: string; text: string; idempotencyKey?: string };
 
@@ -19,13 +20,33 @@ export async function sendMail({ to, subject, text, idempotencyKey }: Mail) {
     return;
   }
   if (!process.env.RESEND_API_KEY) throw new Error('Email provider not configured');
-  const result = await fetch('https://api.resend.com/emails', {
+  const post = () => fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json', ...(idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}) },
     body: JSON.stringify({ from: process.env.MAIL_FROM, to, subject, text }),
     signal: AbortSignal.timeout(15000),
   });
+  let result = await post();
+  // Resend allows a few requests per second: a burst, such as a cancelled game, waits its turn once.
+  if (result.status === 429) { await new Promise(resolve => setTimeout(resolve, 1000)); result = await post(); }
   if (!result.ok) throw new Error('Email provider unavailable');
+}
+
+/** A queued notification as public.claim_emails returns it, with the game it is about when there is one. */
+export type QueuedEmail = {
+  id: string; email: string; title: string; body: string; session_id: string | null;
+  session_title?: string | null; session_script?: string | null; session_starts_at?: string | null; session_location?: string | null;
+};
+
+/** A notification as an e-mail: the subject names the game and its date, the text adds when and where, and a link back to it. */
+export function notificationMail(m: QueuedEmail, site = siteUrl()) {
+  const game = m.session_script ? sessionName({ title: m.session_title ?? '', script: m.session_script }) : '';
+  const day = m.session_starts_at ? dateLong(m.session_starts_at) : '';
+  const details = game ? [`Partie : ${game}`, day && `Quand : ${day} à ${time(m.session_starts_at!)}`, m.session_location && `Où : ${m.session_location}`].filter(Boolean).join('\n') : '';
+  const link = `${site}${m.session_id ? `/sessions/${m.session_id}` : '/'}`;
+  // Guest names reach the title: a line break must not end the subject header.
+  const subject = [m.title, game && [game, day].filter(Boolean).join(', ')].filter(Boolean).join(' · ').replace(/\s+/g, ' ').trim();
+  return { subject, text: [m.body, details, link, 'Blood on the Tanguy Tower'].filter(Boolean).join('\n\n') };
 }
 
 /** The sponsorship e-mail: fixed text, so a member cannot use it to send arbitrary content. */

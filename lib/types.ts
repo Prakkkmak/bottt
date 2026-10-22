@@ -7,17 +7,20 @@ export type Profile = { id: string; display_name: string; bio: string; avatar_co
 export type ParticipantRole = 'member' | 'guest' | 'traveller' | 'traveller_guest';
 export type Participant = Pick<Profile, 'display_name' | 'avatar_color'> & { seat_index?: number; can_storytell?: boolean; role?: ParticipantRole; invited_by?: string | null };
 /** Someone the viewer brings to a session, as returned by list_sessions. */
-export type MyGuest = { id: string; name: string; status: BookingStatus; seat_index: number | null; offer_expires_at: string | null };
+export type MyGuest = { id: string; name: string; status: BookingStatus; seat_index: number | null; offer_expires_at: string | null; waitlist_position?: number | null };
 export type GameSession = {
   id: string; title: string; description?: string; script: string;
   starts_at: string; ends_at: string; location: string;
   /** The saved venue the game takes its name and address from; null for a place typed in for this game only. */
   venue_id?: string | null;
+  /** newcomer_seats and release_hours are the former member/traveller quotas, kept in the database but no longer applied. */
   capacity: number; newcomer_seats: number; release_hours: number;
   beginners_welcome: boolean; visibility: 'public' | 'members';
   status: 'published' | 'cancelled';
   confirmed_count: number; waitlist_count: number;
   my_status: BookingStatus | null; my_offer_expires_at?: string | null;
+  /** 1 for the next person to get a token, while the viewer is on the waiting list. */
+  my_waitlist_position?: number | null;
   occupied_seats?: number[]; my_seat?: number | null;
   member_seats_free?: number; traveller_seats_free?: number; my_guests?: MyGuest[];
   participants: Participant[];
@@ -29,4 +32,4 @@ export type Booking = { id: string; session_id: string; user_id: string | null; 
 export type Invitation = { id: string; sponsor_id: string; expires_at: string; used_by: string | null; created_at: string; sent_to?: string | null; };
 export type AppData = { profile: Profile | null; sessions: GameSession[]; invitations: Invitation[]; demo: boolean; configured: boolean; local?: boolean; error?: string; accountNotice?: string; };
 export type ActionResult = { ok: boolean; message: string; value?: string; };
-export type SessionInput = Omit<GameSession, 'id' | 'status' | 'confirmed_count' | 'waitlist_count' | 'my_status' | 'my_offer_expires_at' | 'occupied_seats' | 'my_seat' | 'participants' | 'member_seats_free' | 'traveller_seats_free' | 'my_guests'> & { address: string; id?: string; };
+export type SessionInput = Omit<GameSession, 'id' | 'status' | 'confirmed_count' | 'waitlist_count' | 'my_status' | 'my_offer_expires_at' | 'my_waitlist_position' | 'occupied_seats' | 'my_seat' | 'participants' | 'member_seats_free' | 'traveller_seats_free' | 'my_guests'> & { address: string; id?: string; };

@@ -6,8 +6,8 @@ import { CalendarDays, Clock3, MapPin, ChevronLeft, LockKeyhole, BookOpen } from
 import type { ActionResult, AppData, GameSession, MyGuest } from '@/lib/types';
 import { dateLong, time, activeBooking, sessionName } from '@/lib/utils';
 import { mapsUrl } from '@/lib/locations';
-import { activeGuests, canSeeAddress, participantLabel, recentGuestNames, seatPlan, waitlistHint } from '@/lib/guests';
-import { MAX_TRAVELLER_GUESTS, MAX_WAITING_GUESTS } from '@/lib/session-rules';
+import { activeGuests, canSeeAddress, hasSeat, participantLabel, recentGuestNames, seatPlan, waitingLabel, waitlistHint } from '@/lib/guests';
+import { MAX_TRAVELLER_GUESTS, MAX_WAITING_GUESTS, TRAVELLER_ADDRESS_HOURS } from '@/lib/session-rules';
 import { CalendarLink } from './calendar-link';
 import { Dialog } from './dialog';
 import { AuthForm } from './auth';
@@ -15,7 +15,7 @@ import { VillageCircle } from './tableau';
 import { GuestForm } from './guest-dialog';
 import { SessionGuests } from './session-guests';
 import { useAction, Feedback } from './action-feedback';
-import { bookSession, cancelBooking, acceptOffer, removeGuest, acceptGuestOffer } from '@/app/actions';
+import { bookSession, cancelBooking, removeGuest } from '@/app/actions';
 import { Avatar, Spinner } from './ui';
 
 export function SessionDetail({ data, session: s, address, embedded = false }: { data: AppData; session: GameSession; address: string | null; embedded?: boolean }) {
@@ -35,9 +35,11 @@ export function SessionDetail({ data, session: s, address, embedded = false }: {
   const guests = activeGuests(s);
   const active = activeBooking(s.my_status);
   const closed = s.status === 'cancelled' || new Date(s.starts_at).getTime() <= Date.now() + 30 * 60000;
-  const offered = s.my_status === 'offered';
-  const liveOffer = offered && s.my_seat != null && !!s.my_offer_expires_at && new Date(s.my_offer_expires_at).getTime() > Date.now();
-  const openCancel = () => { a.setResult(null); setReleasedGuests(guests.map(g => g.id)); setCancelOpen(true); };
+  const waiting = s.my_status === 'waitlisted';
+  // Within the last 30 minutes, a freed seat goes to nobody.
+  const lastMinute = closed && s.status !== 'cancelled';
+  // Leaving the queue keeps the people one brings unless chosen; giving up a seat releases them too by default.
+  const openCancel = () => { a.setResult(null); setReleasedGuests(waiting ? [] : guests.map(g => g.id)); setCancelOpen(true); };
   const openGuest = (seat?: number) => { a.setResult(null); setGuestRequest({ seat }); };
   const reserve = (seat?: number) => act(seat ?? 'waitlist', async () => {
     const result = await bookSession(s.id, seat);
@@ -49,20 +51,18 @@ export function SessionDetail({ data, session: s, address, embedded = false }: {
     if (plan.onFreeSeat === 'guest') return openGuest(seat);
     reserve(seat);
   };
-  const ownGuest = (guest: MyGuest) => {
-    if (guest.status === 'offered') return act(guest.seat_index ?? guest.id, () => acceptGuestOffer(guest.id));
-    a.setResult(null);
-    setRemoving(guest);
-  };
+  const ownGuest = (guest: MyGuest) => { a.setResult(null); setRemoving(guest); };
   const guestAdded = (result: ActionResult) => { setGuestRequest(null); a.setResult(result); };
-  const heading = s.status === 'cancelled' ? 'Partie annulée' : s.my_status === 'confirmed' ? 'Tu es inscrit·e.' : closed ? 'Inscriptions closes' : offered ? liveOffer ? 'Une place pour toi.' : 'Proposition expirée.' : s.my_status === 'pending' ? 'Demande envoyée.' : s.my_status === 'waitlisted' ? 'Tu es en attente.' : s.my_status === 'declined' ? 'Participation non retenue' : 'Inscris-toi';
-  const hint = s.status === 'cancelled' ? 'On se retrouve à une prochaine soirée.' : s.my_status === 'confirmed' ? '' : closed ? 'Rendez-vous à la prochaine partie.' : offered ? liveOffer ? 'Clique sur ton jeton pour confirmer.' : 'Retire ta demande pour rejoindre à nouveau la liste d’attente.' : s.my_status === 'pending' ? 'Un organisateur va valider ta demande.' : s.my_status === 'waitlisted' ? 'On te prévient par e-mail dès qu’une place se libère.' : s.my_status === 'declined' ? 'Contacte un organisateur pour en discuter.' : plan.waitlist === 'self' ? waitlistHint(s, traveller) : data.profile ? 'Clique sur un + pour choisir ta place.' : 'Clique sur un + pour choisir ta place. Il te faudra juste ton e-mail.';
-  const guestHint = plan.limitReached ? traveller ? `Tu amènes déjà ${MAX_TRAVELLER_GUESTS} personnes, le maximum pour un·e voyageur·se.` : `La partie est complète et ${MAX_WAITING_GUESTS} de tes invité·es attendent déjà une place.` : plan.onFreeSeat === 'guest' ? traveller ? 'Clique sur un + libre pour demander une place pour un·e ami·e.' : 'Clique sur un + libre pour placer quelqu’un.' : plan.waitlist === 'guest' ? waitlistHint(s, traveller) : '';
+  const heading = s.status === 'cancelled' ? 'Partie annulée' : s.my_status === 'confirmed' ? 'Tu es inscrit·e.' : closed ? 'Inscriptions closes' : waiting ? `Tu es ${waitingLabel(s.my_waitlist_position)}.` : s.my_status === 'declined' ? 'Participation non retenue' : 'Inscris-toi';
+  const hint = s.status === 'cancelled' ? 'On se retrouve à une prochaine soirée.' : s.my_status === 'confirmed' ? '' : closed ? 'Rendez-vous à la prochaine partie.' : waiting ? 'Si une place se libère jusqu’à 30 minutes avant le début, elle est à toi automatiquement : tu recevras un e-mail de confirmation.' : s.my_status === 'declined' ? 'Contacte un organisateur pour en discuter.' : plan.waitlist === 'self' ? waitlistHint(s) : data.profile ? 'Clique sur un + pour choisir ta place.' : 'Clique sur un + pour choisir ta place. Il te faudra juste ton e-mail.';
+  const guestHint = plan.limitReached ? traveller ? `Tu amènes déjà ${MAX_TRAVELLER_GUESTS} personnes, le maximum pour un·e voyageur·se.` : `La partie est complète et ${MAX_WAITING_GUESTS} de tes invité·es attendent déjà une place.` : plan.onFreeSeat === 'guest' ? traveller ? 'Clique sur un + libre pour placer un·e ami·e.' : 'Clique sur un + libre pour placer quelqu’un.' : plan.waitlist === 'guest' ? waitlistHint(s) : '';
   const showGuests = !!data.profile && s.status !== 'cancelled' && (active || (s.my_guests ?? []).some(g => g.status !== 'cancelled'));
   const privateAddress = canSeeAddress(s, data.profile) ? address : null;
+  const addressLater = data.profile?.membership === 'newcomer' && hasSeat(s) && !privateAddress;
   const practical = <div className={`detail-when ${embedded ? 'session-practical' : ''}`}>
     {s.status === 'published' ? <CalendarLink session={s} address={privateAddress} /> : <span><CalendarDays size={16} />{dateLong(s.starts_at)}</span>}
     <span><Clock3 size={16} />{time(s.starts_at)}</span><a className="practical-link" href={mapsUrl(privateAddress || s.location)} target="_blank" rel="noopener noreferrer" title="Ouvrir le lieu dans Maps"><MapPin size={16} />{s.location}</a>
+    {addressLater && <span className="address-later">Adresse exacte {TRAVELLER_ADDRESS_HOURS} h avant la partie</span>}
   </div>;
   return <>
     {!embedded && <Link className="back-link" href="/"><ChevronLeft size={16} />Les parties</Link>}
@@ -77,22 +77,21 @@ export function SessionDetail({ data, session: s, address, embedded = false }: {
         <p className="session-status-title" aria-live="polite">{heading}</p>
         {hint && <p className="table-hint">{hint}</p>}
         {plan.waitlist === 'self' && <button className="button parchment" disabled={a.pending} aria-busy={busyOn === 'waitlist' || undefined} onClick={() => choose()}>{busyOn === 'waitlist' && <Spinner />}Rejoindre la liste d’attente</button>}
-        {liveOffer && !closed && <p className="table-note">À confirmer avant le {s.my_offer_expires_at ? `${dateLong(s.my_offer_expires_at)} à ${time(s.my_offer_expires_at)}` : 'délai indiqué'}.</p>}
         {(active || plan.canBringOther) && s.status !== 'cancelled' && <div className="table-actions">
           {plan.canBringOther && <button className="text-link" disabled={a.pending} onClick={() => openGuest()}>Inscrire quelqu’un d’autre</button>}
-          {active && <button className="text-link" disabled={a.pending} onClick={openCancel}>Retirer ma demande</button>}
+          {active && <button className="text-link" disabled={a.pending} onClick={openCancel}>{waiting ? 'Quitter la liste d’attente' : 'Retirer ma demande'}</button>}
         </div>}
       </div>}
       <div className="session-table-board">
         <VillageCircle reserved={s.confirmed_count} capacity={s.capacity} occupiedSeats={s.occupied_seats} participants={s.participants} mySeat={s.my_seat} interactive busy={a.pending} pendingSeat={typeof busyOn === 'number' ? busyOn : null}
           onChoose={plan.onFreeSeat ? choose : undefined}
           chooseLabel={plan.onFreeSeat === 'guest' ? 'Placer quelqu’un à la place' : 'Prendre la place'}
-          onOwnSeat={s.status === 'cancelled' ? undefined : liveOffer && !closed ? () => act(s.my_seat ?? 'offer', () => acceptOffer(s.id)) : s.my_status === 'confirmed' ? openCancel : undefined}
-          ownSeatLabel={offered ? 'Confirmer ma place' : 'Ta place · me désister'}
+          onOwnSeat={s.status === 'cancelled' || s.my_status !== 'confirmed' ? undefined : openCancel}
+          ownSeatLabel="Ta place · me désister"
           ownGuests={s.my_guests} onOwnGuest={s.status === 'cancelled' ? undefined : ownGuest} />
-        {showGuests && <SessionGuests session={s} limit={traveller ? MAX_TRAVELLER_GUESTS : undefined} hint={guestHint} busy={a.pending} busyOn={typeof busyOn === 'string' ? busyOn : null}
+        {showGuests && <SessionGuests session={s} limit={traveller ? MAX_TRAVELLER_GUESTS : undefined} hint={guestHint} busy={a.pending}
           onAdd={active && (plan.onFreeSeat === 'guest' || plan.waitlist === 'guest') ? () => openGuest() : undefined}
-          onRemove={g => { a.setResult(null); setRemoving(g); }} onConfirm={g => act(g.id, () => acceptGuestOffer(g.id))} />}
+          onRemove={g => { a.setResult(null); setRemoving(g); }} />}
         {s.participants.length > 0 && <ul className="circle-roster" aria-label="Participants confirmés">{[...s.participants].sort((x, y) => (x.seat_index ?? 0) - (y.seat_index ?? 0)).map((p, index) => {
           const mine = p.seat_index != null && guests.some(g => g.seat_index === p.seat_index);
           return <li key={p.seat_index ?? index}><Avatar name={p.display_name} color={p.avatar_color} small /><span>{p.display_name}{s.my_seat != null && p.seat_index === s.my_seat && <small> · toi</small>}<small className="roster-role">{participantLabel(p, { mine })}</small></span>{p.can_storytell && <BookOpen size={15} role="img" aria-label="Volontaire MJ"><title>Volontaire MJ</title></BookOpen>}</li>;
@@ -102,13 +101,13 @@ export function SessionDetail({ data, session: s, address, embedded = false }: {
     </section>
     <Dialog open={authRequest !== null} onClose={() => setAuthRequest(null)} title="Rejoins le cercle"><AuthForm configured={data.configured} onSuccess={result => { const seat = authRequest?.seat; setAuthRequest(null); if (result.value !== 'nickname') reserve(seat); }} /></Dialog>
     <Dialog open={guestRequest !== null} onClose={() => setGuestRequest(null)} title={active ? traveller ? 'Qui vient avec toi ?' : 'Qui t’accompagne ?' : 'Qui inscris-tu ?'}>
-      {guestRequest && <GuestForm sessionId={s.id} seat={guestRequest.seat} traveller={traveller} waitlist={!traveller && (s.member_seats_free ?? Math.max(0, s.capacity - s.confirmed_count)) === 0} suggestions={recentGuestNames(data.sessions, s)} onDone={guestAdded} />}
+      {guestRequest && <GuestForm sessionId={s.id} seat={guestRequest.seat} waitlist={s.confirmed_count >= s.capacity} suggestions={recentGuestNames(data.sessions, s)} onDone={guestAdded} />}
     </Dialog>
-    <Dialog open={removing !== null} onClose={() => setRemoving(null)} title={`Retirer ${removing?.name ?? ''} ?`}><div className="stack"><p>Sa place sera proposée à quelqu’un d’autre.</p><div className="button-row"><button className="button secondary" onClick={() => setRemoving(null)}>Garder sa place</button><button className="button danger" disabled={a.pending} aria-busy={a.pending || undefined} onClick={() => removing && act('remove', () => removeGuest(removing.id), () => setRemoving(null))}>{a.pending && <Spinner />}Retirer {removing?.name}</button></div><Feedback result={a.result} /></div></Dialog>
-    <Dialog open={cancelOpen} onClose={() => setCancelOpen(false)} title="Libérer ta place ?"><div className="stack">
-      <p>Elle sera proposée à quelqu’un d’autre. Tu pourras te réinscrire s’il reste de la place.</p>
+    <Dialog open={removing !== null} onClose={() => setRemoving(null)} title={`Retirer ${removing?.name ?? ''} ?`}><div className="stack"><p>{removing?.status === 'waitlisted' ? 'Sa demande quittera la liste d’attente.' : lastMinute ? 'La partie commence bientôt : sa place ne sera pas réattribuée.' : 'Sa place reviendra à la première personne de la liste d’attente.'}</p><div className="button-row"><button className="button secondary" onClick={() => setRemoving(null)}>Garder sa place</button><button className="button danger" disabled={a.pending} aria-busy={a.pending || undefined} onClick={() => removing && act('remove', () => removeGuest(removing.id), () => setRemoving(null))}>{a.pending && <Spinner />}Retirer {removing?.name}</button></div><Feedback result={a.result} /></div></Dialog>
+    <Dialog open={cancelOpen} onClose={() => setCancelOpen(false)} title={waiting ? 'Quitter la liste d’attente ?' : 'Libérer ta place ?'}><div className="stack">
+      <p>{waiting ? lastMinute ? 'Les inscriptions sont closes : tu ne pourras pas revenir sur la liste.' : 'Tu perdras ton rang. Tu pourras te réinscrire, à la fin de la liste.' : lastMinute ? 'La partie commence bientôt : ta place ne sera pas réattribuée.' : 'Elle reviendra à la première personne de la liste d’attente. Tu pourras te réinscrire s’il reste de la place.'}</p>
       {guests.length > 0 && <fieldset className="guest-release"><legend>Les personnes que tu amènes</legend>{guests.map(g => <label key={g.id} className="check-field"><input type="checkbox" checked={releasedGuests.includes(g.id)} onChange={e => setReleasedGuests(ids => e.target.checked ? [...ids, g.id] : ids.filter(id => id !== g.id))} /><span>Libérer aussi la place de {g.name}</span></label>)}</fieldset>}
-      <div className="button-row"><button className="button secondary" onClick={() => setCancelOpen(false)}>Garder ma place</button><button className="button danger" disabled={a.pending} aria-busy={a.pending || undefined} onClick={() => act('cancel', () => cancelBooking(s.id, releasedGuests), () => setCancelOpen(false))}>{a.pending && <Spinner />}Confirmer mon désistement</button></div>
+      <div className="button-row"><button className="button secondary" onClick={() => setCancelOpen(false)}>{waiting ? 'Rester sur la liste' : 'Garder ma place'}</button><button className="button danger" disabled={a.pending} aria-busy={a.pending || undefined} onClick={() => act('cancel', () => cancelBooking(s.id, releasedGuests), () => setCancelOpen(false))}>{a.pending && <Spinner />}{waiting ? 'Quitter la liste d’attente' : 'Confirmer mon désistement'}</button></div>
       <Feedback result={a.result} />
     </div></Dialog>
   </>;
