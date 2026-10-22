@@ -1,6 +1,6 @@
 import type { Booking, BookingStatus, Experience, GameSession, Membership, MyGuest, Participant, ParticipantRole, Profile } from './types';
 import { MAX_TRAVELLER_GUESTS, MAX_WAITING_GUESTS } from './session-rules';
-import { activeBooking, dateLong } from './utils';
+import { activeBooking } from './utils';
 
 export const roleLabels: Record<ParticipantRole, string> = { member: 'membre', guest: 'invité·e', traveller: 'voyageur·se', traveller_guest: 'voyageur·se' };
 export const membershipLabels: Record<Membership, string> = { organizer: 'Organisateur·rice', member: 'Membre', newcomer: 'Voyageur·se', suspended: 'Suspendu·e' };
@@ -9,7 +9,12 @@ export const experienceLabels: Record<Experience, string> = { beginner: 'Débuta
 export function experienceOf(p: Pick<Profile, 'beginner'> & { experience?: Experience }): Experience {
   return p.experience ?? (p.beginner ? 'beginner' : 'some');
 }
-export const guestStatusLabels: Record<BookingStatus, string> = { confirmed: 'place confirmée', pending: 'en attente de validation', waitlisted: 'en liste d’attente', offered: 'place proposée', declined: 'non retenu·e', cancelled: 'place libérée' };
+// pending and offered only remain on games played before the single waiting list.
+export const guestStatusLabels: Record<BookingStatus, string> = { confirmed: 'place confirmée', pending: 'en attente', waitlisted: 'en liste d’attente', offered: 'place proposée', declined: 'non retenu·e', cancelled: 'place libérée' };
+/** « n° 2 sur la liste d’attente », or the plain status when the position is not known. */
+export function waitingLabel(position?: number | null): string {
+  return position ? `n° ${position} sur la liste d’attente` : guestStatusLabels.waitlisted;
+}
 
 const brought = (role?: ParticipantRole) => role === 'guest' || role === 'traveller_guest';
 
@@ -40,7 +45,7 @@ export function canSeeAddress(session: GameSession, profile: Pick<Profile, 'memb
 export type SeatPlan = {
   /** What a click on a free + does for this viewer. */
   onFreeSeat: 'signin' | 'book' | 'guest' | null;
-  /** The waitlist button shown when no + suits this viewer. */
+  /** The waitlist button shown when the circle is full. */
   waitlist: 'self' | 'guest' | null;
   /** A traveller already brings 2 people, or a member already has 2 guests waiting for a full game. */
   limitReached: boolean;
@@ -54,8 +59,8 @@ export function seatPlan(session: GameSession, profile: Pick<Profile, 'membershi
   const total = Math.max(0, session.capacity - session.confirmed_count);
   if (!profile) return { ...none, onFreeSeat: total > 0 ? 'signin' : null, waitlist: total > 0 ? null : 'self' };
   if (session.my_status === 'declined') return none;
-  // Seats are counted per kind until quotas merge: travellers and their friends only use traveller seats.
-  const free = (profile.membership === 'newcomer' ? session.traveller_seats_free : session.member_seats_free) ?? total;
+  // One pool: every free token is open to everyone, members, travellers and the people they bring.
+  const free = total;
   const guests = activeGuests(session);
   const limitReached = profile.membership === 'newcomer' ? guests.length >= MAX_TRAVELLER_GUESTS
     : free <= 0 && guests.filter(g => g.status === 'waitlisted' || g.status === 'offered').length >= MAX_WAITING_GUESTS;
@@ -64,45 +69,20 @@ export function seatPlan(session: GameSession, profile: Pick<Profile, 'membershi
   return { ...none, onFreeSeat: free > 0 ? 'guest' : null, waitlist: free > 0 ? null : 'guest' };
 }
 
-/** Explains why the viewer lands on the waitlist although the circle still shows free tokens. */
-export function waitlistHint(session: GameSession, traveller: boolean, now = Date.now()): string {
-  const left = Math.max(0, session.capacity - session.confirmed_count);
-  if (!left) return 'Le cercle est complet, mais une place se libère souvent.';
-  const merge = Date.parse(session.starts_at) - session.release_hours * 3600000;
-  const until = merge > now ? ` jusqu’au ${dateLong(new Date(merge).toISOString())}` : '';
-  const rest = left > 1 ? `Les ${left} places restantes sont réservées` : 'La place restante est réservée';
-  return `Les places ${traveller ? 'voyageurs' : 'membres'} sont prises. ${rest} aux ${traveller ? 'membres' : 'voyageurs'}${until}.`;
+/** What the waiting list means, shown when the circle is full. */
+export function waitlistHint(session: GameSession): string {
+  const waiting = session.waitlist_count > 0 ? ` ${session.waitlist_count} ${session.waitlist_count > 1 ? 'personnes attendent' : 'personne attend'} déjà.` : '';
+  return `Le cercle est complet.${waiting} Si une place se libère, elle revient à la première personne de la liste, sans autre démarche, et un e-mail la prévient.`;
 }
 
-export type RequestGroup = { key: string; sessionId: string; personId: string; person?: Profile; own?: Booking; guests: Booking[] };
-
-/** Pending requests grouped by session and by the account that made them. */
-export function groupRequests(bookings: Booking[], profiles: Profile[]): RequestGroup[] {
-  const groups = new Map<string, RequestGroup>();
-  for (const b of bookings) {
-    const personId = b.user_id ?? b.sponsor_id;
-    if (b.status !== 'pending' || !personId) continue;
-    const key = `${b.session_id}:${personId}`;
-    const group = groups.get(key) ?? { key, sessionId: b.session_id, personId, person: profiles.find(p => p.id === personId), guests: [] };
-    if (b.user_id) group.own = b; else group.guests.push(b);
-    groups.set(key, group);
-  }
-  return [...groups.values()];
-}
-
-/** What an organizer card says under the name: the person's own request, or why only their friends are waiting. */
-export function requestNote(group: RequestGroup, attending: boolean): string {
-  if (group.own) return group.person ? experienceLabels[experienceOf(group.person)] : '';
-  return attending ? 'Déjà inscrit·e, amène quelqu’un' : 'Ne vient pas, amène quelqu’un';
-}
-
-/** Asks an organizer to confirm refusing a whole group, naming the friends and who gets the message. */
-export function refusalText(group: RequestGroup): string {
-  const names = group.guests.map(g => g.guest_name).join(' et ');
-  const several = group.guests.length > 1;
-  const person = group.person?.display_name;
-  if (group.own) return `La demande de ${person ?? 'cette personne'} sera refusée${group.guests.length ? `, ainsi que ${several ? 'celles' : 'celle'} de ${names}` : ''}. Un message lui sera envoyé.`;
-  return `${several ? `Les demandes pour ${names} seront refusées` : `La demande pour ${names} sera refusée`}. ${person ?? 'Cette personne'} sera prévenu·e.`;
+/** Place of each waitlisted booking in its game's queue, in arrival order like public.waitlist_position. */
+export function waitlistPositions(bookings: Booking[]): Map<string, number> {
+  const queues = new Map<string, Booking[]>();
+  for (const b of bookings) if (b.status === 'waitlisted') queues.set(b.session_id, [...(queues.get(b.session_id) ?? []), b]);
+  const positions = new Map<string, number>();
+  // Same order as the database: arrival time, then id, whose lower-case text sorts like the uuid itself.
+  for (const queue of queues.values()) queue.sort((x, y) => Date.parse(x.created_at) - Date.parse(y.created_at) || (x.id < y.id ? -1 : 1)).forEach((b, i) => positions.set(b.id, i + 1));
+  return positions;
 }
 
 /** Each account's booking followed by the people it brings; guests of absent sponsors come last. */

@@ -12,7 +12,7 @@ Une application en français pour organiser les soirées Blood on the Clocktower
 
 Le compte organisateur d’exemple est **camille@cercle.test**. Clique sur « Se connecter », demande un code et récupère-le dans la boîte mail locale. Ce compte n’a pas de mot de passe. Les e-mails restent sur ta machine. Pour tester un nouveau joueur, utilise par exemple `nouveau@cercle.test` : après le code, le site lui demande d’abord son pseudo.
 
-Les 2 lieux, 4 sessions, 16 joueurs et adresses fournis sont fictifs. Les réservations, modifications et validations, elles, sont réellement enregistrées dans PostgreSQL. Le volume Docker `le-cercle-local_cercle-db` conserve ces données entre les redémarrages. Ne l’efface pas si tu veux garder tes modifications.
+Les 2 lieux, 4 sessions, 16 joueurs et adresses fournis sont fictifs. Les réservations et modifications, elles, sont réellement enregistrées dans PostgreSQL. Le volume Docker `le-cercle-local_cercle-db` conserve ces données entre les redémarrages. Ne l’efface pas si tu veux garder tes modifications.
 
 ## Démarrer et arrêter
 
@@ -29,7 +29,7 @@ pnpm local:seed
 pnpm dev
 ```
 
-Dans un second terminal, pour les rappels, l’expiration des propositions et la livraison des notifications :
+Dans un second terminal, pour les rappels et la livraison des notifications restées en attente :
 
 ```sh
 pnpm local:worker
@@ -46,17 +46,17 @@ Les identifiants locaux sont générés automatiquement dans `.docker/` et `.env
 - Compte personnel, connexion par code e-mail valable 10 minutes, sans autre champ que l’adresse. À la première connexion, le site demande d’abord un pseudo, modifiable ensuite dans le profil ; la page demandée s’ouvre juste après. Les comptes restés « Nouveau joueur » le choisissent à leur prochaine visite. Cookies HttpOnly ; session conservée et limitée à 30 jours, limite aussi contrôlée dans la base.
 - Sessions publiques ou réservées aux membres/parrainés, script, début en heure de Paris, lieu général et adresse privée. La création préremplit le prochain vendredi à 19 h 30 et les réglages d’une partie existante. La fin est calculée côté serveur à +4 h pour l’agenda ; une modification conserve la durée précédente.
 - Toutes les soirées accueillent les débutants ; aucune catégorie découverte ni page bienvenue séparée.
-- Inscription en cliquant sur un + autour de la Tour Tanguy. Le jeton choisi est conservé ; cliquer sur son jeton permet de se désister après confirmation. Une demande en attente ne réserve pas de jeton.
+- Inscription en cliquant sur un + autour de la Tour Tanguy. Le jeton choisi est conservé ; cliquer sur son jeton permet de se désister après confirmation. Une place sur la liste d’attente ne réserve pas de jeton : la personne reçoit le premier jeton libre quand son tour vient.
 - Parties dépliables dans « Jouer » : sièges, inscriptions et désistements restent sur la même page. Plusieurs cercles peuvent être ouverts ensemble. L’ancien lien « Mes parties » redirige vers l’accueil.
 - Événements limités aux informations pratiques, sans champ de description. Le nom de la partie est facultatif : sans nom, elle prend celui de son script. Les fenêtres ne se ferment pas au clic à côté ; celle de la partie demande confirmation avant de perdre une saisie.
 - Parties à partir de 7 joueurs ; capacité de 15 places par défaut, ajustable jusqu’à 20. Compteur des places réservées visible dans la liste des parties.
-- Quotas membres/voyageurs et réunion des quotas avant la soirée.
+- Une seule file pour tout le monde : les places vont aux premiers inscrits, membres, voyageurs et invités confondus, sans validation par un organisateur ni quota par rang. Les anciennes colonnes `newcomer_seats` et `release_hours` restent en base mais ne limitent plus rien.
 - Pas de MJ désigné sur les parties : chaque personne peut se proposer dans son profil. Une petite icône de livre identifie les volontaires parmi les participants.
 - Niveau d’expérience déclaré dans le profil : débutant·e, quelques parties ou expérimenté·e. Les organisateurs le voient dans les demandes et la liste des membres. L’ancienne colonne `beginner` reste synchronisée pour le site déjà déployé.
-- Quatre statuts : membre, invité·e de membre, voyageur·se (compte pas encore membre) et voyageur·se amené·e par un voyageur. Un membre amène autant de personnes sans compte qu’il le souhaite tant qu’il reste des places membres (place d’office), puis 2 au plus en liste d’attente. Un voyageur amène jusqu’à 2 amis. Les voyageurs et leurs amis prennent les places voyageurs et sont validés à chaque partie ; l’organisateur accepte le groupe en une fois et peut passer un voyageur membre. Les prénoms des invités sont effacés 30 jours après la soirée.
+- Quatre statuts : membre, invité·e de membre, voyageur·se (compte pas encore membre) et voyageur·se amené·e par un voyageur. Un membre amène autant de personnes sans compte qu’il le souhaite tant qu’il reste des places, puis 2 au plus en liste d’attente. Un voyageur amène jusqu’à 2 amis et ne voit pas les parties réservées aux membres ; un organisateur peut le passer membre. Les prénoms des invités sont effacés 30 jours après la soirée.
 - Parrainage à usage unique, valable 7 jours et limité à 5 invitations par jour. Le parrain n’accède jamais au compte de son invité. Le lien fait directement de l’invité·e un·e membre. Depuis « Inviter », un membre l’envoie par e-mail (Mailpit en local, Resend en production) ou le copie lui-même ; si l’e-mail ne part pas, le lien s’affiche pour être transmis. L’adresse de la personne invitée n’est visible que du parrain et s’efface 30 jours après la fin du lien. Une personne qui s’oppose aux invitations est ajoutée par un administrateur à `invitation_optouts` (empreinte SHA-256 de l’adresse en minuscules) ; le site refuse alors de l’inviter à nouveau.
-- Désistement, liste d’attente chronologique par quota éligible, proposition réservée jusqu’à 12 heures (ou 30 minutes avant la session), acceptation explicite. Une proposition expirée est annulée pour permettre de passer au suivant.
-- Statuts dans « Jouer » et notifications par e-mail : confirmation, validation, proposition, désistement, changements, annulation et rappel à moins de 24 h.
+- Désistement et liste d’attente unique dans l’ordre d’arrivée, invités compris : une place libérée (désistement, retrait, capacité augmentée) revient aussitôt à la première personne qui attend, sans proposition à confirmer. Personne n’est placé à moins de 30 minutes du début, quand les inscriptions sont closes. Le rang sur la liste est affiché dans la partie.
+- Statuts dans « Jouer » et notifications par e-mail : inscription confirmée, ajout à la liste d’attente (avec le rang), place obtenue depuis la liste, désistement, changement de date ou de lieu, annulation et rappel à moins de 24 h. Les invités n’ont pas d’adresse : la personne qui les amène reçoit leurs messages. Chaque e-mail nomme la partie, sa date et son lieu. Les messages partent juste après l’action qui les crée (inscription, désistement…), avec la clé de service côté serveur ; le traitement programmé reprend ceux qui ont échoué et envoie les rappels.
 - Création, modification, annulation et suppression de sessions : une partie à venir avec des inscrits s’annule d’abord, pour que chacun soit prévenu. Validation/retrait des participants, changement de rang (voyageur·se, membre, organisateur·rice) et suspension. Le rang d’un autre organisateur ne se change pas depuis le site.
 - Profil et couleur d’avatar, interface mobile et navigation clavier. Cliquer sur la date ouvre les liens préremplis Google Agenda, Outlook ou un fichier iCalendar. Une partie visible peut être ajoutée à l’agenda ; seuls les organisateurs, les inscrits confirmés et les personnes dont un·e invité·e est confirmé·e obtiennent l’adresse privée. L’ajout crée une copie et ne synchronise pas les changements ultérieurs.
 - Adresse texte ou lien partagé Google Maps, Apple Plans, Waze, etc. Le lien est conservé avec l’adresse privée, sans changement de schéma, et s’ouvre au clic.
@@ -81,7 +81,7 @@ pnpm build
 node node_modules/tsx/dist/cli.mjs --env-file=.env.local tests/local-integration.ts
 ```
 
-Les tests SQL couvrent les droits, l’identité, les quotas, les doublons, le parrainage, l’expiration de session, les désistements, les invités, les rangs, la suppression des parties, le niveau d’expérience, les invitations par e-mail et les lieux. Le test d’intégration utilise la vraie pile Docker, effectue des réservations simultanées et supprime uniquement ses propres données temporaires.
+Les tests SQL couvrent les droits, l’identité, la liste d’attente, les doublons, le parrainage, l’expiration de session, les désistements, les invités, les rangs, la suppression des parties, le niveau d’expérience, les invitations par e-mail et les lieux. Le test d’intégration utilise la vraie pile Docker, effectue des réservations simultanées et supprime uniquement ses propres données temporaires.
 
 ## Mise en ligne
 
@@ -91,7 +91,7 @@ Les tests SQL couvrent les droits, l’identité, les quotas, les doublons, le p
 4. Configurer le fournisseur d’e-mails d’Auth, utiliser `supabase/templates/code.html` pour la confirmation et la connexion, choisir un code à 6 chiffres avec une expiration de 600 secondes. Vérifier l’URL réelle du site et les limites d’envoi.
 5. Activer la protection Turnstile dans Supabase Auth avec sa clé secrète, et renseigner `NEXT_PUBLIC_TURNSTILE_SITE_KEY` dans Vercel. Sans clé publique configurée, le formulaire bloque les inscriptions sur Vercel. Tester aussi le rejet des requêtes directes sans jeton par Supabase.
 6. Créer le compte du propriétaire, puis lui donner le rôle `organizer` depuis un accès administrateur à la base. Le site ne permet pas à un utilisateur de s’attribuer ce rôle. Un organisateur peut ensuite en nommer d’autres depuis « Organiser » ; retirer ce rang demande toujours l’accès administrateur.
-7. Configurer Resend, `MAIL_FROM`, `NEXT_PUBLIC_SITE_URL` et `CRON_SECRET`, puis un ordonnanceur authentifié vers `/api/cron` au moins toutes les 5 minutes. Le rythme disponible dépend de l’offre d’hébergement ; aucun abonnement ni ordonnanceur distant n’est créé par ce projet.
+7. Configurer Resend, `MAIL_FROM`, `NEXT_PUBLIC_SITE_URL` et `SUPABASE_SERVICE_ROLE_KEY` (clé secrète du projet, sans préfixe `NEXT_PUBLIC_`) : sans cette clé, les e-mails d’inscription et de liste d’attente ne partent pas. Pour les rappels et les nouvelles tentatives, ajouter `CRON_SECRET` et un ordonnanceur authentifié vers `/api/cron` au moins toutes les 5 minutes. Le rythme disponible dépend de l’offre d’hébergement ; aucun abonnement ni ordonnanceur distant n’est créé par ce projet.
 8. Refaire les tests de connexion, de droits et d’envoi sur le déploiement réel. L’ajout d’une double authentification des organisateurs et des sauvegardes est à prévoir avant l’ouverture publique.
 
 ### Activer les migrations automatiques

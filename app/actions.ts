@@ -1,10 +1,12 @@
 'use server';
 import { revalidatePath } from 'next/cache';
+import { after } from 'next/server';
 import { z } from 'zod';
 import { supabase, authenticatedClient } from '@/lib/supabase';
 import { isConfigured, isDemo } from '@/lib/config';
 import { profileSchema, nicknameSchema, sessionSchema, venueSchema, guestNameSchema, invitationEmailSchema } from '@/lib/schemas';
 import { canSendMail, invitationMail, sendMail, siteUrl } from '@/lib/mail';
+import { flushEmails } from '@/lib/notifications';
 import type { ActionResult, Membership } from '@/lib/types';
 function failure(e: unknown): ActionResult { return { ok: false, message: e instanceof z.ZodError ? e.issues[0].message : e instanceof Error ? e.message : 'La demande n’a pas abouti. Réessaie.' }; }
 function invalidate() { revalidatePath('/', 'layout'); }
@@ -16,6 +18,8 @@ async function rpc(name: string, args: Record<string, unknown> = {}, message = '
     const { db } = await authenticatedClient();
     const { data, error } = await db.rpc(name, args);
     if (error) throw new Error(databaseMessage(error));
+    // The messages this action queued (booking, waiting list, a seat passed on to the next person) leave once the page has its answer.
+    after(flushEmails);
     invalidate(); return { ok: true, message, value: typeof data === 'string' ? data : undefined };
   } catch(e) { return failure(e); }
 }
@@ -51,12 +55,12 @@ export async function bookSession(id: string, seat?: number) {
   if (seat !== undefined && !z.number().int().min(0).max(19).safeParse(seat).success) return failure(new Error('Place invalide.'));
   const result = await (seat === undefined ? rpc('book_session', { p_id: id }) : rpc('book_circle_seat', { p_id: id, p_seat: seat }));
   if (!result.ok) return result;
-  return { ...result, message: result.value === 'confirmed' ? 'Ta place est réservée !' : result.value === 'pending' ? 'Demande envoyée. Un organisateur va la valider.' : result.value === 'waitlisted' ? 'Tu es sur la liste d’attente.' : 'Ta participation est déjà enregistrée.' };
+  return { ...result, message: result.value === 'confirmed' ? 'Ta place est réservée ! Un e-mail de confirmation est en route.' : result.value === 'waitlisted' ? 'Tu es sur la liste d’attente. Si une place se libère, elle est à toi et tu recevras un e-mail.' : 'Ta participation est déjà enregistrée.' };
 }
 const isUuid = (value: string) => z.uuid().safeParse(value).success;
 export async function cancelBooking(id: string, guestIds: string[] = []) {
   if (!isUuid(id) || !guestIds.every(isUuid)) return failure(new Error('Participation invalide.'));
-  // Guests the player chose to release go first, so their seats are offered in the same refresh.
+  // Guests the player chose to release go first, so their seats pass to the waiting list in the same refresh.
   for (const guestId of guestIds) { const released = await rpc('remove_guest', { p_booking: guestId }); if (!released.ok) return released; }
   return rpc('cancel_booking', { p_id: id }, guestIds.length ? 'Vos places sont libérées. À une prochaine !' : 'Ton désistement est enregistré. À une prochaine !');
 }
@@ -68,21 +72,11 @@ export async function addGuest(sessionId: string, name: string, seat?: number): 
   const result = await rpc('add_guest', { p_session: sessionId, p_name: parsed.data, p_seat: seat ?? null });
   if (!result.ok) return result;
   const who = parsed.data;
-  return { ...result, message: result.value === 'confirmed' ? `${who} a sa place !` : result.value === 'pending' ? `Demande envoyée pour ${who}.` : result.value === 'offered' ? `Une place attend ${who} : confirme-la.` : `${who} est sur la liste d’attente.` };
+  return { ...result, message: result.value === 'confirmed' ? `${who} a sa place !` : result.value === 'waitlisted' ? `${who} est sur la liste d’attente.` : `${who} est déjà inscrit·e.` };
 }
 export async function removeGuest(bookingId: string) { if (!isUuid(bookingId)) return failure(new Error('Invité·e introuvable.')); return rpc('remove_guest', { p_booking: bookingId }, 'Sa place est libérée.'); }
-export async function acceptGuestOffer(bookingId: string) { if (!isUuid(bookingId)) return failure(new Error('Invité·e introuvable.')); return rpc('accept_guest_offer', { p_booking: bookingId }, 'Sa place est confirmée !'); }
-export async function reviewRequest(sessionId: string, personId: string, approve: boolean, promote = false) {
-  if (!isUuid(sessionId) || !isUuid(personId)) return failure(new Error('Demande invalide.'));
-  const result = await rpc('review_request', { p_session: sessionId, p_person: personId, p_approve: approve, p_promote: promote });
-  if (!result.ok) return result;
-  // The toast follows the seat the person actually got, which can be a waitlist place even when approved.
-  const waitlisted = result.value === 'waitlisted';
-  const message = !approve ? 'La demande a été refusée.' : promote ? (waitlisted ? 'Passé·e membre, en liste d’attente faute de place.' : 'Demande validée : bienvenue au nouveau membre.') : (waitlisted ? 'Demande validée, en liste d’attente faute de place.' : 'La demande est validée.');
-  return { ...result, message };
-}
-export async function acceptOffer(id: string) { return rpc('accept_offer', { p_id: id }, 'Ta place est confirmée !'); }
-export async function reviewBooking(id: string, approve: boolean) { return rpc('review_booking', { p_booking: id, p_approve: approve }, approve ? 'La demande est validée.' : 'La participation a été retirée.'); }
+/** An organizer takes someone off a game; their seat passes to the first person waiting. */
+export async function removeParticipant(id: string) { if (!isUuid(id)) return failure(new Error('Participation introuvable.')); return rpc('review_booking', { p_booking: id, p_approve: false }, 'La participation a été retirée.'); }
 export async function createInvitation() { return rpc('create_invitation', {}, 'Ton lien d’invitation est prêt.'); }
 export async function acceptInvitation(token: string) { if (!/^[a-f0-9]{64}$/.test(token)) return failure(new Error('Invitation invalide.')); return rpc('accept_invitation', { p_token: token }, 'Bienvenue ! Tu fais maintenant partie du cercle.'); }
 /** Creates a sponsorship link and e-mails it; when the e-mail cannot leave, the link comes back so the sponsor can pass it on. */

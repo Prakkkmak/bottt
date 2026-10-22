@@ -34,14 +34,26 @@ test('Affichage des invités dans les parties',async t=>{
     await h.login(5);
     assert.deepEqual((await listed()).participants,[]);
   });
-  await t.test('les places libres sont comptées par type, puis réunies avant la partie',async()=>{
+  await t.test('les places libres sont les mêmes pour tous, quel que soit le rang',async()=>{
     await h.login(4);
     const g=await listed();
-    assert.deepEqual([g.confirmed_count,g.member_seats_free,g.traveller_seats_free],[5,3,0]);
-    const merged=uuid(101);await h.session(merged,{capacity:8,travellerSeats:2,startsIn:'1 day',releaseHours:72});
-    await h.login(4);await h.call('select book_session($1)',[merged]);
-    const m=await listed(merged);
-    assert.deepEqual([m.member_seats_free,m.traveller_seats_free],[7,7]);
+    assert.deepEqual([g.confirmed_count,g.member_seats_free,g.traveller_seats_free],[5,3,3]);
+  });
+  await t.test('chacun voit son rang dans la file, et celui des personnes qu’il amène',async()=>{
+    const full=uuid(101);await h.session(full,{capacity:7});
+    await h.login(2);for(const name of ['A1','A2','A3','A4','A5','A6','A7'])await h.call('select add_guest($1,$2)',[full,name]);
+    await h.login(3);assert.equal((await h.call<{book_session:string}>('select book_session($1)',[full]))[0].book_session,'waitlisted');
+    await h.login(4);await h.call('select book_session($1)',[full]);await h.call('select add_guest($1,$2)',[full,'Zoé']);
+    const four=await listed(full);
+    assert.equal(four.my_waitlist_position,2);
+    assert.deepEqual(four.my_guests.map((g:any)=>[g.name,g.status,g.waitlist_position]),[['Zoé','waitlisted',3]]);
+    assert.equal(four.waitlist_count,3);
+    await h.login(3);assert.equal((await listed(full)).my_waitlist_position,1);
+    await h.login(6);assert.equal((await listed(full)).my_waitlist_position,null);
+    // The confirmation tells the rank too.
+    await h.root();
+    const [notice]=await h.call<{body:string}>(`select body from notifications where user_id=$1 and title='Zoé est sur la liste d’attente'`,[uuid(4)]);
+    assert.match(notice.body,/Zoé est n° 3 sur la liste d’attente/);
   });
   await h.db.close();
 });

@@ -153,8 +153,6 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .row-state.active { color: #d4bbec; }
 .row-state.full { color: var(--muted); }
 .row-open { color: var(--gold); }
-.offer-banner { display: flex; align-items: center; gap: 12px; padding: 15px 20px; border: 1px solid var(--gold); border-radius: 6px; margin-bottom: 24px; background: #3e2a2f; font-size: 14px; }
-.offer-banner > span:last-child { margin-left: auto; color: var(--parchment); text-decoration: underline; }
 
 /* Shared forms and screens use the same quiet table surface. */
 .stack { display: flex; flex-direction: column; gap: 18px; }
@@ -430,9 +428,6 @@ a.practical-link, .calendar-link > span { text-decoration: underline; text-under
   .row-state { font-size: 13px; margin-left: 60px; margin-top: 0; }
   .row-open { position: absolute; right: -6px; top: 25px; width: 40px; }
   .footer { width: calc(100% - 32px); gap: 16px; padding: 24px 0; }
-  .offer-banner { flex-wrap: wrap; padding: 14px; font-size: 12px; }
-  .offer-banner > span:first-of-type { flex: 1; }
-  .offer-banner > span:last-child { margin-left: 30px; }
   .dialog { padding: 22px; }
   .dialog-heading h2 { font-size: 21px; }
   .form-grid, .form-grid.three { grid-template-columns: 1fr; }

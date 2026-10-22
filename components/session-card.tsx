@@ -17,7 +17,8 @@ export function SessionCard({ data, session: s, address, expanded, onToggle, fea
   const cancelled = s.status === 'cancelled';
   const Icon = s.script === 'Bad Moon Rising' ? Moon : s.script === 'Sects & Violets' ? Flower2 : Flame;
   const brought = activeGuests(s).length;
-  const state = cancelled ? 'Annulée' : active && s.my_status ? `${statusLabels[s.my_status]}${brought ? ` · +${brought}` : ''}` : brought ? `+${brought} invité·e${brought > 1 ? 's' : ''}` : free > 0 ? `${free} place${free > 1 ? 's' : ''} libre${free > 1 ? 's' : ''}` : 'Liste d’attente';
+  const rank = s.my_status === 'waitlisted' && s.my_waitlist_position ? ` · n° ${s.my_waitlist_position}` : '';
+  const state = cancelled ? 'Annulée' : active && s.my_status ? `${statusLabels[s.my_status]}${rank}${brought ? ` · +${brought}` : ''}` : brought ? `+${brought} invité·e${brought > 1 ? 's' : ''}` : free > 0 ? `${free} place${free > 1 ? 's' : ''} libre${free > 1 ? 's' : ''}` : 'Liste d’attente';
   const stateType = cancelled ? 'cancelled' : active && s.my_status ? s.my_status : brought ? 'confirmed' : free ? 'available' : 'waitlisted';
   const StateIcon = cancelled ? X : s.my_status === 'confirmed' ? Check : s.my_status === 'offered' ? BellRing : stateType === 'pending' || stateType === 'waitlisted' ? Clock3 : UsersRound;
   return <article id={`partie-${s.id}`} data-script={s.script} className={`session-accordion ${expanded ? 'is-expanded' : ''} ${featured ? 'is-next' : ''} ${cancelled ? 'is-cancelled' : ''}`}>

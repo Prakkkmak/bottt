@@ -17,14 +17,14 @@ test('Rangs, suppression des parties, niveau d’expérience et invitations par 
     assert.equal(await membership(3),'organizer');
     assert.deepEqual((await notices(3)).map(n=>[n.title,n.session_id]),[['Bienvenue parmi les membres',null],['Tu rejoins l’organisation',null]]);
   });
-  await t.test('un membre repassé voyageur garde ses inscriptions, puis attend la validation',async()=>{
+  await t.test('un membre repassé voyageur garde ses inscriptions, puis réserve comme tout le monde',async()=>{
     const game=uuid(100);await h.session(game);const next=uuid(101);await h.session(next);
     await h.login(4);await h.call('select book_session($1)',[game]);
     await h.login(1);await h.call(`select set_membership($1,'newcomer')`,[uuid(4)]);
     assert.equal(await membership(4),'newcomer');
     assert.deepEqual(await h.call('select status,pool from bookings where user_id=$1',[uuid(4)]),[{status:'confirmed',pool:'circle'}]);
     await h.login(4);
-    assert.equal((await h.call<{book_session:string}>('select book_session($1)',[next]))[0].book_session,'pending');
+    assert.equal((await h.call<{book_session:string}>('select book_session($1)',[next]))[0].book_session,'confirmed');
   });
   await t.test('un compte suspendu se réactive avec le rang choisi, sans message de bienvenue',async()=>{
     await h.login(1);await h.call(`select set_membership($1,'suspended')`,[uuid(8)]);
@@ -42,7 +42,7 @@ test('Rangs, suppression des parties, niveau d’expérience et invitations par 
     await h.root();
     assert.deepEqual(await h.call('select session_id,status from bookings where user_id=$1 or sponsor_id=$1 order by session_id,guest_name nulls first',[uuid(9)]),
       [{session_id:closed,status:'cancelled'},{session_id:closed,status:'cancelled'},{session_id:open,status:'confirmed'}]);
-    assert.deepEqual((await notices(9)).filter(n=>n.title!=='Ta place est réservée').map(n=>[n.title,n.session_id]),[['Ta participation a été retirée',closed]]);
+    assert.deepEqual((await notices(9)).filter(n=>!['Ta place est réservée','Inès a sa place'].includes(n.title)).map(n=>[n.title,n.session_id]),[['Ta participation a été retirée',closed]]);
   });
   await t.test('le message de bienvenue ne part qu’une fois, et on ne devient organisateur qu’après avoir été membre',async()=>{
     await h.login(1);

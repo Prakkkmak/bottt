@@ -8,7 +8,7 @@ import { useAction, Feedback } from './action-feedback';
 import { SignInButton } from './auth';
 import { Spinner } from './ui';
 import { shortDate, sessionUrl, sessionName } from '@/lib/utils';
-import { guestStatusLabels } from '@/lib/guests';
+import { guestStatusLabels, waitingLabel } from '@/lib/guests';
 import { MAX_TRAVELLER_GUESTS, MAX_WAITING_GUESTS } from '@/lib/session-rules';
 
 export function Invitations({ data }: { data: AppData }) {
@@ -28,14 +28,14 @@ export function Invitations({ data }: { data: AppData }) {
       <section className="panel invitation-main">
         <span className="invite-icon"><UsersRound size={28} /></span>
         <h2>Amener quelqu’un à une partie.</h2>
-        <p className="muted">{traveller ? `Ouvre une partie et clique sur un + libre. Ton ami·e n’a pas besoin de compte ; un organisateur validera sa place avec la tienne. Jusqu’à ${MAX_TRAVELLER_GUESTS} personnes par partie.` : `Ouvre une partie et clique sur un + libre. Ton invité·e n’a pas besoin de compte et a sa place tout de suite. Pas de limite tant qu’il reste des places membres ; une fois la partie complète, jusqu’à ${MAX_WAITING_GUESTS} invité·es en liste d’attente.`}</p>
+        <p className="muted">{traveller ? `Ouvre une partie et clique sur un + libre. Ton ami·e n’a pas besoin de compte : il ou elle a sa place tout de suite, ou rejoint la liste d’attente si le cercle est complet. Jusqu’à ${MAX_TRAVELLER_GUESTS} personnes par partie.` : `Ouvre une partie et clique sur un + libre. Ton invité·e n’a pas besoin de compte et a sa place tout de suite. Pas de limite tant qu’il reste des places ; une fois la partie complète, jusqu’à ${MAX_WAITING_GUESTS} invité·es en liste d’attente.`}</p>
         {data.profile ? <Link className="button primary" href="/">Choisir une partie</Link> : <SignInButton configured={data.configured} />}
-        {upcoming.length > 0 && <ul className="guest-overview" aria-label="Tes invités aux prochaines parties">{upcoming.map(({ session, guest }) => <li key={guest.id}><Link href={sessionUrl(session.id)}><strong>{guest.name}</strong><span>{sessionName(session)} · {shortDate(session.starts_at)}</span></Link><span className="badge">{guestStatusLabels[guest.status]}</span></li>)}</ul>}
+        {upcoming.length > 0 && <ul className="guest-overview" aria-label="Tes invités aux prochaines parties">{upcoming.map(({ session, guest }) => <li key={guest.id}><Link href={sessionUrl(session.id)}><strong>{guest.name}</strong><span>{sessionName(session)} · {shortDate(session.starts_at)}</span></Link><span className="badge">{guest.status === 'waitlisted' ? waitingLabel(guest.waitlist_position) : guestStatusLabels[guest.status]}</span></li>)}</ul>}
       </section>
       {data.profile && <section className="panel invitation-main">
         <span className="invite-icon"><UserPlus size={28} /></span>
         <h2>Faire entrer quelqu’un dans le cercle.</h2>
-        <p className="muted">Envoie-lui une invitation par e-mail : ton ami·e crée son compte avec un simple code et entre directement comme membre, sans validation.</p>
+        <p className="muted">Envoie-lui une invitation par e-mail : ton ami·e crée son compte avec un simple code et entre directement comme membre.</p>
         {!eligible ? <div className="alert info">Le parrainage est réservé aux membres. Un organisateur peut te passer membre.</div> : <div className="stack">
           <form className="invite-email" onSubmit={e => { e.preventDefault(); a.setResult(null); mail.run(() => sendInvitation(email), r => { if (r.value) showLink(r.value); else { setLink(''); setEmail(''); } }); }}>
             <label className="field">Son adresse e-mail<input type="email" required maxLength={254} autoComplete="off" placeholder="ami@exemple.fr" value={email} onChange={e => setEmail(e.target.value)} /></label>

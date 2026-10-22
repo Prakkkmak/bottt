@@ -1,9 +1,8 @@
 'use client';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { CalendarDays, Plus, BellRing } from 'lucide-react';
+import { CalendarDays, Plus } from 'lucide-react';
 import type { AppData } from '@/lib/types';
-import { sessionName } from '@/lib/utils';
 import { SessionCard } from './session-card';
 
 export function Dashboard({ data, addresses, initialSessionId }: { data: AppData; addresses: Record<string, string>; initialSessionId?: string }) {
@@ -15,12 +14,8 @@ export function Dashboard({ data, addresses, initialSessionId }: { data: AppData
   useEffect(() => { if (initialSessionId && location.hash === `#partie-${initialSessionId}`) document.getElementById(`partie-${initialSessionId}`)?.scrollIntoView(); }, [initialSessionId]);
   const toggle = (id: string) => setExpanded(current => { const ids = new Set(current); if (ids.has(id)) ids.delete(id); else ids.add(id); return ids; });
   const rest = upcoming.slice(1).filter(s => filter === 'all' || filter === 'available' && s.confirmed_count < s.capacity);
-  const offer = upcoming.find(s => s.my_status === 'offered');
-  const guestOffer = offer ? undefined : upcoming.map(s => ({ session: s, guest: (s.my_guests ?? []).find(g => g.status === 'offered') })).find(o => o.guest);
-  const banner = offer ? { session: offer, text: <>Une place t’attend pour <strong>{sessionName(offer)}</strong>.</> } : guestOffer?.guest ? { session: guestOffer.session, text: <>Une place attend {guestOffer.guest.name} pour <strong>{sessionName(guestOffer.session)}</strong>.</> } : null;
   return <div className="lobby">
     <div className="page-heading lobby-heading"><h1>La prochaine session</h1>{data.profile?.membership === 'organizer' && <Link href="/organiser?nouvelle=1" className="button secondary compact" aria-label="Créer une partie"><Plus size={17} />Créer une partie</Link>}</div>
-    {banner && <a className="offer-banner" href={`#partie-${banner.session.id}`} onClick={() => { setFilter('all'); setExpanded(current => new Set([...current, banner.session.id])); }}><BellRing size={18} /><span>{banner.text}</span><span>Confirmer</span></a>}
     {next ? <>
       <SessionCard data={data} session={next} address={addresses[next.id] || null} expanded={expanded.has(next.id)} onToggle={() => toggle(next.id)} featured />
       {upcoming.length > 1 && <section className="upcoming-section" aria-label="Sessions suivantes">

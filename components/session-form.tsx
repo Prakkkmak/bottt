@@ -13,8 +13,6 @@ import { AddressFields } from './address-fields';
 export function SessionForm({ session, address = '', template, venues = [], onSaved }: { session?: GameSession; address?: string; template?: GameSession; venues?: Venue[]; onSaved: () => void }) {
   const a = useAction();
   const defaults = session || template;
-  const releaseHours = defaults?.release_hours ?? 72;
-  const releaseOptions = [...new Set([0, 24, 48, 72, 168, releaseHours])].sort((a, b) => a - b);
   const [start, setStart] = useState(() => session ? parisInput(session.starts_at) : nextSessionStart());
   const [script, setScript] = useState(defaults?.script || 'Trouble Brewing');
   const [location, setLocation] = useState(defaults?.location || 'Brest');
@@ -33,8 +31,7 @@ export function SessionForm({ session, address = '', template, venues = [], onSa
         title: String(f.get('title')), script: String(f.get('script')), starts_at: startsAt,
         ...(session ? { ends_at: sessionEnd(startsAt, session) } : {}),
         location: venue ? venue.name : location, address: venue ? venue.address : String(f.get('address') ?? ''), venue_id: venue?.id ?? null,
-        capacity: Number(f.get('capacity')), newcomer_seats: Number(f.get('newcomer_seats')),
-        release_hours: Number(f.get('release_hours')), visibility: String(f.get('visibility')),
+        capacity: Number(f.get('capacity')), visibility: String(f.get('visibility')),
       };
       a.run(() => saveSession(payload), onSaved);
     } catch (err) { a.setResult({ ok: false, message: err instanceof Error ? err.message : 'Vérifie la date.' }); }
@@ -62,8 +59,8 @@ export function SessionForm({ session, address = '', template, venues = [], onSa
       </fieldset>
     </fieldset>
     <details className="disclosure session-options"><summary><span><Settings2 size={16} />Réglages de la partie</span></summary><div className="stack">
-      <div className="form-grid"><label className="field">Places joueurs<input name="capacity" type="number" required min={MIN_PLAYERS} max={MAX_CAPACITY} defaultValue={defaults?.capacity ?? DEFAULT_CAPACITY} /></label><label className="field">Dont places voyageurs<input name="newcomer_seats" type="number" required min={0} max={MAX_CAPACITY} defaultValue={defaults?.newcomer_seats ?? 3} /></label></div>
-      <div className="form-grid"><label className="field">Quotas réunis à<select name="release_hours" defaultValue={releaseHours}>{releaseOptions.map(hours => <option key={hours} value={hours}>{hours === 0 ? 'L’heure de début' : hours % 24 === 0 ? `J−${hours / 24}` : `${hours} h avant`}</option>)}</select></label><label className="field">Visibilité<select name="visibility" defaultValue={defaults?.visibility || 'public'}><option value="public">Ouverte à tous</option><option value="members">Membres et leurs invités</option></select></label></div>
+      <div className="form-grid"><label className="field">Places joueurs<input name="capacity" type="number" required min={MIN_PLAYERS} max={MAX_CAPACITY} defaultValue={defaults?.capacity ?? DEFAULT_CAPACITY} /></label><label className="field">Visibilité<select name="visibility" defaultValue={defaults?.visibility || 'public'}><option value="public">Ouverte à tous</option><option value="members">Membres et leurs invités</option></select></label></div>
+      <p className="field-note">Les places vont aux premiers inscrits, membres, voyageurs et invités confondus. Une fois le cercle complet, une liste d’attente prend le relais : chaque place libérée revient à la première personne qui attend.</p>
     </div></details>
     <Feedback result={a.result} /><button className="button primary full" disabled={a.pending}>{a.pending ? 'Enregistrement…' : session ? 'Enregistrer les modifications' : 'Publier la partie'}</button>
   </form>;
