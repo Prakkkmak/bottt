@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { CalendarDays, Clock3, MapPin, ChevronLeft, LockKeyhole, BookOpen } from 'lucide-react';
 import type { ActionResult, AppData, GameSession, MyGuest } from '@/lib/types';
 import { dateLong, time, activeBooking } from '@/lib/utils';
@@ -24,6 +24,7 @@ export function SessionDetail({ data, session: s, address, embedded = false }: {
   const [cancelOpen, setCancelOpen] = useState(false);
   const [releasedGuests, setReleasedGuests] = useState<string[]>([]);
   const [authRequest, setAuthRequest] = useState<{ seat?: number } | null>(null);
+  const [seatAfterSignIn, setSeatAfterSignIn] = useState<{ seat?: number } | null>(null);
   const [guestRequest, setGuestRequest] = useState<{ seat?: number } | null>(null);
   const [removing, setRemoving] = useState<MyGuest | null>(null);
   const plan = seatPlan(s, data.profile);
@@ -40,6 +41,9 @@ export function SessionDetail({ data, session: s, address, embedded = false }: {
     if (!result.ok) router.refresh();
     return result;
   });
+  // The seat clicked before signing in is booked once the refreshed page has the profile. A new account gets
+  // the pseudo screen instead of this page, so nothing is booked before the player has a name.
+  useEffect(() => { if (!seatAfterSignIn || !data.profile) return; setSeatAfterSignIn(null); reserve(seatAfterSignIn.seat); }, [seatAfterSignIn, data.profile]);
   const choose = (seat?: number) => {
     if (!data.profile) return setAuthRequest({ seat });
     if (plan.onFreeSeat === 'guest') return openGuest(seat);
@@ -96,7 +100,7 @@ export function SessionDetail({ data, session: s, address, embedded = false }: {
       </div>
       <Feedback result={a.result} />
     </section>
-    <Dialog open={authRequest !== null} onClose={() => setAuthRequest(null)} title="Rejoins le cercle"><AuthForm configured={data.configured} onSuccess={() => { const seat = authRequest?.seat; setAuthRequest(null); reserve(seat); }} /></Dialog>
+    <Dialog open={authRequest !== null} onClose={() => setAuthRequest(null)} title="Rejoins le cercle"><AuthForm configured={data.configured} onSuccess={() => { setSeatAfterSignIn(authRequest); setAuthRequest(null); }} /></Dialog>
     <Dialog open={guestRequest !== null} onClose={() => setGuestRequest(null)} title={active ? traveller ? 'Qui vient avec toi ?' : 'Qui t’accompagne ?' : 'Qui inscris-tu ?'}>
       {guestRequest && <GuestForm sessionId={s.id} seat={guestRequest.seat} traveller={traveller} waitlist={!traveller && (s.member_seats_free ?? Math.max(0, s.capacity - s.confirmed_count)) === 0} suggestions={recentGuestNames(data.sessions, s)} onDone={guestAdded} />}
     </Dialog>

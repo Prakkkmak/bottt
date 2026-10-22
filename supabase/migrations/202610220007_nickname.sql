@@ -14,10 +14,11 @@ begin
   return new;
 end; $$;
 
--- Saving the pseudo, from the welcome screen or the profile, marks it as chosen. Players never write the flag themselves.
+-- Saving a pseudo, from the welcome screen or the profile, marks it as chosen. A save that keeps the placeholder,
+-- like the previous site's profile form changing only the colour, does not. Players never write the flag themselves.
 create function public.mark_nickname_chosen() returns trigger language plpgsql set search_path='' as $$
 begin
-  new.nickname_chosen=true;
+  new.nickname_chosen=new.nickname_chosen or new.display_name<>'Nouveau joueur';
   return new;
 end; $$;
 create trigger mark_nickname_chosen before update of display_name on public.profiles

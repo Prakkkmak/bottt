@@ -35,6 +35,9 @@ test('Pseudo choisi après la première connexion',async t=>{
   await t.test('les autres changements du profil ne valent pas choix du pseudo',async()=>{
     await h.login(2);await h.call(`update profiles set bio='Bonjour',experience='some' where id=$1`,[uuid(2)]);
     assert.equal((await profile(2)).nickname_chosen,false);
+    // The previous site's profile form always sends the name, even when only the colour changes.
+    await h.login(2);await h.call(`update profiles set display_name='Nouveau joueur',avatar_color='blue' where id=$1`,[uuid(2)]);
+    assert.equal((await profile(2)).nickname_chosen,false);
   });
   await t.test('un joueur ne peut pas passer l’étape sans choisir de pseudo',async()=>{
     await h.login(5);

@@ -1,7 +1,8 @@
 import { z } from 'zod';
 import { MIN_PLAYERS, DEFAULT_CAPACITY, MAX_CAPACITY } from './session-rules';
 import { sessionEnd } from './session-defaults';
-export const nicknameSchema = z.string().trim().min(2,'Choisis un pseudo d’au moins 2 caractères.').max(40);
+// « Nouveau joueur » is the placeholder of an account that has not chosen yet (see the nickname migration).
+export const nicknameSchema = z.string().trim().min(2,'Choisis un pseudo d’au moins 2 caractères.').max(40).refine(name => name !== 'Nouveau joueur', 'Choisis un pseudo à toi.');
 export const profileSchema = z.object({ display_name: nicknameSchema, bio: z.string().trim().max(300), avatar_color: z.enum(['rose','blue','sage','ochre','lilac']), experience: z.enum(['beginner','some','experienced'], 'Choisis ton niveau.'), can_storytell: z.boolean().optional() });
 export const sessionSchema = z.object({
   id: z.uuid().optional(), title: z.string().trim().min(3).max(100), description: z.string().trim().max(4000).default(''),
