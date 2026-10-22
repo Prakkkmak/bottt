@@ -48,8 +48,8 @@ test('ce que fait un + selon la personne', () => {
 });
 
 test('explication et rang de la liste d’attente', () => {
-  assert.equal(waitlistHint(session({ confirmed_count: 8 })), 'Le cercle est complet. Si une place se libère, elle revient à la première personne de la liste, sans autre démarche, et un e-mail la prévient.');
-  assert.equal(waitlistHint(session({ confirmed_count: 8, waitlist_count: 1 })), 'Le cercle est complet. 1 personne attend déjà. Si une place se libère, elle revient à la première personne de la liste, sans autre démarche, et un e-mail la prévient.');
+  assert.equal(waitlistHint(session({ confirmed_count: 8 })), 'Le cercle est complet. Si une place se libère jusqu’à 30 minutes avant le début, elle revient à la première personne de la liste, sans autre démarche, et un e-mail la prévient.');
+  assert.equal(waitlistHint(session({ confirmed_count: 8, waitlist_count: 1 })), 'Le cercle est complet. 1 personne attend déjà. Si une place se libère jusqu’à 30 minutes avant le début, elle revient à la première personne de la liste, sans autre démarche, et un e-mail la prévient.');
   assert.match(waitlistHint(session({ confirmed_count: 8, waitlist_count: 3 })), /3 personnes attendent déjà\./);
   assert.equal(waitingLabel(2), 'n° 2 sur la liste d’attente');
   assert.equal(waitingLabel(null), 'en liste d’attente');
@@ -63,9 +63,13 @@ test('rang de chacun dans la file, pour l’organisateur', () => {
     { ...base, id: 'd', session_id: 's1', status: 'waitlisted', created_at: '2026-10-12T10:01:00Z' },
     { ...base, id: 'c', session_id: 's1', status: 'waitlisted', created_at: '2026-10-12T10:01:00Z' },
     { ...base, id: 'e', session_id: 's2', status: 'waitlisted', created_at: '2026-10-12T11:00:00Z' },
+    // Within the same millisecond, the microseconds Postgres keeps still decide, as in the database.
+    { ...base, id: 'f', session_id: 's3', status: 'waitlisted', created_at: '2026-10-12T11:00:00.123456+00:00' },
+    { ...base, id: 'g', session_id: 's3', status: 'waitlisted', created_at: '2026-10-12T11:00:00.12345+00:00' },
+    { ...base, id: 'h', session_id: 's3', status: 'waitlisted', created_at: '2026-10-12T11:00:00.1234+00:00' },
   ];
   // Arrival order first, then the id for two people who arrived at the same instant, game by game.
-  assert.deepEqual([...waitlistPositions(bookings)].sort(), [['b', 3], ['c', 1], ['d', 2], ['e', 1]]);
+  assert.deepEqual([...waitlistPositions(bookings)].sort(), [['b', 3], ['c', 1], ['d', 2], ['e', 1], ['f', 3], ['g', 2], ['h', 1]]);
 });
 
 test('ordre des participants et libellés organisateur', () => {
@@ -94,6 +98,14 @@ test('accès à l’adresse', () => {
   assert.equal(canSeeAddress(session({ my_guests: [guest('Paul')] }), { membership: 'member' } as Profile), true);
   assert.equal(canSeeAddress(session({ my_status: 'waitlisted', my_guests: [guest('Paul', 'waitlisted', null)] }), { membership: 'newcomer' } as Profile), false);
   assert.equal(canSeeAddress(session(), null), false);
+  // Travellers book without an organizer: the exact address comes 48 hours before the game, for them and their friends.
+  const starts = '2026-10-20T17:30:00Z';
+  const early = Date.parse(starts) - 49 * 3600000, close = Date.parse(starts) - 47 * 3600000;
+  assert.equal(canSeeAddress(session({ starts_at: starts, my_status: 'confirmed' }), traveller, early), false);
+  assert.equal(canSeeAddress(session({ starts_at: starts, my_status: 'confirmed' }), traveller, close), true);
+  assert.equal(canSeeAddress(session({ starts_at: starts, my_guests: [guest('Nora')] }), traveller, close), true);
+  assert.equal(canSeeAddress(session({ starts_at: starts, my_status: 'waitlisted' }), traveller, close), false);
+  assert.equal(canSeeAddress(session({ starts_at: starts, my_status: 'confirmed' }), member, early), true);
 });
 
 test('niveau déclaré, avec repli sur l’ancienne case « débutant »', () => {

@@ -6,3 +6,5 @@ export const MAX_CAPACITY = 20;
 export const MAX_TRAVELLER_GUESTS = 2;
 /** …then 2 more on the waitlist once the game is full. */
 export const MAX_WAITING_GUESTS = 2;
+/** Mirrors the addresses_read policy: travellers book without an organizer, and read the exact address this close to the game. */
+export const TRAVELLER_ADDRESS_HOURS = 48;

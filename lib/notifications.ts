@@ -33,10 +33,21 @@ export async function deliverNotifications() {
   return sendQueuedEmails(db);
 }
 
-/** Right after an action, so that a booking, a place on the waiting list or a freed seat is told at once. Never throws. */
-export async function flushEmails() {
-  if(!canSendMail())return;
-  if(!process.env.SUPABASE_SERVICE_ROLE_KEY){console.error('E-mails en attente : SUPABASE_SERVICE_ROLE_KEY n’est pas configurée.');return;}
-  try{const r=await sendQueuedEmails();if(r.failed)console.error(`E-mails : ${r.failed} en échec, nouvel essai plus tard.`);}
-  catch(e){console.error('E-mails indisponibles',e instanceof Error?e.message:'erreur');}
+let flushing:Promise<void>|null=null;let again=false;
+/** Right after an action, so that a booking, a place on the waiting list or a freed seat is told at once. Never throws.
+ * Flushes asked for while one runs are folded into one more round, so the sender's pace holds. */
+export function flushEmails():Promise<void> {
+  if(!canSendMail())return Promise.resolve();
+  if(!process.env.SUPABASE_SERVICE_ROLE_KEY){console.error('E-mails en attente : SUPABASE_SERVICE_ROLE_KEY n’est pas configurée.');return Promise.resolve();}
+  if(flushing){again=true;return flushing;}
+  flushing=(async()=>{
+    try{
+      do{
+        again=false;
+        try{const r=await sendQueuedEmails();if(r.failed)console.error(`E-mails : ${r.failed} en échec, nouvel essai plus tard.`);}
+        catch(e){console.error('E-mails indisponibles',e instanceof Error?e.message:'erreur');}
+      }while(again);
+    }finally{flushing=null;}
+  })();
+  return flushing;
 }

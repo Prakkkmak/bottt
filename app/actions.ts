@@ -55,14 +55,13 @@ export async function bookSession(id: string, seat?: number) {
   if (seat !== undefined && !z.number().int().min(0).max(19).safeParse(seat).success) return failure(new Error('Place invalide.'));
   const result = await (seat === undefined ? rpc('book_session', { p_id: id }) : rpc('book_circle_seat', { p_id: id, p_seat: seat }));
   if (!result.ok) return result;
-  return { ...result, message: result.value === 'confirmed' ? 'Ta place est réservée ! Un e-mail de confirmation est en route.' : result.value === 'waitlisted' ? 'Tu es sur la liste d’attente. Si une place se libère, elle est à toi et tu recevras un e-mail.' : 'Ta participation est déjà enregistrée.' };
+  return { ...result, message: result.value === 'confirmed' ? 'Ta place est réservée !' : result.value === 'waitlisted' ? 'Tu es sur la liste d’attente. Si une place se libère, elle est à toi et tu recevras un e-mail.' : 'Ta participation est déjà enregistrée.' };
 }
 const isUuid = (value: string) => z.uuid().safeParse(value).success;
 export async function cancelBooking(id: string, guestIds: string[] = []) {
   if (!isUuid(id) || !guestIds.every(isUuid)) return failure(new Error('Participation invalide.'));
-  // Guests the player chose to release go first, so their seats pass to the waiting list in the same refresh.
-  for (const guestId of guestIds) { const released = await rpc('remove_guest', { p_booking: guestId }); if (!released.ok) return released; }
-  return rpc('cancel_booking', { p_id: id }, guestIds.length ? 'Vos places sont libérées. À une prochaine !' : 'Ton désistement est enregistré. À une prochaine !');
+  // The player and the guests they release leave together, before the waiting list moves.
+  return rpc('leave_session', { p_id: id, p_guests: guestIds }, guestIds.length ? 'Vos places sont libérées. À une prochaine !' : 'Ton désistement est enregistré. À une prochaine !');
 }
 export async function addGuest(sessionId: string, name: string, seat?: number): Promise<ActionResult> {
   if (!isUuid(sessionId)) return failure(new Error('Session invalide.'));

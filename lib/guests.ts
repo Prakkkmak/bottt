@@ -1,5 +1,5 @@
 import type { Booking, BookingStatus, Experience, GameSession, Membership, MyGuest, Participant, ParticipantRole, Profile } from './types';
-import { MAX_TRAVELLER_GUESTS, MAX_WAITING_GUESTS } from './session-rules';
+import { MAX_TRAVELLER_GUESTS, MAX_WAITING_GUESTS, TRAVELLER_ADDRESS_HOURS } from './session-rules';
 import { activeBooking } from './utils';
 
 export const roleLabels: Record<ParticipantRole, string> = { member: 'membre', guest: 'invité·e', traveller: 'voyageur·se', traveller_guest: 'voyageur·se' };
@@ -36,10 +36,16 @@ export function activeGuests(session: GameSession): MyGuest[] {
   return (session.my_guests ?? []).filter(g => activeBooking(g.status));
 }
 
-/** Organizers, confirmed players and sponsors of a confirmed guest, who passes the address on. */
-export function canSeeAddress(session: GameSession, profile: Pick<Profile, 'membership'> | null): boolean {
+/** Has a seat, for themselves or a guest they pass the address on to. */
+export function hasSeat(session: GameSession): boolean {
+  return session.my_status === 'confirmed' || (session.my_guests ?? []).some(g => g.status === 'confirmed');
+}
+/** Organizers, then members with a seat; travellers with a seat once the game is close, like public.addresses_read. */
+export function canSeeAddress(session: GameSession, profile: Pick<Profile, 'membership'> | null, now = Date.now()): boolean {
   if (!profile) return false;
-  return profile.membership === 'organizer' || session.my_status === 'confirmed' || (session.my_guests ?? []).some(g => g.status === 'confirmed');
+  if (profile.membership === 'organizer') return true;
+  if (!hasSeat(session)) return false;
+  return profile.membership !== 'newcomer' || Date.parse(session.starts_at) <= now + TRAVELLER_ADDRESS_HOURS * 3600000;
 }
 
 export type SeatPlan = {
@@ -72,7 +78,7 @@ export function seatPlan(session: GameSession, profile: Pick<Profile, 'membershi
 /** What the waiting list means, shown when the circle is full. */
 export function waitlistHint(session: GameSession): string {
   const waiting = session.waitlist_count > 0 ? ` ${session.waitlist_count} ${session.waitlist_count > 1 ? 'personnes attendent' : 'personne attend'} déjà.` : '';
-  return `Le cercle est complet.${waiting} Si une place se libère, elle revient à la première personne de la liste, sans autre démarche, et un e-mail la prévient.`;
+  return `Le cercle est complet.${waiting} Si une place se libère jusqu’à 30 minutes avant le début, elle revient à la première personne de la liste, sans autre démarche, et un e-mail la prévient.`;
 }
 
 /** Place of each waitlisted booking in its game's queue, in arrival order like public.waitlist_position. */
@@ -80,8 +86,10 @@ export function waitlistPositions(bookings: Booking[]): Map<string, number> {
   const queues = new Map<string, Booking[]>();
   for (const b of bookings) if (b.status === 'waitlisted') queues.set(b.session_id, [...(queues.get(b.session_id) ?? []), b]);
   const positions = new Map<string, number>();
-  // Same order as the database: arrival time, then id, whose lower-case text sorts like the uuid itself.
-  for (const queue of queues.values()) queue.sort((x, y) => Date.parse(x.created_at) - Date.parse(y.created_at) || (x.id < y.id ? -1 : 1)).forEach((b, i) => positions.set(b.id, i + 1));
+  // Same order as the database: arrival time, then id. Times are compared as text, in the UTC form PostgREST returns,
+  // to keep the microseconds a Date drops; the lower-case id sorts like the uuid itself.
+  const before = (x: Booking, y: Booking) => x.created_at < y.created_at || (x.created_at === y.created_at && x.id < y.id);
+  for (const queue of queues.values()) queue.sort((x, y) => before(x, y) ? -1 : 1).forEach((b, i) => positions.set(b.id, i + 1));
   return positions;
 }
 

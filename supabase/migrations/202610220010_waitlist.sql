@@ -69,7 +69,7 @@ begin
       'Ton inscription est confirmée. Un empêchement ? Libère ta place depuis le site : elle reviendra à la première personne de la liste d’attente.');
   else
     perform public.notify(auth.uid(),p_id,'Tu es sur la liste d’attente',
-      'La partie est complète : tu es n° '||public.waitlist_position(booked)||' sur la liste d’attente. Si une place se libère, elle est à toi automatiquement et tu recevras un e-mail de confirmation.');
+      'La partie est complète : tu es n° '||public.waitlist_position(booked)||' sur la liste d’attente. Si une place se libère jusqu’à 30 minutes avant le début, elle est à toi automatiquement et tu recevras un e-mail de confirmation.');
   end if;
   return result;
 end; $$;
@@ -113,10 +113,31 @@ begin
       'Son inscription est confirmée. Transmets-lui l’heure et le lieu, et libère sa place depuis le site si son programme change.');
   else
     perform public.notify(auth.uid(),p_session,clean||' est sur la liste d’attente',
-      'La partie est complète : '||clean||' est n° '||public.waitlist_position(added)||' sur la liste d’attente. Si une place se libère, elle lui revient automatiquement et tu recevras un e-mail de confirmation.');
+      'La partie est complète : '||clean||' est n° '||public.waitlist_position(added)||' sur la liste d’attente. Si une place se libère jusqu’à 30 minutes avant le début, elle lui revient automatiquement et tu recevras un e-mail de confirmation.');
   end if;
   return result;
 end; $$;
+
+-- Withdrawing with some of the people one brings, in one step: everyone chosen leaves before the queue moves,
+-- so nobody being released is first moved in, and told so, on the way out.
+create function public.leave_session(p_id uuid,p_guests uuid[] default '{}') returns void language plpgsql security definer set search_path = '' as $$
+declare b public.bookings;
+begin
+  perform public.rate_guard('booking',20,600);
+  perform 1 from public.sessions where id=p_id for update;
+  if exists(select 1 from unnest(coalesce(p_guests,'{}')) g(id) where not exists(select 1 from public.bookings
+    where bookings.id=g.id and session_id=p_id and sponsor_id=auth.uid())) then raise exception 'Action non autorisée.'; end if;
+  update public.bookings set status='cancelled',offer_expires_at=null where id=any(p_guests) and status not in ('cancelled','declined');
+  select * into b from public.bookings where session_id=p_id and user_id=auth.uid();
+  if b.id is not null and b.status not in ('cancelled','declined') then
+    update public.bookings set status='cancelled',offer_expires_at=null where id=b.id;
+    if b.status='waitlisted' then perform public.notify(auth.uid(),p_id,'Tu as quitté la liste d’attente','Tu peux t’y inscrire à nouveau depuis le site, à la fin de la liste.');
+    else perform public.notify(auth.uid(),p_id,'Désistement enregistré','Merci de nous avoir prévenus. À une prochaine soirée !'); end if;
+  end if;
+  perform public.rebalance(p_id);
+end; $$;
+revoke execute on function public.leave_session(uuid,uuid[]) from public,anon;
+grant execute on function public.leave_session(uuid,uuid[]) to authenticated,service_role;
 
 -- Every free token is open to everyone, so both counts are the same; both stay for the previous site.
 -- Waiting people see their place in the queue, and the people they bring theirs.
@@ -249,10 +270,21 @@ begin
 end; $$;
 
 -- The e-mail names the game, its date and its place, read here so that the site needs no second query.
+-- Anyone can now book without an organizer: a traveller, and whoever brings a guest as a traveller, reads the exact
+-- address from 48 hours before the game, members as soon as they or their guest have a seat.
+drop policy addresses_read on public.session_addresses;
+create policy addresses_read on public.session_addresses for select to authenticated using (
+  public.is_organizer() or (public.active_user() and exists(select 1 from public.bookings
+    where session_id=session_addresses.session_id and status='confirmed' and (user_id=auth.uid() or sponsor_id=auth.uid()))
+    and (public.is_member() or exists(select 1 from public.sessions s where s.id=session_addresses.session_id and s.starts_at<=now()+interval '48 hours'))));
+
 drop function public.claim_emails();
 create function public.claim_emails() returns table(id uuid,email text,title text,body text,session_id uuid,
   session_title text,session_script text,session_starts_at timestamptz,session_location text) language sql security definer set search_path = '' as $$
-  with picked as (select n.id from public.notifications n where emailed_at is null and email_attempts<5 and (claimed_until is null or claimed_until<now()) order by created_at for update skip locked limit 30),
+  with picked as (select n.id from public.notifications n where emailed_at is null and email_attempts<5 and (claimed_until is null or claimed_until<now())
+      -- A message that could not leave in time is out of date: never a day late, never once its game has started.
+      and n.created_at>now()-interval '24 hours' and not exists(select 1 from public.sessions s where s.id=n.session_id and s.starts_at<=now())
+    order by created_at for update skip locked limit 30),
   claimed as (update public.notifications n set claimed_until=now()+interval '5 minutes',email_attempts=email_attempts+1 from picked where n.id=picked.id returning n.*)
   select c.id,u.email,c.title,c.body,c.session_id,s.title,s.script,s.starts_at,s.location
   from claimed c join auth.users u on u.id=c.user_id left join public.sessions s on s.id=c.session_id;
@@ -264,30 +296,52 @@ grant execute on function public.claim_emails() to service_role;
 -- are out of date: they are dropped rather than sent late.
 update public.notifications set email_attempts=5 where emailed_at is null and email_attempts<5 and created_at<now()-interval '1 hour';
 
--- Upcoming games switch over now. An offer still open becomes a confirmed seat, like a move up the queue today;
--- requests waiting for an organizer join the queue at the time they were made, then the free tokens are given out in order.
+-- Upcoming games switch over now. An offer still open becomes a confirmed seat; requests waiting for an organizer
+-- and people already waiting form one queue in arrival order, whose first people take the free tokens.
+-- Games starting within 30 minutes stay as they are, like registrations then.
 do $$
 declare sid uuid; b public.bookings; waiting uuid[];
 begin
   for sid in select distinct bk.session_id from public.bookings bk join public.sessions s on s.id=bk.session_id
-    where bk.status in ('pending','offered','waitlisted') and s.status='published' and s.starts_at>now() order by 1
+    where bk.status in ('pending','offered','waitlisted') and s.status='published' and s.starts_at>now()+interval '30 minutes' order by 1
   loop
     perform 1 from public.sessions where id=sid for update;
+    -- What the previous flow queued for these people (a request sent, an offer to confirm) would contradict the messages below.
+    update public.notifications set email_attempts=5 where session_id=sid and emailed_at is null and email_attempts<5
+      and user_id in (select coalesce(user_id,sponsor_id) from public.bookings where session_id=sid and status in ('pending','offered','waitlisted'));
     for b in update public.bookings set status='confirmed',offer_expires_at=null
       where session_id=sid and status='offered' and offer_expires_at>now() returning *
     loop
       if b.user_id is null then perform public.notify(b.sponsor_id,sid,b.guest_name||' a sa place','La place proposée pour '||b.guest_name||' est confirmée, sans autre démarche.');
       else perform public.notify(b.user_id,sid,'Ta place est confirmée','La place qui t’était proposée est confirmée, sans autre démarche. Un empêchement ? Libère-la depuis le site.'); end if;
     end loop;
-    select array_agg(id) into waiting from public.bookings where session_id=sid and status='pending';
-    update public.bookings set status='waitlisted' where session_id=sid and status='pending';
+    waiting='{}';
+    for b in select * from public.bookings where session_id=sid and status in ('pending','waitlisted') order by created_at,id for update
+    loop
+      if public.seat_available(sid,b.pool) then
+        update public.bookings set status='confirmed',offer_expires_at=null where id=b.id;
+        if b.status='waitlisted' then
+          if b.user_id is null then perform public.notify(b.sponsor_id,sid,'Une place s’est libérée pour '||b.guest_name,
+            b.guest_name||' était sur la liste d’attente : sa place est confirmée. Préviens-le·la, et libère sa place depuis le site si son programme change.');
+          else perform public.notify(b.user_id,sid,'Une place s’est libérée : tu es inscrit·e',
+            'Tu étais sur la liste d’attente : ta place est confirmée. Un empêchement ? Libère-la depuis le site pour la personne suivante.'); end if;
+        elsif b.user_id is null then perform public.notify(b.sponsor_id,sid,b.guest_name||' a sa place',
+          'Plus besoin de validation : la place de '||b.guest_name||' est confirmée. Transmets-lui l’heure et le lieu, et libère sa place depuis le site si son programme change.');
+        else perform public.notify(b.user_id,sid,'Ta place est confirmée',
+          'Plus besoin de validation : ta place est confirmée. Un empêchement ? Libère-la depuis le site.'); end if;
+      elsif b.status='pending' then
+        update public.bookings set status='waitlisted' where id=b.id;
+        waiting=waiting||b.id;
+      end if;
+    end loop;
+    -- Only sweeps offers that ran out: the queue above already took every free token.
     perform public.rebalance(sid);
-    for b in select * from public.bookings where id=any(coalesce(waiting,'{}')) and status='waitlisted' order by created_at,id
+    for b in select * from public.bookings where id=any(waiting) and status='waitlisted' order by created_at,id
     loop
       if b.user_id is null then perform public.notify(b.sponsor_id,sid,b.guest_name||' est sur la liste d’attente',
-        'Plus besoin de validation : la partie est complète et '||b.guest_name||' est n° '||public.waitlist_position(b.id)||' sur la liste d’attente. Si une place se libère, elle lui revient automatiquement.');
+        'Plus besoin de validation : la partie est complète et '||b.guest_name||' est n° '||public.waitlist_position(b.id)||' sur la liste d’attente. Si une place se libère jusqu’à 30 minutes avant le début, elle lui revient automatiquement.');
       else perform public.notify(b.user_id,sid,'Tu es sur la liste d’attente',
-        'Plus besoin de validation : la partie est complète et tu es n° '||public.waitlist_position(b.id)||' sur la liste d’attente. Si une place se libère, elle est à toi automatiquement.'); end if;
+        'Plus besoin de validation : la partie est complète et tu es n° '||public.waitlist_position(b.id)||' sur la liste d’attente. Si une place se libère jusqu’à 30 minutes avant le début, elle est à toi automatiquement.'); end if;
     end loop;
   end loop;
 end $$;

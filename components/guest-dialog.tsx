@@ -15,7 +15,7 @@ export function GuestForm({ sessionId, seat, waitlist, suggestions, onDone }: { 
   // The typed name keeps its case; the stand-in is lower case except where it starts the sentence.
   const typed = name.trim();
   const who = typed || 'cette personne';
-  const note = waitlist ? `Le cercle est complet : ${who} rejoint la liste d’attente. Si une place se libère, elle lui revient automatiquement et tu recevras un e-mail.`
+  const note = waitlist ? `Le cercle est complet : ${who} rejoint la liste d’attente. Si une place se libère jusqu’à 30 minutes avant le début, elle lui revient automatiquement et tu recevras un e-mail.`
     : `${typed || 'Cette personne'} a sa place tout de suite, affiché·e comme ton invité·e. Tu recevras un e-mail de confirmation ; préviens-le·la de l’heure et du lieu.`;
   const label = waitlist ? 'Mettre en liste d’attente' : typed ? `Placer ${typed}` : 'Placer cette personne';
   // A failure often means the seats on screen are stale (a + just taken), so load the current ones.

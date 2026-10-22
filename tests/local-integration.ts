@@ -10,40 +10,44 @@ try{
   const client=createClient(url,publicKey,{auth:{persistSession:false,autoRefreshToken:false}});const auth=await client.auth.verifyOtp({token_hash:link.data.properties.hashed_token,type:'email'});if(auth.error)throw auth.error;actors.push(client);
  }
  const date=new Date(Date.now()+10*86400000).toISOString();const end=new Date(Date.now()+10*86400000+14400000).toISOString();
- const saved=await actors[0].rpc('save_session',{p_data:{title:'Test transactionnel local',description:'Données de test temporaires',script:'Trouble Brewing',starts_at:date,ends_at:end,location:'Lieu de test',address:'Adresse secrète de test',capacity:7,newcomer_seats:3,release_hours:72,beginners_welcome:true,visibility:'public'}});if(saved.error)throw saved.error;sid=saved.data;
+ const saved=await actors[0].rpc('save_session',{p_data:{title:'Test transactionnel local',description:'Données de test temporaires',script:'Trouble Brewing',starts_at:date,ends_at:end,location:'Lieu de test',address:'Adresse secrète de test',capacity:7,beginners_welcome:true,visibility:'public'}});if(saved.error)throw saved.error;sid=saved.data;
  const results=await Promise.all(actors.slice(1,6).map(c=>c.rpc('book_session',{p_id:sid})));
- assert.ok(results.every(r=>!r.error));assert.equal(results.filter(r=>r.data==='confirmed').length,4);assert.equal(results.filter(r=>r.data==='waitlisted').length,1);
- console.log('OK : cinq réservations simultanées respectent le quota de quatre places membres.');
- const volunteerIndex=results.findIndex(r=>r.data==='confirmed')+1;
- const volunteered=await actors[volunteerIndex].from('profiles').update({can_storytell:true}).eq('id',ids[volunteerIndex]);assert.equal(volunteered.error,null);
+ assert.ok(results.every(r=>!r.error));assert.ok(results.every(r=>r.data==='confirmed'));
+ console.log('OK : cinq réservations simultanées, toutes confirmées sans validation.');
+ const volunteered=await actors[1].from('profiles').update({can_storytell:true}).eq('id',ids[1]);assert.equal(volunteered.error,null);
  const visible=await actors[1].rpc('list_sessions');assert.equal(visible.error,null);
  const game=visible.data.find((s:{id:string})=>s.id===sid);
  assert.equal(Object.hasOwn(game,'storyteller'),false);
- assert.equal(game.participants.find((p:{display_name:string})=>p.display_name===`Test ${volunteerIndex}`).can_storytell,true);
- assert.ok(game.participants.filter((p:{display_name:string})=>p.display_name!==`Test ${volunteerIndex}`).every((p:{can_storytell:boolean})=>p.can_storytell===false));
+ assert.equal(game.participants.find((p:{display_name:string})=>p.display_name==='Test 1').can_storytell,true);
+ assert.ok(game.participants.filter((p:{display_name:string})=>p.display_name!=='Test 1').every((p:{can_storytell:boolean})=>p.can_storytell===false));
  const visitor=createClient(url,publicKey,{auth:{persistSession:false,autoRefreshToken:false}});
  const publicGames=await visitor.rpc('list_sessions');assert.equal(publicGames.error,null);assert.deepEqual(publicGames.data.find((s:{id:string})=>s.id===sid).participants,[]);
  console.log('OK : les volontaires MJ sont visibles parmi les participants, sans désignation sur la partie.');
- const newbie=await actors[6].rpc('book_session',{p_id:sid});assert.equal(newbie.data,'pending');
+ const friend=await actors[1].rpc('add_guest',{p_session:sid,p_name:'Invitée C'});assert.equal(friend.data,'confirmed');
+ // A traveller and the organizer ask for the last seat at the same instant.
+ const last=await Promise.all([actors[6],actors[0]].map(c=>c.rpc('book_session',{p_id:sid})));
+ assert.ok(last.every(r=>!r.error));assert.deepEqual(last.map(r=>r.data).sort(),['confirmed','waitlisted']);
+ const waiterIndex=last[0].data==='waitlisted'?6:0;
+ const queued=(await actors[waiterIndex].rpc('list_sessions')).data.find((s:{id:string})=>s.id===sid);assert.equal(queued.my_waitlist_position,1);
+ console.log('OK : deux demandes simultanées sur la dernière place : une place, l’autre n° 1 de la liste d’attente.');
  const forbidden=await actors[1].from('profiles').update({membership:'organizer'}).eq('id',ids[1]);assert.ok(forbidden.error);
- const address=await actors[6].from('session_addresses').select('address').eq('session_id',sid);assert.equal(address.data?.length,0);
- const ownOnly=await actors[1].from('bookings').select('user_id').eq('session_id',sid);assert.ok(ownOnly.data?.every(b=>b.user_id===ids[1]));
+ if(waiterIndex===6){const address=await actors[6].from('session_addresses').select('address').eq('session_id',sid);assert.equal(address.data?.length,0);}
+ const ownOnly=await actors[1].from('bookings').select('user_id,sponsor_id').eq('session_id',sid);assert.ok(ownOnly.data?.length===2&&ownOnly.data.every(b=>b.user_id===ids[1]||b.sponsor_id===ids[1]));
  console.log('OK : rôle, participations et adresse privée restent protégés par la base.');
- const booking=await admin.from('bookings').select('id').eq('session_id',sid).eq('user_id',ids[6]).single();
- const approve=await actors[0].rpc('review_booking',{p_booking:booking.data!.id,p_approve:true});assert.equal(approve.data,'confirmed');
- const confirmedIndex=results.findIndex(r=>r.data==='confirmed')+1;const waiterIndex=results.findIndex(r=>r.data==='waitlisted')+1;
- const cancelled=await actors[confirmedIndex].rpc('cancel_booking',{p_id:sid});assert.equal(cancelled.error,null);
- const waiting=await actors[waiterIndex].from('bookings').select('status').eq('session_id',sid).single();assert.equal(waiting.data?.status,'offered');
- const accepted=await actors[waiterIndex].rpc('accept_offer',{p_id:sid});assert.equal(accepted.data,'confirmed');
- const final=await admin.from('bookings').select('id',{count:'exact'}).eq('session_id',sid).eq('status','confirmed');assert.equal(final.count,5);
- console.log('OK : validation, désistement, proposition puis confirmation sans sur-réservation.');
- const guestGame=await actors[0].rpc('save_session',{p_data:{title:'Test invités local',description:'',script:'Trouble Brewing',starts_at:date,ends_at:end,location:'Lieu de test',address:'',capacity:7,newcomer_seats:5,release_hours:72,beginners_welcome:true,visibility:'public'}});if(guestGame.error)throw guestGame.error;guestSid=guestGame.data;
- const host=await actors[1].rpc('book_session',{p_id:guestSid});assert.equal(host.data,'confirmed');
+ const cancelled=await actors[2].rpc('cancel_booking',{p_id:sid});assert.equal(cancelled.error,null);
+ const promoted=await actors[waiterIndex].from('bookings').select('status').eq('session_id',sid).eq('user_id',ids[waiterIndex]).single();assert.equal(promoted.data?.status,'confirmed');
+ const final=await admin.from('bookings').select('id',{count:'exact'}).eq('session_id',sid).eq('status','confirmed');assert.equal(final.count,7);
+ const told=await admin.from('notifications').select('title').eq('session_id',sid).eq('user_id',ids[waiterIndex]);
+ assert.deepEqual(told.data?.map(n=>n.title).sort(),['Tu es sur la liste d’attente','Une place s’est libérée : tu es inscrit·e']);
+ console.log('OK : un désistement donne aussitôt la place au premier de la file, prévenu par un message, sans sur-réservation.');
+ const guestGame=await actors[0].rpc('save_session',{p_data:{title:'Test invités local',description:'',script:'Trouble Brewing',starts_at:date,ends_at:end,location:'Lieu de test',address:'',capacity:7,beginners_welcome:true,visibility:'public'}});if(guestGame.error)throw guestGame.error;guestSid=guestGame.data;
+ for(const i of [1,4,5,6]){const host=await actors[i].rpc('book_session',{p_id:guestSid});assert.equal(host.data,'confirmed');}
+ for(const name of ['Invité D','Invité E']){const own=await actors[1].rpc('add_guest',{p_session:guestSid,p_name:name});assert.equal(own.data,'confirmed');}
  const guests=await Promise.all([actors[2].rpc('add_guest',{p_session:guestSid,p_name:'Invité A'}),actors[3].rpc('add_guest',{p_session:guestSid,p_name:'Invité B'})]);
  assert.ok(guests.every(r=>!r.error));assert.deepEqual(guests.map(r=>r.data).sort(),['confirmed','waitlisted']);
  const embedded=await actors[0].from('bookings').select('*,profile:profiles(*)').eq('session_id',guestSid);
- assert.equal(embedded.error,null);assert.equal(embedded.data?.filter((b:{guest_name:string|null})=>b.guest_name).length,2);
- console.log('OK : deux invités ajoutés en même temps sur la dernière place membre, sans sur-réservation ; la requête organisateur reste valide.');
+ assert.equal(embedded.error,null);assert.equal(embedded.data?.filter((b:{guest_name:string|null})=>b.guest_name).length,4);
+ console.log('OK : deux invités ajoutés en même temps sur la dernière place, sans sur-réservation ; la requête organisateur reste valide.');
 }finally{
  if(sid)await admin.from('sessions').delete().eq('id',sid);
  if(guestSid)await admin.from('sessions').delete().eq('id',guestSid);
