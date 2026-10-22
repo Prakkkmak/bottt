@@ -2,7 +2,7 @@ export type Membership = 'newcomer' | 'member' | 'organizer' | 'suspended';
 /** Self-declared level: débutant·e, quelques parties, expérimenté·e. */
 export type Experience = 'beginner' | 'some' | 'experienced';
 export type BookingStatus = 'pending' | 'confirmed' | 'waitlisted' | 'offered' | 'cancelled' | 'declined';
-export type Profile = { id: string; display_name: string; bio: string; avatar_color: string; beginner: boolean; experience: Experience; can_storytell: boolean; membership: Membership; sponsored_by: string | null; };
+export type Profile = { id: string; display_name: string; bio: string; avatar_color: string; beginner: boolean; experience: Experience; can_storytell: boolean; membership: Membership; sponsored_by: string | null; nickname_chosen: boolean; };
 /** member: compte membre ou organisateur · guest: amené·e par un membre · traveller: compte voyageur · traveller_guest: amené·e par un voyageur. */
 export type ParticipantRole = 'member' | 'guest' | 'traveller' | 'traveller_guest';
 export type Participant = Pick<Profile, 'display_name' | 'avatar_color'> & { seat_index?: number; can_storytell?: boolean; role?: ParticipantRole; invited_by?: string | null };

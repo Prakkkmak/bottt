@@ -6,19 +6,23 @@ import { WebTools } from './webmcp';
 import { TourTanguy } from './tableau';
 import { Navigation } from './navigation';
 import { CookieSettings } from './cookies';
+import { NicknameStep } from './nickname';
 
 export function Shell({ data, children }: { data: AppData; children: React.ReactNode }) {
+  // A new account chooses its pseudo before anything else, then lands on the page it opened.
+  // Until the migration adds the flag, it is undefined and nobody is held back.
+  const welcome = data.profile?.nickname_chosen === false;
   return <div className="app-shell">
     <WebTools sessions={data.sessions} />
     <a className="skip-link" href="#main-content">Aller au contenu</a>
     <header className="site-header">
       <Link href="/" className="brand" aria-label="Blood on the Tanguy Tower, accueil"><span className="brand-seal"><TourTanguy /></span><span>BOTTT<small>Blood on the Tanguy Tower</small></span></Link>
-      <Navigation organizer={data.profile?.membership === 'organizer' || data.demo} />
-      <div className="header-account">{data.profile ? <Link href="/profil" className="account-link" aria-label={`Mon profil : ${data.profile.display_name}`}><Avatar name={data.profile.display_name} color={data.profile.avatar_color} /><span>{data.profile.display_name}</span></Link> : <SignInButton configured={data.configured} className="button secondary compact" />}</div>
+      {!welcome && <Navigation organizer={data.profile?.membership === 'organizer' || data.demo} />}
+      <div className="header-account">{welcome ? null : data.profile ? <Link href="/profil" className="account-link" aria-label={`Mon profil : ${data.profile.display_name}`}><Avatar name={data.profile.display_name} color={data.profile.avatar_color} /><span>{data.profile.display_name}</span></Link> : <SignInButton configured={data.configured} className="button secondary compact" />}</div>
     </header>
     {data.error && <div className="alert error site-error" role="alert">{data.error}</div>}
     {data.accountNotice && <div className="alert info site-error" role="status">{data.accountNotice}</div>}
-    <main id="main-content" className="main-content">{children}</main>
+    <main id="main-content" className="main-content">{welcome ? <NicknameStep /> : children}</main>
     <footer className="footer">
       <div className="footer-about">
         <h2>Blood on the Tanguy Tower</h2>

@@ -10,7 +10,7 @@ Une application en français pour organiser les soirées Blood on the Clocktower
 - API locale : http://127.0.0.1:54321
 - PostgreSQL : 127.0.0.1:55432
 
-Le compte organisateur d’exemple est **camille@cercle.test**. Clique sur « Se connecter », demande un code et récupère-le dans la boîte mail locale. Ce compte n’a pas de mot de passe. Les e-mails restent sur ta machine. Pour tester un nouveau joueur, utilise par exemple `nouveau@cercle.test`.
+Le compte organisateur d’exemple est **camille@cercle.test**. Clique sur « Se connecter », demande un code et récupère-le dans la boîte mail locale. Ce compte n’a pas de mot de passe. Les e-mails restent sur ta machine. Pour tester un nouveau joueur, utilise par exemple `nouveau@cercle.test` : après le code, le site lui demande d’abord son pseudo.
 
 Les 4 sessions, 16 joueurs et adresses fournis sont fictifs. Les réservations, modifications et validations, elles, sont réellement enregistrées dans PostgreSQL. Le volume Docker `le-cercle-local_cercle-db` conserve ces données entre les redémarrages. Ne l’efface pas si tu veux garder tes modifications.
 
@@ -43,7 +43,7 @@ Les identifiants locaux sont générés automatiquement dans `.docker/` et `.env
 
 ## Fonctionnement
 
-- Compte personnel, connexion par code e-mail valable 10 minutes. Cookies HttpOnly ; session conservée et limitée à 30 jours, limite aussi contrôlée dans la base.
+- Compte personnel, connexion par code e-mail valable 10 minutes, sans autre champ que l’adresse. À la première connexion, le site demande d’abord un pseudo, modifiable ensuite dans le profil ; la page demandée s’ouvre juste après. Les comptes restés « Nouveau joueur » le choisissent à leur prochaine visite. Cookies HttpOnly ; session conservée et limitée à 30 jours, limite aussi contrôlée dans la base.
 - Sessions publiques ou réservées aux membres/parrainés, script, début en heure de Paris, lieu général et adresse privée. La création préremplit le prochain vendredi à 19 h 30 et les réglages d’une partie existante. La fin est calculée côté serveur à +4 h pour l’agenda ; une modification conserve la durée précédente.
 - Toutes les soirées accueillent les débutants ; aucune catégorie découverte ni page bienvenue séparée.
 - Inscription en cliquant sur un + autour de la Tour Tanguy. Le jeton choisi est conservé ; cliquer sur son jeton permet de se désister après confirmation. Une demande en attente ne réserve pas de jeton.
