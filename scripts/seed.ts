@@ -10,7 +10,7 @@ for(let i=0;i<names.length;i++){
  let user=users.find(u=>u.email===emails[i]);const isNew=!user;
  if(!user){const r=await db.auth.admin.createUser({email:emails[i],email_confirm:true,user_metadata:{display_name:names[i]}});if(r.error)throw r.error;user=r.data.user;}
  ids.push(user.id);
- if(isNew){const {error:pError}=await db.from('profiles').update({display_name:names[i],avatar_color:['rose','blue','sage','ochre','lilac'][i%5],beginner:i>11,membership:i===0?'organizer':i>11?'newcomer':'member'}).eq('id',user.id);if(pError)throw pError;}
+ if(isNew){const {error:pError}=await db.from('profiles').update({display_name:names[i],avatar_color:['rose','blue','sage','ochre','lilac'][i%5],experience:i>11?'beginner':i%3===0?'experienced':'some',membership:i===0?'organizer':i>11?'newcomer':'member'}).eq('id',user.id);if(pError)throw pError;}
 }
 const sessionIds=['10000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000002','10000000-0000-4000-8000-000000000003','10000000-0000-4000-8000-000000000004'];
 for(const [index,s] of demoSessions().entries()){

@@ -1,16 +1,15 @@
 'use client';
 import { Check, UserPlus } from 'lucide-react';
 import type { GameSession, MyGuest } from '@/lib/types';
-import { MAX_GUESTS_PER_PERSON } from '@/lib/session-rules';
 import { activeGuests, guestStatusLabels } from '@/lib/guests';
 import { dateLong, time } from '@/lib/utils';
 
 /** The people the viewer brings to this session, and what they can still do for each of them. */
-export function SessionGuests({ session, hint, busy, onAdd, onRemove, onConfirm }: { session: GameSession; hint: string; busy: boolean; onAdd?: () => void; onRemove: (guest: MyGuest) => void; onConfirm: (guest: MyGuest) => void }) {
+export function SessionGuests({ session, limit, hint, busy, onAdd, onRemove, onConfirm }: { session: GameSession; limit?: number; hint: string; busy: boolean; onAdd?: () => void; onRemove: (guest: MyGuest) => void; onConfirm: (guest: MyGuest) => void }) {
   const guests = (session.my_guests ?? []).filter(g => g.status !== 'cancelled');
   return <section className="my-guests" aria-label="Les personnes que tu amènes">
     <div className="my-guests-heading">
-      <p>Tes invités <span>· {activeGuests(session).length} sur {MAX_GUESTS_PER_PERSON}</span></p>
+      <p>Tes invités <span>· {activeGuests(session).length}{limit !== undefined && ` sur ${limit}`}</span></p>
       {onAdd && <button type="button" className="button secondary compact" disabled={busy} onClick={onAdd}><UserPlus size={15} />Ajouter</button>}
     </div>
     {hint && <p className="my-guests-hint">{hint}</p>}

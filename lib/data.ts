@@ -24,7 +24,7 @@ export const getData = cache(async (): Promise<AppData> => {
 export async function getInvitations() {
   if (isDemo() || !isConfigured()) return [];
   const db = await supabase();
-  const { data, error } = await db.from('invitations').select('id,sponsor_id,expires_at,used_by,created_at').order('created_at', { ascending: false }).limit(30);
+  const { data, error } = await db.from('invitations').select('id,sponsor_id,expires_at,used_by,created_at,sent_to').order('created_at', { ascending: false }).limit(30);
   if (error) throw new Error('Impossible de charger les invitations.');
   return data || [];
 }

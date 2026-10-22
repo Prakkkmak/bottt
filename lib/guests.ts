@@ -1,9 +1,14 @@
-import type { Booking, BookingStatus, GameSession, Membership, MyGuest, Participant, ParticipantRole, Profile } from './types';
-import { MAX_GUESTS_PER_PERSON } from './session-rules';
+import type { Booking, BookingStatus, Experience, GameSession, Membership, MyGuest, Participant, ParticipantRole, Profile } from './types';
+import { MAX_TRAVELLER_GUESTS, MAX_WAITING_GUESTS } from './session-rules';
 import { activeBooking, dateLong } from './utils';
 
 export const roleLabels: Record<ParticipantRole, string> = { member: 'membre', guest: 'invité·e', traveller: 'voyageur·se', traveller_guest: 'voyageur·se' };
-export const membershipLabels: Record<Membership, string> = { organizer: 'Organisation', member: 'Membre', newcomer: 'Voyageur·se', suspended: 'Suspendu·e' };
+export const membershipLabels: Record<Membership, string> = { organizer: 'Organisateur·rice', member: 'Membre', newcomer: 'Voyageur·se', suspended: 'Suspendu·e' };
+export const experienceLabels: Record<Experience, string> = { beginner: 'Débutant·e', some: 'Quelques parties', experienced: 'Expérimenté·e' };
+/** The declared level, read from the older beginner flag while the database has no experience column yet. */
+export function experienceOf(p: Pick<Profile, 'beginner'> & { experience?: Experience }): Experience {
+  return p.experience ?? (p.beginner ? 'beginner' : 'some');
+}
 export const guestStatusLabels: Record<BookingStatus, string> = { confirmed: 'place confirmée', pending: 'en attente de validation', waitlisted: 'en liste d’attente', offered: 'place proposée', declined: 'non retenu·e', cancelled: 'place libérée' };
 
 const brought = (role?: ParticipantRole) => role === 'guest' || role === 'traveller_guest';
@@ -37,7 +42,7 @@ export type SeatPlan = {
   onFreeSeat: 'signin' | 'book' | 'guest' | null;
   /** The waitlist button shown when no + suits this viewer. */
   waitlist: 'self' | 'guest' | null;
-  /** The viewer already brings the maximum number of people. */
+  /** A traveller already brings 2 people, or a member already has 2 guests waiting for a full game. */
   limitReached: boolean;
   /** Bring someone without registering yourself. */
   canBringOther: boolean;
@@ -51,7 +56,9 @@ export function seatPlan(session: GameSession, profile: Pick<Profile, 'membershi
   if (session.my_status === 'declined') return none;
   // Seats are counted per kind until quotas merge: travellers and their friends only use traveller seats.
   const free = (profile.membership === 'newcomer' ? session.traveller_seats_free : session.member_seats_free) ?? total;
-  const limitReached = activeGuests(session).length >= MAX_GUESTS_PER_PERSON;
+  const guests = activeGuests(session);
+  const limitReached = profile.membership === 'newcomer' ? guests.length >= MAX_TRAVELLER_GUESTS
+    : free <= 0 && guests.filter(g => g.status === 'waitlisted' || g.status === 'offered').length >= MAX_WAITING_GUESTS;
   if (!activeBooking(session.my_status)) return { onFreeSeat: free > 0 ? 'book' : null, waitlist: free > 0 ? null : 'self', limitReached, canBringOther: !limitReached };
   if (limitReached) return { ...none, limitReached };
   return { ...none, onFreeSeat: free > 0 ? 'guest' : null, waitlist: free > 0 ? null : 'guest' };
@@ -85,7 +92,7 @@ export function groupRequests(bookings: Booking[], profiles: Profile[]): Request
 
 /** What an organizer card says under the name: the person's own request, or why only their friends are waiting. */
 export function requestNote(group: RequestGroup, attending: boolean): string {
-  if (group.own) return group.person?.beginner ? 'Découvre le jeu' : 'Connaît déjà le jeu';
+  if (group.own) return group.person ? experienceLabels[experienceOf(group.person)] : '';
   return attending ? 'Déjà inscrit·e, amène quelqu’un' : 'Ne vient pas, amène quelqu’un';
 }
 

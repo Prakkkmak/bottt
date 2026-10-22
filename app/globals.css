@@ -636,3 +636,14 @@ a.practical-link, .calendar-link > span { text-decoration: underline; text-under
 .guest-overview li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-top: 1px solid var(--border); }
 .guest-overview a { display: grid; }
 .guest-overview a span { color: var(--muted); font-size: 13px; }
+/* Radio groups in forms: profile experience level, organizer rank choice. */
+.choice-options { margin: 0; padding: 0; border: 0; }
+.choice-options legend { margin-bottom: 4px; color: var(--muted); font-size: 14px; }
+.rank-choice { align-items: flex-start; padding: 4px 0; }
+.rank-choice input { flex: none; margin-top: 3px; }
+.rank-choice strong { color: var(--ink); font-weight: 600; }
+.rank-choice small { display: block; margin-top: 2px; font-size: 13px; line-height: 1.5; }
+.invite-email { display: flex; flex-direction: column; gap: 12px; text-align: left; }
+.invite-email .button { align-self: center; }
+/* Long e-mail addresses wrap instead of widening the page on mobile. */
+.invitation-row > span:first-child, .alert { min-width: 0; overflow-wrap: anywhere; }

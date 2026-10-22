@@ -1,6 +1,8 @@
 export type Membership = 'newcomer' | 'member' | 'organizer' | 'suspended';
+/** Self-declared level: débutant·e, quelques parties, expérimenté·e. */
+export type Experience = 'beginner' | 'some' | 'experienced';
 export type BookingStatus = 'pending' | 'confirmed' | 'waitlisted' | 'offered' | 'cancelled' | 'declined';
-export type Profile = { id: string; display_name: string; bio: string; avatar_color: string; beginner: boolean; can_storytell: boolean; membership: Membership; sponsored_by: string | null; };
+export type Profile = { id: string; display_name: string; bio: string; avatar_color: string; beginner: boolean; experience: Experience; can_storytell: boolean; membership: Membership; sponsored_by: string | null; };
 /** member: compte membre ou organisateur · guest: amené·e par un membre · traveller: compte voyageur · traveller_guest: amené·e par un voyageur. */
 export type ParticipantRole = 'member' | 'guest' | 'traveller' | 'traveller_guest';
 export type Participant = Pick<Profile, 'display_name' | 'avatar_color'> & { seat_index?: number; can_storytell?: boolean; role?: ParticipantRole; invited_by?: string | null };
@@ -19,7 +21,8 @@ export type GameSession = {
   participants: Participant[];
 };
 export type Booking = { id: string; session_id: string; user_id: string | null; guest_name: string | null; sponsor_id: string | null; status: BookingStatus; pool: 'circle' | 'newcomer'; created_at: string; offer_expires_at: string | null; profile?: Profile | null; };
-export type Invitation = { id: string; sponsor_id: string; expires_at: string; used_by: string | null; created_at: string; };
+/** sent_to: the address the link was e-mailed to, erased 30 days after the link expires. */
+export type Invitation = { id: string; sponsor_id: string; expires_at: string; used_by: string | null; created_at: string; sent_to?: string | null; };
 export type AppData = { profile: Profile | null; sessions: GameSession[]; invitations: Invitation[]; demo: boolean; configured: boolean; local?: boolean; error?: string; accountNotice?: string; };
 export type ActionResult = { ok: boolean; message: string; value?: string; };
 export type SessionInput = Omit<GameSession, 'id' | 'status' | 'confirmed_count' | 'waitlist_count' | 'my_status' | 'my_offer_expires_at' | 'occupied_seats' | 'my_seat' | 'participants' | 'member_seats_free' | 'traveller_seats_free' | 'my_guests'> & { address: string; id?: string; };
