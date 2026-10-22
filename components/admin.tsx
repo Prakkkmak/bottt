@@ -4,12 +4,13 @@ import { useState } from 'react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { Plus, CalendarDays, UsersRound, Clock3, Check, X, Pencil, ShieldCheck, BookOpen, Link2, Trash2 } from 'lucide-react';
-import type { AppData, GameSession, Booking, Membership, Profile } from '@/lib/types';
+import type { AppData, GameSession, Booking, Membership, Profile, Venue } from '@/lib/types';
 import { time, shortDate, statusLabels, sessionUrl, activeBooking, sessionName } from '@/lib/utils';
 import { bookingLabel, experienceLabels, experienceOf, groupRequests, membershipLabels, orderBySponsor, refusalText, requestNote, type RequestGroup } from '@/lib/guests';
 import { cancelSession, deleteSession, reviewBooking, reviewRequest, setMembership } from '@/app/actions';
 import { Dialog } from './dialog';
 import { Avatar } from './ui';
+import { Venues } from './venues';
 import { Feedback, useAction } from './action-feedback';
 /** The three ranks an organizer can give; suspension is a separate action. */
 const rankChoices: { value: Exclude<Membership, 'suspended'>; label: string; note: string }[] = [
@@ -19,8 +20,8 @@ const rankChoices: { value: Exclude<Membership, 'suspended'>; label: string; not
 ];
 const SessionForm = dynamic(() => import('./session-form').then(mod => mod.SessionForm), { loading: () => <p className="muted">Chargement du formulaire…</p> });
 
-export function Admin({ data, bookings, profiles, addresses, initialCreate = false }: { data: AppData; bookings: Booking[]; profiles: Profile[]; addresses: Record<string, string>; initialCreate?: boolean }) {
-  const [tab, setTab] = useState<'sessions' | 'requests' | 'members'>('sessions');
+export function Admin({ data, bookings, profiles, addresses, venues, initialCreate = false }: { data: AppData; bookings: Booking[]; profiles: Profile[]; addresses: Record<string, string>; venues: Venue[]; initialCreate?: boolean }) {
+  const [tab, setTab] = useState<'sessions' | 'requests' | 'members' | 'venues'>('sessions');
   const [editing, setEditing] = useState<GameSession | 'new' | null>(initialCreate ? 'new' : null);
   const [selected, setSelected] = useState<GameSession | null>(null);
   const [cancel, setCancel] = useState<GameSession | null>(null);
@@ -46,7 +47,7 @@ export function Admin({ data, bookings, profiles, addresses, initialCreate = fal
   const participants = selected ? orderBySponsor(bookings.filter(b => b.session_id === selected.id && !['cancelled', 'declined'].includes(b.status))) : [];
   return <><div className="page-heading admin-heading"><h1>Organiser</h1><button className="button primary compact" onClick={() => setEditing('new')}><Plus size={17} />Créer une partie</button></div>
     <div className="admin-stats"><div><CalendarDays /><span><strong>{future.length}</strong>sessions à venir</span></div><div><UsersRound /><span><strong>{profiles.filter(p => p.membership !== 'suspended').length}</strong>personnes dans le cercle</span></div><div><Clock3 /><span><strong>{pendingCount}</strong>demandes à valider</span></div></div>
-    <div className="session-tabs admin-tabs" role="group" aria-label="Espace organisateur">{([['sessions', 'Les sessions'], ['requests', `À valider (${pendingCount})`], ['members', 'Les membres']] as const).map(([value, label]) => <button key={value} aria-pressed={tab === value} className={tab === value ? 'selected' : ''} onClick={() => setTab(value)}>{label}</button>)}</div><Feedback result={a.result} />
+    <div className="session-tabs admin-tabs" role="group" aria-label="Espace organisateur">{([['sessions', 'Les sessions'], ['requests', `À valider (${pendingCount})`], ['members', 'Les membres'], ['venues', 'Les lieux']] as const).map(([value, label]) => <button key={value} aria-pressed={tab === value} className={tab === value ? 'selected' : ''} onClick={() => setTab(value)}>{label}</button>)}</div><Feedback result={a.result} />
     {tab === 'sessions' ? <div className="admin-session-list">{listed.length ? listed.map(s => <article className={`admin-session-row ${s.status === 'cancelled' ? 'is-cancelled' : isPast(s) ? 'is-past' : ''}`} key={s.id}><DateTile date={s.starts_at} /><div className="admin-session-name"><Link href={sessionUrl(s.id)}><h2>{sessionName(s)}</h2></Link><p>{s.status === 'cancelled' ? <span className="session-state">Annulée · </span> : isPast(s) ? <span className="session-state">Passée · </span> : null}{s.script} · {time(s.starts_at)} · {s.visibility === 'public' ? 'Ouverte à tous' : 'Membres et invités'}</p></div><span className="badge">{s.confirmed_count}/{s.capacity} inscrits</span><div className="row-actions"><button className="button secondary compact" onClick={() => open(setSelected, s)}><UsersRound size={15} />Participants</button>{s.status === 'published' && !isPast(s) && <><button aria-label={`Modifier ${sessionName(s)}`} className="icon-btn" onClick={() => open(setEditing, s)}><Pencil size={17} /></button><button aria-label={`Annuler ${sessionName(s)}`} className="icon-btn" onClick={() => open(setCancel, s)}><X size={17} /></button></>}{deletable(s) && <button aria-label={`Supprimer ${sessionName(s)}`} title="Supprimer définitivement" className="icon-btn" onClick={() => open(setRemoval, s)}><Trash2 size={17} /></button>}</div></article>) : <div className="empty-state"><CalendarDays /><h2>Crée votre première soirée.</h2><p>Tu choisis la date, le script et les places disponibles.</p></div>}</div>
     : tab === 'requests' ? <div className="panel">{requests.length ? requests.map(r => {
       const session = data.sessions.find(s => s.id === r.sessionId);
@@ -69,8 +70,9 @@ export function Admin({ data, bookings, profiles, addresses, initialCreate = fal
         </div>
       </div>;
     }) : <div className="empty-state borderless"><ShieldCheck size={35} /><h2>Tout est à jour.</h2><p>Les demandes des voyageurs et de leurs amis apparaîtront ici.</p></div>}</div>
+    : tab === 'venues' ? <Venues venues={venues} sessions={data.sessions} />
     : <div className="panel">{profiles.map(p => <div className="member-row" key={p.id}><Avatar name={p.display_name} color={p.avatar_color} /><div><h3>{p.display_name}</h3><p>{experienceLabels[experienceOf(p)]}{p.can_storytell && ' · volontaire MJ'}{p.bio && ` · ${p.bio}`}</p></div><span className={`badge ${p.membership === 'suspended' ? 'red' : ''}`}>{membershipLabels[p.membership]}</span>{p.membership !== 'organizer' && <button className="button secondary compact" disabled={a.pending} onClick={() => open(setMember, p)}>{p.membership === 'suspended' ? 'Réactiver' : 'Gérer'}</button>}</div>)}</div>}
-    <Dialog title={editing === 'new' ? 'Créer une partie' : 'Modifier la partie'} open={editing !== null} onClose={() => setEditing(null)} wide guard>{editing && <SessionForm session={editing === 'new' ? undefined : editing} template={template} address={editing === 'new' ? (template ? addresses[template.id] : undefined) : addresses[editing.id]} onSaved={() => setEditing(null)} />}</Dialog>
+    <Dialog title={editing === 'new' ? 'Créer une partie' : 'Modifier la partie'} open={editing !== null} onClose={() => setEditing(null)} wide guard>{editing && <SessionForm session={editing === 'new' ? undefined : editing} template={template} address={editing === 'new' ? (template ? addresses[template.id] : undefined) : addresses[editing.id]} venues={venues} onSaved={() => setEditing(null)} />}</Dialog>
     <Dialog title={selected ? sessionName(selected) : 'Participants'} open={!!selected} onClose={() => setSelected(null)} wide><div className="stack">
       {participants.map(b => <div className={`request-row ${b.user_id ? '' : 'is-guest-row'}`} key={b.id}>
         <Avatar name={nameOf(b)} color={b.profile?.avatar_color ?? sponsorOf(b)?.avatar_color} />

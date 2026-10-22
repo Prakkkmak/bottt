@@ -1,8 +1,8 @@
 import 'server-only';
 import { isConfigured, isDemo } from './config';
-import { initialDemo } from './fixtures';
+import { initialDemo, demoVenues } from './fixtures';
 import type { AppData } from './types';
-import type { Booking, Profile, GameSession } from './types';
+import type { Booking, Profile, GameSession, Venue } from './types';
 import { supabase, authenticatedClient } from './supabase';
 import { cache } from 'react';
 export const getData = cache(async (): Promise<AppData> => {
@@ -41,16 +41,19 @@ export async function getAddress(id: string): Promise<string | null> {
   const { data } = await db.from('session_addresses').select('address').eq('session_id', id).maybeSingle();
   return data?.address || null;
 }
-export async function getAdminData(): Promise<{ bookings: Booking[]; profiles: Profile[]; addresses: Record<string, string> }> {
-  if (isDemo()) return { bookings: [], profiles: [], addresses: {} };
+export async function getAdminData(): Promise<{ bookings: Booking[]; profiles: Profile[]; addresses: Record<string, string>; venues: Venue[] }> {
+  if (isDemo()) return { bookings: [], profiles: [], addresses: {}, venues: demoVenues };
   const { db } = await authenticatedClient();
   const { data: organizer } = await db.rpc('is_organizer');
   if (!organizer) throw new Error('Accès organisateur requis.');
-  const [bookings, profiles, addresses] = await Promise.all([
+  const [bookings, profiles, addresses, venues] = await Promise.all([
     db.from('bookings').select('*,profile:profiles(*)').order('created_at'),
     db.from('profiles').select('*').order('display_name'),
-    db.from('session_addresses').select('*')
+    db.from('session_addresses').select('*'),
+    db.from('venues').select('id,name,address').order('name')
   ]);
   if (bookings.error || profiles.error || addresses.error) throw new Error('Impossible de charger les participants.');
-  return { bookings: bookings.data || [], profiles: profiles.data || [], addresses: Object.fromEntries((addresses.data || []).map(a => [a.session_id, a.address])) };
+  // The page still opens, without the list, while the venues migration has not reached the database.
+  if (venues.error) console.error('Venues unavailable', venues.error.message);
+  return { bookings: bookings.data || [], profiles: profiles.data || [], addresses: Object.fromEntries((addresses.data || []).map(a => [a.session_id, a.address])), venues: venues.data || [] };
 }
