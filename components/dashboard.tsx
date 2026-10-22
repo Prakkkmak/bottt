@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { CalendarDays, Plus, BellRing } from 'lucide-react';
 import type { AppData } from '@/lib/types';
@@ -11,6 +11,8 @@ export function Dashboard({ data, addresses, initialSessionId }: { data: AppData
   const upcoming = data.sessions.filter(s => s.id === initialSessionId || new Date(s.ends_at) > new Date() && s.status === 'published').sort((a, b) => Date.parse(a.starts_at) - Date.parse(b.starts_at));
   const next = upcoming[0];
   const [expanded, setExpanded] = useState(() => new Set([...(next ? [next.id] : []), ...(initialSessionId ? [initialSessionId] : [])]));
+  // The loading screen comes first, so the browser could not jump to a linked session (#partie-…) on its own.
+  useEffect(() => { if (initialSessionId && location.hash === `#partie-${initialSessionId}`) document.getElementById(`partie-${initialSessionId}`)?.scrollIntoView(); }, [initialSessionId]);
   const toggle = (id: string) => setExpanded(current => { const ids = new Set(current); if (ids.has(id)) ids.delete(id); else ids.add(id); return ids; });
   const rest = upcoming.slice(1).filter(s => filter === 'all' || filter === 'available' && s.confirmed_count < s.capacity);
   const offer = upcoming.find(s => s.my_status === 'offered');

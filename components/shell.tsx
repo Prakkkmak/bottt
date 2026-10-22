@@ -10,6 +10,12 @@ import { NicknameStep } from './nickname';
 import { ActivityBar } from './activity';
 import { ViewerCheck } from './viewer';
 
+/** Everything the header shows about the visitor, to tell whether the one kept by the layout is out of date. */
+export function headerKey(data: AppData) {
+  const p = data.profile;
+  return p ? [p.id, p.display_name, p.avatar_color, p.membership, p.nickname_chosen, data.demo].join('|') : '';
+}
+
 /** Header and footer, rendered once by the root layout so they stay in place while a page loads. */
 export function SiteFrame({ data, children }: { data: AppData; children: React.ReactNode }) {
   // While a new account chooses its pseudo (see Shell), the header offers nowhere else to go.
@@ -39,7 +45,7 @@ export function Shell({ data, children }: { data: AppData; children: React.React
   // Until the migration adds the flag, it is undefined and nobody is held back.
   const welcome = data.profile?.nickname_chosen === false;
   return <>
-    <ViewerCheck signedIn={!!data.profile} welcome={welcome} />
+    <ViewerCheck header={headerKey(data)} />
     <WebTools sessions={data.sessions} />
     {data.error && <div className="alert error site-error" role="alert">{data.error}</div>}
     {data.accountNotice && <div className="alert info site-error" role="status">{data.accountNotice}</div>}

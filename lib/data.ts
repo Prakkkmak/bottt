@@ -5,13 +5,13 @@ import type { AppData } from './types';
 import type { Booking, Profile, GameSession, Venue } from './types';
 import { supabase, authenticatedClient, currentUserId } from './supabase';
 import { cache } from 'react';
+import { unstable_rethrow } from 'next/navigation';
 export const getData = cache(async (): Promise<AppData> => {
   if (isDemo()) return initialDemo();
   const empty: AppData = { profile: null, sessions: [], invitations: [], demo: false, configured: isConfigured(), local: process.env.LOCAL_PREVIEW==='true'&&!process.env.VERCEL };
   if (!isConfigured()) return empty;
-  // Outside the try: reading the cookies is what tells Next.js that the page is rendered per request.
-  const db = await supabase();
   try {
+    const db = await supabase();
     // The sessions and the profile load side by side: the profile only waits for the token check, not for the sessions.
     const profileRequest = currentUserId().then(id => id ? db.from('profiles').select('*').eq('id', id).maybeSingle() : null);
     const [{ data: sessions, error }, profile] = await Promise.all([db.rpc('list_sessions'), profileRequest]);
@@ -21,7 +21,10 @@ export const getData = cache(async (): Promise<AppData> => {
     // A valid Auth cookie without a readable profile means the database refused the session: expired after 30 days or suspended.
     if (!profile.data) return { ...empty, sessions: sessions || [], accountNotice: 'Ta connexion a expiré ou ton compte est suspendu. Reconnecte-toi avec un nouveau code. Si le problème persiste, écris à bonjour@bottt.fr.' };
     return { ...empty, sessions: sessions || [], profile: profile.data };
-  } catch (err) { console.error('Data unavailable', err instanceof Error ? err.message : 'database error'); return { ...empty, error: 'BOTTT est momentanément indisponible. Réessaie dans un instant.' }; }
+  } catch (err) {
+    // Reading the cookies is how Next.js learns the page is rendered per request: that signal must get through.
+    unstable_rethrow(err);
+    console.error('Data unavailable', err instanceof Error ? err.message : 'database error'); return { ...empty, error: 'BOTTT est momentanément indisponible. Réessaie dans un instant.' }; }
 });
 export async function getInvitations() {
   if (isDemo() || !isConfigured() || !(await currentUserId())) return [];

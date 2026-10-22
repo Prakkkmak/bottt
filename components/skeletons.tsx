@@ -6,10 +6,10 @@ function Bone({ width = '100%', height = 14, round = false, style }: { width?: n
 }
 
 /** The page's real title shows at once; the rest of the page fades in as placeholders when loading takes a moment. */
-function Loading({ title, intro, action, children }: { title: string; intro?: string; action?: boolean; children: React.ReactNode }) {
+function Loading({ title, intro, action, heading = '', children }: { title: string; intro?: string; action?: boolean; heading?: string; children: React.ReactNode }) {
   return <div className="page-loading">
     <p className="sr-only" role="status">Chargement de la page…</p>
-    <div className="page-heading"><div><h1>{title}</h1>{intro && <p>{intro}</p>}</div>{action && <Bone width={160} height={40} />}</div>
+    <div className={`page-heading ${heading}`}><div><h1>{title}</h1>{intro && <p>{intro}</p>}</div>{action && <Bone width={160} height={40} />}</div>
     <div className="page-loading-body" aria-hidden="true">{children}</div>
   </div>;
 }
@@ -26,7 +26,7 @@ function SessionRow({ open = false }: { open?: boolean }) {
 }
 
 export function DashboardLoading() {
-  return <Loading title="La prochaine session">
+  return <Loading title="La prochaine session" heading="lobby-heading">
     <SessionRow open />
     <div className="upcoming-section">
       <div className="list-heading"><Bone width="min(200px, 45%)" height={24} /><Bone width="min(190px, 40%)" height={40} /></div>

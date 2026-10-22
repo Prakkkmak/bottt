@@ -2,8 +2,8 @@
 import { createContext, useContext, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
-type Viewer = { signedIn: boolean; welcome: boolean; configured: boolean };
-const ViewerContext = createContext<Viewer>({ signedIn: false, welcome: false, configured: true });
+type Viewer = { signedIn: boolean; configured: boolean; header: string };
+const ViewerContext = createContext<Viewer>({ signedIn: false, configured: true, header: '' });
 
 /** Whether someone is signed in, as known to the layout, for parts of the page that render without loading data. */
 export function ViewerProvider({ value, children }: { value: Viewer; children: React.ReactNode }) {
@@ -11,11 +11,10 @@ export function ViewerProvider({ value, children }: { value: Viewer; children: R
 }
 export const useViewer = () => useContext(ViewerContext);
 
-/** Navigating keeps the layout as it was: when the page finds the visitor signed in or out elsewhere, the header is refreshed. */
-export function ViewerCheck({ signedIn, welcome }: { signedIn: boolean; welcome: boolean }) {
-  const viewer = useViewer();
+/** Navigating keeps the layout as it was: when the page finds the header out of date (signed in elsewhere, new pseudo or rank), it is refreshed. */
+export function ViewerCheck({ header }: { header: string }) {
   const router = useRouter();
-  const stale = viewer.signedIn !== signedIn || viewer.welcome !== welcome;
+  const stale = useViewer().header !== header;
   useEffect(() => { if (stale) router.refresh(); }, [stale, router]);
   return null;
 }
