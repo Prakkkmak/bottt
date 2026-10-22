@@ -5,6 +5,7 @@ import { UserPlus } from 'lucide-react';
 import type { ActionResult } from '@/lib/types';
 import { addGuest } from '@/app/actions';
 import { useAction, Feedback } from './action-feedback';
+import { Spinner } from './ui';
 
 /** Brings someone without an account: a first name is all we keep. */
 export function GuestForm({ sessionId, seat, traveller, waitlist, suggestions, onDone }: { sessionId: string; seat?: number; traveller: boolean; waitlist: boolean; suggestions: string[]; onDone: (result: ActionResult) => void }) {
@@ -29,6 +30,6 @@ export function GuestForm({ sessionId, seat, traveller, waitlist, suggestions, o
     {suggestions.length > 0 && <div className="guest-suggestions"><span>Récemment :</span>{suggestions.map(s => <button type="button" key={s} className="guest-chip" aria-pressed={name === s} onClick={() => setName(s)}>{s}</button>)}</div>}
     <p className="muted">{note}</p>
     <Feedback result={a.result} />
-    <button className="button primary full" disabled={a.pending}><UserPlus size={17} />{a.pending ? 'Enregistrement…' : label}</button>
+    <button className="button primary full" disabled={a.pending} aria-busy={a.pending || undefined}>{a.pending ? <Spinner /> : <UserPlus size={17} />}{a.pending ? 'Enregistrement…' : label}</button>
   </form>;
 }

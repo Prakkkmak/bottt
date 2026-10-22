@@ -18,8 +18,10 @@ export async function proxy(request: NextRequest) {
       }
     }
   });
-  await db.auth.getUser();
+  // Refreshes an expired token. Unlike getUser, a token signed with an asymmetric key is verified here without calling Auth.
+  await db.auth.getClaims();
   response.headers.set('Cache-Control', 'private, no-store, max-age=0');
   return response;
 }
-export const config = { matcher: ['/((?!_next/static|_next/image|favicon.svg|logo-tour-tanguy.svg|fonts/|api/cron).*)'] };
+// Link prefetches skip the proxy: they only render loading states, which read no data, and the token is refreshed on the real navigation.
+export const config = { matcher: [{ source: '/((?!_next/static|_next/image|favicon.svg|logo-tour-tanguy.svg|fonts/|api/cron).*)', missing: [{ type: 'header', key: 'next-router-prefetch' }] }] };
