@@ -11,6 +11,8 @@ export type MyGuest = { id: string; name: string; status: BookingStatus; seat_in
 export type GameSession = {
   id: string; title: string; description?: string; script: string;
   starts_at: string; ends_at: string; location: string;
+  /** The saved venue the game takes its name and address from; null for a place typed in for this game only. */
+  venue_id?: string | null;
   capacity: number; newcomer_seats: number; release_hours: number;
   beginners_welcome: boolean; visibility: 'public' | 'members';
   status: 'published' | 'cancelled';
@@ -20,6 +22,8 @@ export type GameSession = {
   member_seats_free?: number; traveller_seats_free?: number; my_guests?: MyGuest[];
   participants: Participant[];
 };
+/** A usual place, managed by organizers. The address is private, like a game's, and may end with a map link. */
+export type Venue = { id: string; name: string; address: string; };
 export type Booking = { id: string; session_id: string; user_id: string | null; guest_name: string | null; sponsor_id: string | null; status: BookingStatus; pool: 'circle' | 'newcomer'; created_at: string; offer_expires_at: string | null; profile?: Profile | null; };
 /** sent_to: the address the link was e-mailed to, erased 30 days after the link expires. */
 export type Invitation = { id: string; sponsor_id: string; expires_at: string; used_by: string | null; created_at: string; sent_to?: string | null; };

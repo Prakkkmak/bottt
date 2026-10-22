@@ -12,7 +12,7 @@ Une application en français pour organiser les soirées Blood on the Clocktower
 
 Le compte organisateur d’exemple est **camille@cercle.test**. Clique sur « Se connecter », demande un code et récupère-le dans la boîte mail locale. Ce compte n’a pas de mot de passe. Les e-mails restent sur ta machine. Pour tester un nouveau joueur, utilise par exemple `nouveau@cercle.test` : après le code, le site lui demande d’abord son pseudo.
 
-Les 4 sessions, 16 joueurs et adresses fournis sont fictifs. Les réservations, modifications et validations, elles, sont réellement enregistrées dans PostgreSQL. Le volume Docker `le-cercle-local_cercle-db` conserve ces données entre les redémarrages. Ne l’efface pas si tu veux garder tes modifications.
+Les 2 lieux, 4 sessions, 16 joueurs et adresses fournis sont fictifs. Les réservations, modifications et validations, elles, sont réellement enregistrées dans PostgreSQL. Le volume Docker `le-cercle-local_cercle-db` conserve ces données entre les redémarrages. Ne l’efface pas si tu veux garder tes modifications.
 
 ## Démarrer et arrêter
 
@@ -60,6 +60,7 @@ Les identifiants locaux sont générés automatiquement dans `.docker/` et `.env
 - Création, modification, annulation et suppression de sessions : une partie à venir avec des inscrits s’annule d’abord, pour que chacun soit prévenu. Validation/retrait des participants, changement de rang (voyageur·se, membre, organisateur·rice) et suspension. Le rang d’un autre organisateur ne se change pas depuis le site.
 - Profil et couleur d’avatar, interface mobile et navigation clavier. Cliquer sur la date ouvre les liens préremplis Google Agenda, Outlook ou un fichier iCalendar. Une partie visible peut être ajoutée à l’agenda ; seuls les organisateurs, les inscrits confirmés et les personnes dont un·e invité·e est confirmé·e obtiennent l’adresse privée. L’ajout crée une copie et ne synchronise pas les changements ultérieurs.
 - Adresse texte ou lien partagé Google Maps, Apple Plans, Waze, etc. Le lien est conservé avec l’adresse privée, sans changement de schéma, et s’ouvre au clic.
+- Lieux habituels gérés par les organisateurs dans « Organiser → Les lieux » : nom affiché à tous, adresse privée et lien Maps. Une partie choisit l’un d’eux ou « Autre lieu » pour une adresse saisie une seule fois ; elle garde sa propre copie du lieu. Modifier un lieu met à jour ses parties à venir et prévient leurs inscrits ; le supprimer laisse ses parties à leur place. À l’installation, les lieux déjà utilisés par les parties existantes sont repris, chacun avec sa dernière adresse.
 - Footer avec conditions d’utilisation, données personnelles et cookies ; coordonnées du responsable : Lévy MARQUES, bonjour@bottt.fr. Bandeau d’information à valider, mémorisé localement six mois et accessible via « Gérer les cookies ». Le site n’ajoute aucun traceur facultatif.
 - Polices variables servies localement avec leurs licences, cadre rendu côté serveur, formulaire organisateur chargé à l’ouverture, requêtes d’invitations réservées à leur page et suppression des requêtes de notifications inutilisées.
 
@@ -67,7 +68,7 @@ Les identifiants locaux sont générés automatiquement dans `.docker/` et `.env
 
 Les droits sont vérifiés côté serveur et dans PostgreSQL (RLS). Les joueurs ne peuvent pas écrire directement dans les réservations ni modifier leur statut de membre. Les fonctions transactionnelles identifient toujours l’appelant via sa session ; elles n’acceptent aucun identifiant de joueur à usurper. Le verrouillage de chaque session empêche deux réservations concurrentes de dépasser les quotas.
 
-L’adresse précise est dans une table distincte et accessible uniquement aux organisateurs, aux participants confirmés et aux personnes dont un·e invité·e est confirmé·e. Les e-mails ne sont pas exposés aux autres joueurs. Les invitations sont stockées sous forme d’empreinte ; le lien complet n’est affiché qu’à sa création. Un invité n’a pas de compte : seul son prénom est enregistré, et la personne qui l’amène reçoit les messages qui le concernent.
+L’adresse précise est dans une table distincte et accessible uniquement aux organisateurs, aux participants confirmés et aux personnes dont un·e invité·e est confirmé·e. La liste des lieux et leurs adresses ne sont lisibles que par les organisateurs. Les e-mails ne sont pas exposés aux autres joueurs. Les invitations sont stockées sous forme d’empreinte ; le lien complet n’est affiché qu’à sa création. Un invité n’a pas de compte : seul son prénom est enregistré, et la personne qui l’amène reçoit les messages qui le concernent.
 
 La pile locale ne comporte pas de CAPTCHA externe : les limites d’envoi et de tentatives d’Auth, ainsi que les limites des actions en base, sont actives. La boîte mail locale et Studio sont des outils de développement sans authentification destinés à cette machine. Utilise des comptes fictifs.
 
@@ -80,7 +81,7 @@ pnpm build
 node node_modules/tsx/dist/cli.mjs --env-file=.env.local tests/local-integration.ts
 ```
 
-Les tests SQL couvrent les droits, l’identité, les quotas, les doublons, le parrainage, l’expiration de session, les désistements, les invités, les rangs, la suppression des parties, le niveau d’expérience et les invitations par e-mail. Le test d’intégration utilise la vraie pile Docker, effectue des réservations simultanées et supprime uniquement ses propres données temporaires.
+Les tests SQL couvrent les droits, l’identité, les quotas, les doublons, le parrainage, l’expiration de session, les désistements, les invités, les rangs, la suppression des parties, le niveau d’expérience, les invitations par e-mail et les lieux. Le test d’intégration utilise la vraie pile Docker, effectue des réservations simultanées et supprime uniquement ses propres données temporaires.
 
 ## Mise en ligne
 
@@ -107,7 +108,7 @@ Supabase conserve l'historique des migrations appliquées, mais la connexion Ver
    | `SUPABASE_PROJECT_ID` | La référence du projet, visible dans **Supabase → Project Settings → General** ou dans l'URL du tableau de bord, sans `https://` ni `.supabase.co`. |
 
 3. Dans GitHub : **Actions → Supabase — migrations de production → Run workflow**, choisir `main` et confirmer **Run workflow**. Attendre que l'exécution soit verte. L'étape finale affiche l'historique local et distant des migrations.
-4. Dans Supabase : ouvrir **Table Editor**. Les tables `profiles`, `sessions`, `session_addresses`, `bookings`, `invitations`, `notifications` et `action_limits` doivent être présentes. Le site doit afficher une liste vide de parties plutôt que l'erreur d'indisponibilité.
+4. Dans Supabase : ouvrir **Table Editor**. Les tables `profiles`, `sessions`, `session_addresses`, `venues`, `bookings`, `invitations`, `notifications` et `action_limits` doivent être présentes. Le site doit afficher une liste vide de parties plutôt que l'erreur d'indisponibilité.
 
 Ces secrets restent dans GitHub Actions ; les fichiers publics contiennent uniquement leurs noms. Le workflow n'applique ni `seed.sql`, ni les réglages d'Auth de `config.toml`, ni les secrets Vault. Il ne réactive donc pas les inscriptions. Les réglages de CAPTCHA et de courrier se configurent séparément dans Supabase et Vercel.
 

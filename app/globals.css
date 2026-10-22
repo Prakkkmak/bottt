@@ -647,3 +647,15 @@ a.practical-link, .calendar-link > span { text-decoration: underline; text-under
 .invite-email .button { align-self: center; }
 /* Long e-mail addresses wrap instead of widening the page on mobile. */
 .invitation-row > span:first-child, .alert { min-width: 0; overflow-wrap: anywhere; }
+/* Organizer: the usual venues, listed like members and picked in the game form. */
+.venue-icon { display: grid; place-items: center; width: 38px; height: 38px; flex: none; border-radius: 50%; color: var(--gold); background: #38283c; border: 1px solid #6a5054; }
+.venue-address { white-space: pre-line; overflow-wrap: anywhere; }
+.venue-other { display: flex; flex-direction: column; gap: 16px; min-width: 0; margin: 0; padding: 0; border: 0; }
+.venue-other[hidden] { display: none; }
+.venue-panel .panel-heading { flex-wrap: wrap; }
+@media (max-width: 540px) {
+  /* Name and address take the first line; the count and the actions go under them. */
+  .venue-row > div:nth-child(2) { flex-basis: calc(100% - 52px); }
+  .venue-row .badge { margin-left: 52px; }
+  .venue-row .row-actions { margin-left: auto; }
+}
