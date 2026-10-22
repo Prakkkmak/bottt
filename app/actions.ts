@@ -38,9 +38,11 @@ export async function verifyCode(input: { email: string; code: string }): Promis
     const email = z.email().max(254).parse(input.email.trim().toLowerCase());
     const token = z.string().regex(/^\d{6}$/, 'Le code contient 6 chiffres.').parse(input.code.trim());
     const db = await supabase();
-    const { error } = await db.auth.verifyOtp({ email, token, type: 'email' });
+    const { data, error } = await db.auth.verifyOtp({ email, token, type: 'email' });
     if (error) throw new Error('Ce code est invalide ou a expiré. Demande un nouveau code.');
-    invalidate(); return { ok: true, message: 'Bienvenue sur BOTTT !' };
+    // A new account chooses its pseudo first, so the seat it clicked before signing in is not booked yet.
+    const { data: profile } = await db.from('profiles').select('nickname_chosen').eq('id', data.user?.id ?? '').maybeSingle();
+    invalidate(); return { ok: true, message: 'Bienvenue sur BOTTT !', value: profile?.nickname_chosen === false ? 'nickname' : undefined };
   } catch(e) { return failure(e); }
 }
 export async function signOut(): Promise<ActionResult> { try { const db = await supabase(); await db.auth.signOut({ scope: 'local' }); invalidate(); return { ok: true, message: 'Tu es déconnecté·e.' }; } catch(e) { return failure(e); } }

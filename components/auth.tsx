@@ -5,6 +5,7 @@ import { Mail, ShieldCheck, Clock3, LogIn } from 'lucide-react';
 import { Dialog } from './dialog';
 import { useAction, Feedback } from './action-feedback';
 import { sendCode, verifyCode } from '@/app/actions';
+import type { ActionResult } from '@/lib/types';
 type TurnstileApi={render:(element:HTMLElement,options:Record<string,unknown>)=>string;remove:(id:string)=>void;reset:(id:string)=>void};
 declare global { interface Window { turnstile?: TurnstileApi; } }
 function Captcha({ onToken }: { onToken:(token:string)=>void }) {
@@ -18,7 +19,7 @@ export function SignInButton({ label='Se connecter', className='button primary',
   const [open,setOpen]=useState(false);
   return <><button className={className} onClick={()=>setOpen(true)}><LogIn size={16}/>{label}</button><Dialog open={open} onClose={()=>setOpen(false)} title="Se connecter"><AuthForm configured={configured} onSuccess={()=>setOpen(false)}/></Dialog></>;
 }
-export function AuthForm({ configured=true,onSuccess }: {configured?:boolean;onSuccess?:()=>void}) {
+export function AuthForm({ configured=true,onSuccess }: {configured?:boolean;onSuccess?:(result:ActionResult)=>void}) {
   const [step,setStep]=useState<'email'|'code'>('email'); const [email,setEmail]=useState(''); const [code,setCode]=useState(''); const [captcha,setCaptcha]=useState(''); const [sentAt,setSentAt]=useState(0); const [cooldown,setCooldown]=useState(0);const a=useAction();
   const local=process.env.NEXT_PUBLIC_SUPABASE_URL?.startsWith('http://127.0.0.1:');
   useEffect(()=>{if(!sentAt)return; const tick=()=>setCooldown(Math.max(0,60-Math.floor((Date.now()-sentAt)/1000)));tick();const interval=setInterval(tick,1000);return()=>clearInterval(interval);},[sentAt]);
@@ -28,7 +29,7 @@ export function AuthForm({ configured=true,onSuccess }: {configured?:boolean;onS
       <label className="field">Ton adresse e-mail<input type="email" autoComplete="email" required maxLength={254} placeholder="toi@exemple.fr" value={email} onChange={e=>setEmail(e.target.value)}/></label>
       <label className="honey" aria-hidden="true">Site web<input name="website" tabIndex={-1} autoComplete="off"/></label>
       <Captcha onToken={setCaptcha}/><button className="button primary full" disabled={a.pending}><Mail size={17}/>{a.pending?'Envoi en cours…':'Recevoir mon code'}</button>
-    </form>:<form className="stack" onSubmit={e=>{e.preventDefault();a.run(()=>verifyCode({email,code}),()=>onSuccess?.());}}><label className="field">Ton code de connexion<input className="otp-input" autoComplete="one-time-code" inputMode="numeric" pattern="[0-9]{6}" maxLength={6} minLength={6} required autoFocus placeholder="000000" value={code} onChange={e=>setCode(e.target.value.replace(/\D/g,''))}/></label><button className="button primary full" disabled={a.pending}>{a.pending?'Vérification…':'Rejoindre le cercle'}</button><button type="button" className="button ghost" disabled={cooldown>0||a.pending} onClick={()=>{setStep('email');setCode('');setCaptcha('');a.setResult(null);}}>{cooldown>0?`Nouveau code possible dans ${cooldown} s`:'Changer d’adresse ou renvoyer un code'}</button></form>}
+    </form>:<form className="stack" onSubmit={e=>{e.preventDefault();a.run(()=>verifyCode({email,code}),r=>onSuccess?.(r));}}><label className="field">Ton code de connexion<input className="otp-input" autoComplete="one-time-code" inputMode="numeric" pattern="[0-9]{6}" maxLength={6} minLength={6} required autoFocus placeholder="000000" value={code} onChange={e=>setCode(e.target.value.replace(/\D/g,''))}/></label><button className="button primary full" disabled={a.pending}>{a.pending?'Vérification…':'Rejoindre le cercle'}</button><button type="button" className="button ghost" disabled={cooldown>0||a.pending} onClick={()=>{setStep('email');setCode('');setCaptcha('');a.setResult(null);}}>{cooldown>0?`Nouveau code possible dans ${cooldown} s`:'Changer d’adresse ou renvoyer un code'}</button></form>}
     <Feedback result={a.result}/><p className="security-note"><ShieldCheck size={15}/>Ton e-mail reste privé. Aucun mot de passe à retenir.</p>
     {local&&<div className="local-hint">Test local : les codes sont dans <a href="http://127.0.0.1:54324" target="_blank" rel="noreferrer">la boîte mail locale</a>. Compte organisateur : <strong>camille@cercle.test</strong>.</div>}
   </div>;
