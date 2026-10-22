@@ -96,7 +96,7 @@ export function SessionDetail({ data, session: s, address, embedded = false }: {
       </div>
       <Feedback result={a.result} />
     </section>
-    <Dialog open={authRequest !== null} onClose={() => setAuthRequest(null)} title="Rejoins le cercle"><AuthForm configured={data.configured} onSuccess={() => { const seat = authRequest?.seat; setAuthRequest(null); reserve(seat); }} /></Dialog>
+    <Dialog open={authRequest !== null} onClose={() => setAuthRequest(null)} title="Rejoins le cercle"><AuthForm configured={data.configured} onSuccess={result => { const seat = authRequest?.seat; setAuthRequest(null); if (result.value !== 'nickname') reserve(seat); }} /></Dialog>
     <Dialog open={guestRequest !== null} onClose={() => setGuestRequest(null)} title={active ? traveller ? 'Qui vient avec toi ?' : 'Qui t’accompagne ?' : 'Qui inscris-tu ?'}>
       {guestRequest && <GuestForm sessionId={s.id} seat={guestRequest.seat} traveller={traveller} waitlist={!traveller && (s.member_seats_free ?? Math.max(0, s.capacity - s.confirmed_count)) === 0} suggestions={recentGuestNames(data.sessions, s)} onDone={guestAdded} />}
     </Dialog>
