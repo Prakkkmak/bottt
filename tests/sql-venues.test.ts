@@ -20,15 +20,18 @@ test('Les lieux déjà utilisés deviennent des lieux enregistrés',async()=>{
   await add(102,'Le Grenier','','5 days');
   await add(103,'Chez Camille','3 place du Marché','10 days');
   await add(104,'Bar fermé','4 quai Perdu','20 days','cancelled');
+  await add(105,'Chez  Camille','3 place du Marché','12 days');
+  await add(106,'Chez un ami','5 rue Privée','-8 months');
   await h.migrate();
   const venues=await h.call<Venue>('select id,name,address from venues order by name');
-  // The latest address given wins, an empty address does not replace it, and a cancelled game adds nothing.
+  // The latest address given wins, an empty address does not replace it, spaces are tidied,
+  // and neither a cancelled game nor one older than six months adds a venue.
   assert.deepEqual(venues.map(v=>[v.name,v.address]),[['Chez Camille','3 place du Marché'],['le grenier','2 rue Nouvelle']]);
   const linked=await h.call<{id:string;venue_id:string|null}>('select id,venue_id from sessions order by id');
   const venueOf=(n:number)=>linked.find(s=>s.id===uuid(n))?.venue_id;
-  assert.equal(venueOf(101),venues[1].id);assert.equal(venueOf(103),venues[0].id);
+  assert.equal(venueOf(101),venues[1].id);for(const n of [103,105])assert.equal(venueOf(n),venues[0].id,`session ${n}`);
   // A game with another address keeps it and stays unlinked, so that editing the venue never changes it.
-  for(const n of [100,102,104])assert.equal(venueOf(n),null,`session ${n}`);
+  for(const n of [100,102,104,106])assert.equal(venueOf(n),null,`session ${n}`);
 });
 
 test('Gestion des lieux par les organisateurs',async t=>{
@@ -96,11 +99,14 @@ test('Gestion des lieux par les organisateurs',async t=>{
       {id:upcoming,location:'Le Grenier du port',address:'8 rue du Port, Brest'}]);
     const notices=await h.call<{user_id:string;title:string;body:string}>(`select user_id,title,body from notifications where title='Le lieu de ta session a changé' order by user_id`);
     assert.deepEqual(notices.map(n=>[n.user_id,n.body]),[[uuid(2),'Consulte le lieu mis à jour avant de venir.'],[uuid(4),'Consulte le lieu mis à jour avant de venir. Préviens Paul.']]);
-    // Saving a venue unchanged sends nothing.
+    // Saving a venue unchanged, or only fixing its capitals, sends nothing; the games still take the new spelling.
     const count=async()=>{await h.root();return Number((await h.call<{count:string}>('select count(*) from notifications'))[0].count);};
     const before=await count();
     await h.login(1);await h.call('select save_venue($1)',[{id:grenier,name:'Le Grenier du port',address:'8 rue du Port, Brest'}]);
+    await h.call('select save_venue($1)',[{id:grenier,name:'Le Grenier du Port',address:'8 rue du Port, Brest'}]);
     assert.equal(await count(),before);
+    assert.equal((await h.call<{location:string}>('select location from sessions where id=$1',[upcoming]))[0].location,'Le Grenier du Port');
+    await h.login(1);await h.call('select save_venue($1)',[{id:grenier,name:'Le Grenier du port',address:'8 rue du Port, Brest'}]);
   });
   await t.test('supprimer un lieu laisse ses parties à leur place',async()=>{
     await h.login(1);

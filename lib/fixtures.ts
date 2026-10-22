@@ -21,8 +21,8 @@ const welcome: Participant[] = [
 ];
 /** Two made-up usual places, for the preview and the local examples. */
 export const demoVenues: Venue[] = [
-  { id: 'demo-grenier', name: 'Le Grenier · Brest centre', address: 'Adresse fictive de démonstration — à remplacer avant une vraie session.' },
-  { id: 'demo-chez-camille', name: 'Chez Camille · Saint-Marc', address: 'Adresse fictive de démonstration — à remplacer avant une vraie session.' },
+  { id: '20000000-0000-4000-8000-000000000001', name: 'Le Grenier · Brest centre', address: 'Adresse fictive de démonstration — à remplacer avant une vraie session.' },
+  { id: '20000000-0000-4000-8000-000000000002', name: 'Chez Camille · Saint-Marc', address: 'Adresse fictive de démonstration — à remplacer avant une vraie session.' },
 ];
 const atVenue = (index: number) => ({ location: demoVenues[index].name, venue_id: demoVenues[index].id });
 export function demoSessions(): GameSession[] {

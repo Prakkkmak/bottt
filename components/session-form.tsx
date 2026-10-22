@@ -50,14 +50,16 @@ export function SessionForm({ session, address = '', template, venues = [], onSa
         {venues.map(v => <label key={v.id} className="check-field rank-choice"><input type="radio" name="venue" value={v.id} checked={venueId === v.id} onChange={() => setVenueId(v.id)} /><span><strong>{v.name}</strong><small className="venue-address">{splitAddress(v.address).address || 'Adresse à compléter dans « Les lieux »'}</small></span></label>)}
         <label className="check-field rank-choice"><input type="radio" name="venue" value="" checked={!venue} onChange={() => setVenueId('')} /><span><strong>Autre lieu</strong><small>Pour cette partie seulement, sans l’ajouter aux lieux.</small></span></label>
       </fieldset>}
-      {venue ? <>
+      {venue && <>
         <p className="field-note">Le nom du lieu est affiché à tous ; l’adresse, aux inscrits confirmés et aux personnes dont un·e invité·e est confirmé·e. Elle se modifie dans l’onglet « Les lieux ».</p>
         {venue.address && <a className="text-link" href={mapsUrl(venue.address)} target="_blank" rel="noopener noreferrer">Vérifier le lieu sur la carte ↗</a>}
-      </> : <>
+      </>}
+      {/* Kept while a venue is picked, so that coming back to « Autre lieu » finds what was typed; disabled, it is neither checked nor sent. */}
+      <fieldset className="venue-other" disabled={!!venue} hidden={!!venue}>
         <label className="field">Lieu affiché à tous<input name="location" required minLength={2} maxLength={150} value={location} onChange={e => setLocation(e.target.value)} placeholder="Brest · quartier ou lieu de rendez-vous" /></label>
         <AddressFields address={address} note="Visible des inscrits confirmés et des personnes dont un·e invité·e est confirmé·e" />
         {!venues.length && <p className="field-note">Enregistre vos lieux habituels dans l’onglet « Les lieux » pour les choisir ici en un clic.</p>}
-      </>}
+      </fieldset>
     </fieldset>
     <details className="disclosure session-options"><summary><span><Settings2 size={16} />Réglages de la partie</span></summary><div className="stack">
       <div className="form-grid"><label className="field">Places joueurs<input name="capacity" type="number" required min={MIN_PLAYERS} max={MAX_CAPACITY} defaultValue={defaults?.capacity ?? DEFAULT_CAPACITY} /></label><label className="field">Dont places voyageurs<input name="newcomer_seats" type="number" required min={0} max={MAX_CAPACITY} defaultValue={defaults?.newcomer_seats ?? 3} /></label></div>

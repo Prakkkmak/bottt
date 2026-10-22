@@ -12,15 +12,18 @@ create unique index venues_name_key on public.venues(lower(name));
 alter table public.sessions add column venue_id uuid references public.venues(id) on delete set null;
 create index sessions_venue_idx on public.sessions(venue_id) where venue_id is not null;
 
--- The places already used become venues, each with the latest address given for it, and the games
--- with that same address are linked to them. Organizers remove from the list the ones they no longer use.
-insert into public.venues(name,address)
-  select distinct on (lower(btrim(s.location))) btrim(s.location),coalesce(a.address,'')
+-- The places of recent and upcoming games become venues, each with the latest address given for it, and the
+-- games with that same address are linked to them. Older one-off addresses are not copied into the list.
+-- Names are tidied like save_venue does; organizers remove from the list the ones they no longer use.
+with places as (
+  select btrim(regexp_replace(s.location,'\s+',' ','g')) as place,coalesce(a.address,'') as address,s.starts_at
   from public.sessions s left join public.session_addresses a on a.session_id=s.id
-  where s.status='published' and char_length(btrim(s.location))>=2
-  order by lower(btrim(s.location)),coalesce(a.address,'')='',s.starts_at desc;
+  where s.status='published' and s.ends_at>now()-interval '6 months')
+insert into public.venues(name,address)
+  select distinct on (lower(place)) place,address from places where char_length(place)>=2
+  order by lower(place),address='',starts_at desc;
 update public.sessions s set venue_id=v.id from public.venues v
-  where lower(btrim(s.location))=lower(v.name)
+  where lower(btrim(regexp_replace(s.location,'\s+',' ','g')))=lower(v.name)
     and coalesce((select a.address from public.session_addresses a where a.session_id=s.id),'')=v.address;
 
 -- The address is private: only organizers read the list; everyone else sees the place through its games.
@@ -44,16 +47,21 @@ begin
     if previous.id is null then raise exception 'Ce lieu est introuvable.'; end if;
   end if;
   if exists(select 1 from public.venues where lower(name)=lower(clean_name) and id is distinct from vid) then raise exception 'Un lieu porte déjà ce nom.'; end if;
-  if vid is null then
-    insert into public.venues(name,address) values(clean_name,clean_address) returning id into vid;
-    return vid;
-  end if;
-  if previous.name=clean_name and previous.address=clean_address then return vid; end if;
-  update public.venues set name=clean_name,address=clean_address where id=vid;
-  -- Upcoming games at this venue follow the change, and the people registered hear about it, as when a game is edited.
+  begin
+    if vid is null then
+      insert into public.venues(name,address) values(clean_name,clean_address) returning id into vid;
+      return vid;
+    end if;
+    if previous.name=clean_name and previous.address=clean_address then return vid; end if;
+    update public.venues set name=clean_name,address=clean_address where id=vid;
+  exception when unique_violation then raise exception 'Un lieu porte déjà ce nom.';
+  end;
+  -- Upcoming games at this venue follow the change. The people registered hear about it, as when a game is edited,
+  -- unless only the spelling of the name changed.
   for sid in select id from public.sessions where venue_id=vid and status='published' and starts_at>now() order by id for update loop
     update public.sessions set location=clean_name where id=sid;
     insert into public.session_addresses(session_id,address) values(sid,clean_address) on conflict(session_id) do update set address=excluded.address;
+    continue when previous.address=clean_address and lower(previous.name)=lower(clean_name);
     insert into public.notifications(user_id,session_id,title,body)
       select recipient,sid,'Le lieu de ta session a changé','Consulte le lieu mis à jour avant de venir.'||coalesce(' Préviens '||guests||'.','')
       from (select coalesce(user_id,sponsor_id) as recipient,string_agg(guest_name,' et ' order by guest_name) filter(where user_id is null) as guests

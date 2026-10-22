@@ -23,7 +23,7 @@ export function Venues({ venues, sessions }: { venues: Venue[]; sessions: GameSe
     <div className="panel venue-panel">
       <div className="panel-heading"><h2><MapPin size={20} />Vos lieux</h2><button className="button secondary compact" onClick={() => open(setEditing, 'new')}><Plus size={16} />Ajouter un lieu</button></div>
       {venues.length ? <>
-        <p className="muted">Choisis l’un de ces lieux en créant une partie. Son nom est affiché à tous ; son adresse, aux inscrits confirmés de chaque partie.</p>
+        <p className="muted">Choisis l’un de ces lieux en créant une partie. Son nom est affiché à tous ; son adresse, aux inscrits confirmés de chaque partie et aux personnes dont un·e invité·e est confirmé·e.</p>
         {venues.map(v => <div className="member-row venue-row" key={v.id}>
           <span className="venue-icon" aria-hidden="true"><MapPin size={18} /></span>
           <div><h3>{v.name}</h3><p className="venue-address">{splitAddress(v.address).address || 'Pas encore d’adresse'}</p></div>
@@ -32,9 +32,9 @@ export function Venues({ venues, sessions }: { venues: Venue[]; sessions: GameSe
         </div>)}
       </> : <div className="empty-state borderless"><MapPin size={35} /><h2>Aucun lieu enregistré.</h2><p>Ajoute les endroits où vous jouez d’habitude : tu les choisiras en un clic à la création d’une partie.</p></div>}
     </div>
-    <Dialog title={editing === 'new' ? 'Ajouter un lieu' : 'Modifier le lieu'} open={editing !== null} onClose={() => setEditing(null)}>{editing && <VenueForm venue={editing === 'new' ? undefined : editing} upcoming={editing === 'new' ? 0 : upcoming(editing)} onSaved={() => setEditing(null)} />}</Dialog>
+    <Dialog title={editing === 'new' ? 'Ajouter un lieu' : 'Modifier le lieu'} open={editing !== null} onClose={() => setEditing(null)} guard>{editing && <VenueForm venue={editing === 'new' ? undefined : editing} upcoming={editing === 'new' ? 0 : upcoming(editing)} onSaved={() => setEditing(null)} />}</Dialog>
     <Dialog title="Supprimer ce lieu ?" open={!!removal} onClose={() => setRemoval(null)}><div className="stack">
-      <p>« {removal?.name} » disparaîtra de la liste des lieux. Les parties qui s’y tiennent gardent leur lieu et leur adresse.</p>
+      <p>« {removal?.name} » et son adresse disparaîtront de la liste des lieux. Les parties qui s’y tiennent gardent leur lieu et leur adresse jusqu’à leur propre suppression.</p>
       <div className="button-row"><button className="button secondary" onClick={() => setRemoval(null)}>Garder le lieu</button><button className="button danger" disabled={a.pending} onClick={() => removal && a.run(() => deleteVenue(removal.id), () => setRemoval(null))}><Trash2 size={16} />Supprimer le lieu</button></div>
       <Feedback result={a.result} />
     </div></Dialog>
@@ -49,8 +49,8 @@ function VenueForm({ venue, upcoming, onSaved }: { venue?: Venue; upcoming: numb
     a.run(() => saveVenue({ ...(venue ? { id: venue.id } : {}), name: String(f.get('name')), address: String(f.get('address') ?? '') }), onSaved);
   }}>
     <label className="field">Nom affiché à tous<input name="name" required minLength={2} maxLength={150} defaultValue={venue?.name || ''} placeholder="Brest · nom du lieu ou quartier" autoFocus data-autofocus /></label>
-    <AddressFields address={venue?.address} note="Visible des organisateurs, et des inscrits confirmés de chaque partie dans ce lieu" />
-    {upcoming > 0 && <p className="field-note">Si tu changes le nom ou l’adresse, {upcoming > 1 ? `les ${upcoming} parties à venir ici sont mises à jour et leurs inscrits prévenus` : 'la partie à venir ici est mise à jour et ses inscrits prévenus'}.</p>}
+    <AddressFields address={venue?.address} note="Visible des organisateurs et, pour chaque partie ici, des inscrits confirmés et des personnes dont un·e invité·e est confirmé·e" />
+    {upcoming > 0 && <p className="field-note">Si tu changes le nom ou l’adresse, {upcoming > 1 ? `les ${upcoming} parties à venir ici sont mises à jour et leurs inscrits prévenus` : 'la partie à venir ici est mise à jour et ses inscrits prévenus'}, sauf pour une simple correction de majuscules.</p>}
     <Feedback result={a.result} /><button className="button primary full" disabled={a.pending}>{a.pending ? 'Enregistrement…' : venue ? 'Enregistrer le lieu' : 'Ajouter le lieu'}</button>
   </form>;
 }
