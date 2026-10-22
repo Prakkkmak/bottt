@@ -3,7 +3,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { supabase, authenticatedClient } from '@/lib/supabase';
 import { isConfigured, isDemo } from '@/lib/config';
-import { profileSchema, sessionSchema, guestNameSchema, invitationEmailSchema } from '@/lib/schemas';
+import { profileSchema, nicknameSchema, sessionSchema, guestNameSchema, invitationEmailSchema } from '@/lib/schemas';
 import { canSendMail, invitationMail, sendMail, siteUrl } from '@/lib/mail';
 import type { ActionResult, Membership } from '@/lib/types';
 function failure(e: unknown): ActionResult { return { ok: false, message: e instanceof z.ZodError ? e.issues[0].message : e instanceof Error ? e.message : 'La demande n’a pas abouti. Réessaie.' }; }
@@ -19,17 +19,16 @@ async function rpc(name: string, args: Record<string, unknown> = {}, message = '
     invalidate(); return { ok: true, message, value: typeof data === 'string' ? data : undefined };
   } catch(e) { return failure(e); }
 }
-export async function sendCode(input: { email: string; name: string; captcha: string; website: string }): Promise<ActionResult> {
+export async function sendCode(input: { email: string; captcha: string; website: string }): Promise<ActionResult> {
   try {
     if (!isConfigured() || isDemo()) throw new Error('La connexion locale est en cours de préparation.');
     if (input.website) throw new Error('La demande n’a pas abouti.');
     const email = z.email().max(254).parse(input.email.trim().toLowerCase());
-    const name = z.string().trim().min(2,'Indique ton prénom ou ton pseudo.').max(40).parse(input.name);
     if (process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && !input.captcha) throw new Error('Valide la vérification avant de continuer.');
     // Production fails closed if CAPTCHA has not been configured. Local Auth never sends real email.
     if (process.env.VERCEL && !process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY) throw new Error('Les inscriptions ne sont pas encore ouvertes.');
     const db = await supabase();
-    const { error } = await db.auth.signInWithOtp({ email, options: { data: { display_name: name }, captchaToken: input.captcha || undefined } });
+    const { error } = await db.auth.signInWithOtp({ email, options: { captchaToken: input.captcha || undefined } });
     if (error) { if (error.status === 429) throw new Error('Patiente une minute avant de demander un nouveau code.'); throw new Error('Impossible d’envoyer le code. Vérifie l’adresse et réessaie.'); }
     return { ok: true, message: 'Ton code est envoyé. Regarde dans ta boîte mail.' };
   } catch(e) { return failure(e); }
@@ -114,6 +113,10 @@ export async function cancelSession(id: string) { return rpc('cancel_session', {
 export async function deleteSession(id: string) { if (!isUuid(id)) return failure(new Error('Session invalide.')); return rpc('delete_session', { p_id: id }, 'La partie est supprimée.'); }
 const rankMessages: Record<Membership, string> = { newcomer: 'Le compte est passé voyageur·se.', member: 'Le compte est passé membre.', organizer: 'Le compte rejoint l’organisation.', suspended: 'Le compte est suspendu.' };
 export async function setMembership(id: string, status: Membership) { if (!isUuid(id) || !Object.hasOwn(rankMessages, status)) return failure(new Error('Action non autorisée.')); return rpc('set_membership', { p_user: id, p_status: status }, rankMessages[status]); }
+/** First pseudo of a new account, asked right after the code: saving it lets the player into the site. */
+export async function saveNickname(input: string): Promise<ActionResult> {
+  try { const display_name = nicknameSchema.parse(input); const { db, user } = await authenticatedClient(); const { error } = await db.from('profiles').update({ display_name }).eq('id', user.id); if (error) throw new Error('Ton pseudo n’a pas pu être enregistré.'); invalidate(); return { ok: true, message: `Bienvenue, ${display_name} !` }; } catch(e) { return failure(e); }
+}
 export async function saveProfile(input: unknown): Promise<ActionResult> {
   try { const parsed = profileSchema.parse(input); const { db, user } = await authenticatedClient(); const { error } = await db.from('profiles').update(parsed).eq('id', user.id); if (error) throw new Error('Le profil n’a pas pu être enregistré.'); invalidate(); return { ok: true, message: 'Ton profil a été mis à jour.' }; } catch(e) { return failure(e); }
 }
