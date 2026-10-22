@@ -18,8 +18,10 @@ export async function proxy(request: NextRequest) {
       }
     }
   });
-  await db.auth.getUser();
+  // Refreshes an expired token. Unlike getUser, a token signed with an asymmetric key is verified here without calling Auth.
+  await db.auth.getClaims();
   response.headers.set('Cache-Control', 'private, no-store, max-age=0');
   return response;
 }
+// Prefetches go through here too: they render the root layout, which reads the session, and a token refreshed there could not be saved.
 export const config = { matcher: ['/((?!_next/static|_next/image|favicon.svg|logo-tour-tanguy.svg|fonts/|api/cron).*)'] };

@@ -11,11 +11,20 @@ export const supabase = cache(async () => {
     cookies: { getAll: () => jar.getAll(), setAll: values => { try { values.forEach(({ name, value, options }) => jar.set(name, value, options)); } catch { /* Server Components cannot write cookies; proxy refreshes them. */ } } }
   });
 });
+/**
+ * The signed-in account, read from the session token once its signature is checked. With asymmetric signing keys this
+ * needs no request to Supabase Auth; the database still checks the same token on every query.
+ */
+export const currentUserId = cache(async (): Promise<string | null> => {
+  const db = await supabase();
+  const { data } = await db.auth.getClaims();
+  return data?.claims.sub ?? null;
+});
 export async function authenticatedClient() {
   const db = await supabase();
-  const { data: { user }, error } = await db.auth.getUser();
-  if (error || !user) throw new Error('Connecte-toi pour continuer.');
-  const { data: active } = await db.rpc('active_user');
+  // Both checks run together; active_user simply answers false without an account.
+  const [userId, { data: active }] = await Promise.all([currentUserId(), db.rpc('active_user')]);
+  if (!userId) throw new Error('Connecte-toi pour continuer.');
   if (!active) throw new Error('Ta connexion a expiré ou ton compte est suspendu. Reconnecte-toi ou contacte un organisateur.');
-  return { db, user };
+  return { db, user: { id: userId } };
 }

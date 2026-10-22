@@ -6,6 +6,7 @@ import type { AppData } from '@/lib/types';
 import { createInvitation, revokeInvitation, acceptInvitation, sendInvitation } from '@/app/actions';
 import { useAction, Feedback } from './action-feedback';
 import { SignInButton } from './auth';
+import { Spinner } from './ui';
 import { shortDate, sessionUrl, sessionName } from '@/lib/utils';
 import { guestStatusLabels } from '@/lib/guests';
 import { MAX_TRAVELLER_GUESTS, MAX_WAITING_GUESTS } from '@/lib/session-rules';
@@ -39,11 +40,11 @@ export function Invitations({ data }: { data: AppData }) {
           <form className="invite-email" onSubmit={e => { e.preventDefault(); a.setResult(null); mail.run(() => sendInvitation(email), r => { if (r.value) showLink(r.value); else { setLink(''); setEmail(''); } }); }}>
             <label className="field">Son adresse e-mail<input type="email" required maxLength={254} autoComplete="off" placeholder="ami@exemple.fr" value={email} onChange={e => setEmail(e.target.value)} /></label>
             <p className="field-note">N’invite qu’une personne qui te connaît et accepte de recevoir ce message ; l’e-mail indique ton pseudo.</p>
-            <button className="button primary" disabled={mail.pending || a.pending}><Mail size={17} />{mail.pending ? 'Envoi…' : 'Envoyer l’invitation'}</button>
+            <button className="button primary" disabled={mail.pending || a.pending} aria-busy={mail.pending || undefined}>{mail.pending ? <Spinner /> : <Mail size={17} />}{mail.pending ? 'Envoi…' : 'Envoyer l’invitation'}</button>
           </form>
           <Feedback result={mail.result} />
           {link && <div className="share-link"><label className="field">Ton lien d’invitation<input readOnly value={link} onFocus={e => e.target.select()} /></label><button className="button secondary" onClick={async () => { try { await navigator.clipboard.writeText(link); setCopied(true); } catch { a.setResult({ ok: false, message: 'Sélectionne et copie le lien ci-dessus.' }); } }}>{copied ? <Check size={17} /> : <Copy size={17} />}{copied ? 'Copié !' : 'Copier le lien'}</button></div>}
-          <button className="button ghost" disabled={a.pending || mail.pending} onClick={() => { mail.setResult(null); a.run(createInvitation, r => { if (r.value) showLink(r.value); }); }}><Link2 size={17} />{a.pending ? 'Création…' : link ? 'Créer un autre lien' : 'Ou crée un lien à partager toi-même'}</button>
+          <button className="button ghost" disabled={a.pending || mail.pending} aria-busy={a.pending || undefined} onClick={() => { mail.setResult(null); a.run(createInvitation, r => { if (r.value) showLink(r.value); }); }}>{a.pending ? <Spinner /> : <Link2 size={17} />}{a.pending ? 'Création…' : link ? 'Créer un autre lien' : 'Ou crée un lien à partager toi-même'}</button>
           <Feedback result={a.result} />
         </div>}
         <details className="disclosure invitation-rules"><summary>Comment ça marche ?</summary><div><p>Le lien est valable 7 jours, pour une seule personne. Tu peux en créer jusqu’à 5 par jour, envoyés par e-mail ou partagés toi-même.</p><p>Pour une invitation par e-mail, l’adresse est gardée pour te montrer qui tu as invité, puis effacée 30 jours après la fin de validité du lien.</p><p>Ton ami·e utilise son propre compte. Le lien lui donne directement le statut de membre ; il ou elle réserve ensuite sa place dans une partie.</p></div></details>
@@ -55,5 +56,5 @@ export function Invitations({ data }: { data: AppData }) {
 
 export function AcceptInvite({ data, token }: { data: AppData; token: string }) {
   const a = useAction();
-  return <div className="centered-panel panel"><span className="invite-icon"><UserPlus size={30} /></span><h1>BOTTT t’invite.</h1><p>Connecte-toi avec ton e-mail, puis accepte l’invitation pour choisir une partie.</p>{!data.profile ? <SignInButton label="Me connecter pour rejoindre" configured={data.configured} /> : a.result?.ok ? <Link className="button primary" href="/">Choisir ma première partie</Link> : <button className="button primary" disabled={a.pending} onClick={() => a.run(() => acceptInvitation(token))}>Accepter l’invitation</button>}<Feedback result={a.result} /></div>;
+  return <div className="centered-panel panel"><span className="invite-icon"><UserPlus size={30} /></span><h1>BOTTT t’invite.</h1><p>Connecte-toi avec ton e-mail, puis accepte l’invitation pour choisir une partie.</p>{!data.profile ? <SignInButton label="Me connecter pour rejoindre" configured={data.configured} /> : a.result?.ok ? <Link className="button primary" href="/">Choisir ma première partie</Link> : <button className="button primary" disabled={a.pending} aria-busy={a.pending || undefined} onClick={() => a.run(() => acceptInvitation(token))}>{a.pending && <Spinner />}Accepter l’invitation</button>}<Feedback result={a.result} /></div>;
 }

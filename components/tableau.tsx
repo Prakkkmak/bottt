@@ -17,10 +17,12 @@ type CircleProps = {
   participants?: Participant[]; mySeat?: number | null;
   interactive?: boolean; onChoose?: (seat: number) => void; chooseLabel?: string;
   onOwnSeat?: () => void; ownSeatLabel?: string; busy?: boolean;
+  /** The seat whose request is on its way, which keeps turning while the others wait. */
+  pendingSeat?: number | null;
   ownGuests?: MyGuest[]; onOwnGuest?: (guest: MyGuest) => void;
 };
 
-export function VillageCircle({ reserved, capacity, occupiedSeats, participants = [], mySeat, interactive = false, onChoose, chooseLabel = 'Prendre la place', onOwnSeat, ownSeatLabel = 'Ta place', busy = false, ownGuests = [], onOwnGuest }: CircleProps) {
+export function VillageCircle({ reserved, capacity, occupiedSeats, participants = [], mySeat, interactive = false, onChoose, chooseLabel = 'Prendre la place', onOwnSeat, ownSeatLabel = 'Ta place', busy = false, pendingSeat = null, ownGuests = [], onOwnGuest }: CircleProps) {
   const occupied = new Set(occupiedSeats ?? Array.from({ length: reserved }, (_, i) => i));
   return <div className={`village-circle ${interactive ? 'booking-circle' : ''} ${capacity > 14 ? 'dense-circle' : ''}`} role={interactive ? 'group' : 'img'} aria-busy={busy || undefined} aria-label={`${reserved} places réservées sur ${capacity}`}>
     <div className="village-orbit" />
@@ -41,7 +43,7 @@ export function VillageCircle({ reserved, capacity, occupiedSeats, participants 
       const seatLabel = own ? ownSeatLabel : taken ? [`Place ${i + 1}`, name || 'Réservée', detail].filter(Boolean).join(' · ') : onChoose ? `${chooseLabel} ${i + 1}` : `Place ${i + 1} · Libre`;
       const label = `${seatLabel}${willing ? ' · Volontaire MJ' : ''}`;
       const content = <>{taken ? name ? <span className="token-initials">{own ? 'Toi' : initials(name)}</span> : <span className="token-person" /> : <span aria-hidden="true">+</span>}{willing && <span className="token-storyteller" aria-hidden="true"><BookOpen size={12} /></span>}{brought && <span className="token-guest" aria-hidden="true"><Link2 size={11} /></span>}{interactive && name && <span className="token-name">{name}</span>}</>;
-      const className = `village-token ${taken ? 'taken' : 'empty'} ${own ? 'is-mine' : ''} ${traveller ? 'is-traveller' : ''} ${guest ? 'is-my-guest' : ''}`;
+      const className = `village-token ${taken ? 'taken' : 'empty'} ${own ? 'is-mine' : ''} ${traveller ? 'is-traveller' : ''} ${guest ? 'is-my-guest' : ''} ${busy && pendingSeat === i ? 'is-pending' : ''}`;
       if (interactive && ((!taken && onChoose) || (own && onOwnSeat) || (guest && onOwnGuest))) return <button type="button" key={i} className={className} style={style} aria-label={label} title={label} disabled={busy} onClick={() => own ? onOwnSeat?.() : guest ? onOwnGuest?.(guest) : onChoose?.(i)}>{content}</button>;
       return <span className={className} key={i} style={style} aria-hidden={!interactive || undefined} aria-label={interactive ? label : undefined} title={interactive ? label : undefined}>{content}</span>;
     })}

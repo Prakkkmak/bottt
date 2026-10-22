@@ -16,7 +16,7 @@ import { GuestForm } from './guest-dialog';
 import { SessionGuests } from './session-guests';
 import { useAction, Feedback } from './action-feedback';
 import { bookSession, cancelBooking, acceptOffer, removeGuest, acceptGuestOffer } from '@/app/actions';
-import { Avatar } from './ui';
+import { Avatar, Spinner } from './ui';
 
 export function SessionDetail({ data, session: s, address, embedded = false }: { data: AppData; session: GameSession; address: string | null; embedded?: boolean }) {
   const a = useAction();
@@ -26,6 +26,10 @@ export function SessionDetail({ data, session: s, address, embedded = false }: {
   const [authRequest, setAuthRequest] = useState<{ seat?: number } | null>(null);
   const [guestRequest, setGuestRequest] = useState<{ seat?: number } | null>(null);
   const [removing, setRemoving] = useState<MyGuest | null>(null);
+  // What the running request is about (a seat number, the waitlist, a guest id), so only that control shows it is working.
+  const [target, setTarget] = useState<number | string | null>(null);
+  const busyOn = a.pending ? target : null;
+  const act = (on: number | string, action: () => Promise<ActionResult>, after?: (result: ActionResult) => void) => { setTarget(on); a.run(action, after); };
   const plan = seatPlan(s, data.profile);
   const traveller = data.profile?.membership === 'newcomer';
   const guests = activeGuests(s);
@@ -35,7 +39,7 @@ export function SessionDetail({ data, session: s, address, embedded = false }: {
   const liveOffer = offered && s.my_seat != null && !!s.my_offer_expires_at && new Date(s.my_offer_expires_at).getTime() > Date.now();
   const openCancel = () => { a.setResult(null); setReleasedGuests(guests.map(g => g.id)); setCancelOpen(true); };
   const openGuest = (seat?: number) => { a.setResult(null); setGuestRequest({ seat }); };
-  const reserve = (seat?: number) => a.run(async () => {
+  const reserve = (seat?: number) => act(seat ?? 'waitlist', async () => {
     const result = await bookSession(s.id, seat);
     if (!result.ok) router.refresh();
     return result;
@@ -46,7 +50,7 @@ export function SessionDetail({ data, session: s, address, embedded = false }: {
     reserve(seat);
   };
   const ownGuest = (guest: MyGuest) => {
-    if (guest.status === 'offered') return a.run(() => acceptGuestOffer(guest.id));
+    if (guest.status === 'offered') return act(guest.seat_index ?? guest.id, () => acceptGuestOffer(guest.id));
     a.setResult(null);
     setRemoving(guest);
   };
@@ -72,7 +76,7 @@ export function SessionDetail({ data, session: s, address, embedded = false }: {
       {(s.my_status !== 'confirmed' || s.status === 'cancelled') && <div className="session-table-status">
         <p className="session-status-title" aria-live="polite">{heading}</p>
         {hint && <p className="table-hint">{hint}</p>}
-        {plan.waitlist === 'self' && <button className="button parchment" disabled={a.pending} onClick={() => choose()}>Rejoindre la liste d’attente</button>}
+        {plan.waitlist === 'self' && <button className="button parchment" disabled={a.pending} aria-busy={busyOn === 'waitlist' || undefined} onClick={() => choose()}>{busyOn === 'waitlist' && <Spinner />}Rejoindre la liste d’attente</button>}
         {liveOffer && !closed && <p className="table-note">À confirmer avant le {s.my_offer_expires_at ? `${dateLong(s.my_offer_expires_at)} à ${time(s.my_offer_expires_at)}` : 'délai indiqué'}.</p>}
         {(active || plan.canBringOther) && s.status !== 'cancelled' && <div className="table-actions">
           {plan.canBringOther && <button className="text-link" disabled={a.pending} onClick={() => openGuest()}>Inscrire quelqu’un d’autre</button>}
@@ -80,15 +84,15 @@ export function SessionDetail({ data, session: s, address, embedded = false }: {
         </div>}
       </div>}
       <div className="session-table-board">
-        <VillageCircle reserved={s.confirmed_count} capacity={s.capacity} occupiedSeats={s.occupied_seats} participants={s.participants} mySeat={s.my_seat} interactive busy={a.pending}
+        <VillageCircle reserved={s.confirmed_count} capacity={s.capacity} occupiedSeats={s.occupied_seats} participants={s.participants} mySeat={s.my_seat} interactive busy={a.pending} pendingSeat={typeof busyOn === 'number' ? busyOn : null}
           onChoose={plan.onFreeSeat ? choose : undefined}
           chooseLabel={plan.onFreeSeat === 'guest' ? 'Placer quelqu’un à la place' : 'Prendre la place'}
-          onOwnSeat={s.status === 'cancelled' ? undefined : liveOffer && !closed ? () => a.run(() => acceptOffer(s.id)) : s.my_status === 'confirmed' ? openCancel : undefined}
+          onOwnSeat={s.status === 'cancelled' ? undefined : liveOffer && !closed ? () => act(s.my_seat ?? 'offer', () => acceptOffer(s.id)) : s.my_status === 'confirmed' ? openCancel : undefined}
           ownSeatLabel={offered ? 'Confirmer ma place' : 'Ta place · me désister'}
           ownGuests={s.my_guests} onOwnGuest={s.status === 'cancelled' ? undefined : ownGuest} />
-        {showGuests && <SessionGuests session={s} limit={traveller ? MAX_TRAVELLER_GUESTS : undefined} hint={guestHint} busy={a.pending}
+        {showGuests && <SessionGuests session={s} limit={traveller ? MAX_TRAVELLER_GUESTS : undefined} hint={guestHint} busy={a.pending} busyOn={typeof busyOn === 'string' ? busyOn : null}
           onAdd={active && (plan.onFreeSeat === 'guest' || plan.waitlist === 'guest') ? () => openGuest() : undefined}
-          onRemove={g => { a.setResult(null); setRemoving(g); }} onConfirm={g => a.run(() => acceptGuestOffer(g.id))} />}
+          onRemove={g => { a.setResult(null); setRemoving(g); }} onConfirm={g => act(g.id, () => acceptGuestOffer(g.id))} />}
         {s.participants.length > 0 && <ul className="circle-roster" aria-label="Participants confirmés">{[...s.participants].sort((x, y) => (x.seat_index ?? 0) - (y.seat_index ?? 0)).map((p, index) => {
           const mine = p.seat_index != null && guests.some(g => g.seat_index === p.seat_index);
           return <li key={p.seat_index ?? index}><Avatar name={p.display_name} color={p.avatar_color} small /><span>{p.display_name}{s.my_seat != null && p.seat_index === s.my_seat && <small> · toi</small>}<small className="roster-role">{participantLabel(p, { mine })}</small></span>{p.can_storytell && <BookOpen size={15} role="img" aria-label="Volontaire MJ"><title>Volontaire MJ</title></BookOpen>}</li>;
@@ -100,11 +104,11 @@ export function SessionDetail({ data, session: s, address, embedded = false }: {
     <Dialog open={guestRequest !== null} onClose={() => setGuestRequest(null)} title={active ? traveller ? 'Qui vient avec toi ?' : 'Qui t’accompagne ?' : 'Qui inscris-tu ?'}>
       {guestRequest && <GuestForm sessionId={s.id} seat={guestRequest.seat} traveller={traveller} waitlist={!traveller && (s.member_seats_free ?? Math.max(0, s.capacity - s.confirmed_count)) === 0} suggestions={recentGuestNames(data.sessions, s)} onDone={guestAdded} />}
     </Dialog>
-    <Dialog open={removing !== null} onClose={() => setRemoving(null)} title={`Retirer ${removing?.name ?? ''} ?`}><div className="stack"><p>Sa place sera proposée à quelqu’un d’autre.</p><div className="button-row"><button className="button secondary" onClick={() => setRemoving(null)}>Garder sa place</button><button className="button danger" disabled={a.pending} onClick={() => removing && a.run(() => removeGuest(removing.id), () => setRemoving(null))}>Retirer {removing?.name}</button></div><Feedback result={a.result} /></div></Dialog>
+    <Dialog open={removing !== null} onClose={() => setRemoving(null)} title={`Retirer ${removing?.name ?? ''} ?`}><div className="stack"><p>Sa place sera proposée à quelqu’un d’autre.</p><div className="button-row"><button className="button secondary" onClick={() => setRemoving(null)}>Garder sa place</button><button className="button danger" disabled={a.pending} aria-busy={a.pending || undefined} onClick={() => removing && act('remove', () => removeGuest(removing.id), () => setRemoving(null))}>{a.pending && <Spinner />}Retirer {removing?.name}</button></div><Feedback result={a.result} /></div></Dialog>
     <Dialog open={cancelOpen} onClose={() => setCancelOpen(false)} title="Libérer ta place ?"><div className="stack">
       <p>Elle sera proposée à quelqu’un d’autre. Tu pourras te réinscrire s’il reste de la place.</p>
       {guests.length > 0 && <fieldset className="guest-release"><legend>Les personnes que tu amènes</legend>{guests.map(g => <label key={g.id} className="check-field"><input type="checkbox" checked={releasedGuests.includes(g.id)} onChange={e => setReleasedGuests(ids => e.target.checked ? [...ids, g.id] : ids.filter(id => id !== g.id))} /><span>Libérer aussi la place de {g.name}</span></label>)}</fieldset>}
-      <div className="button-row"><button className="button secondary" onClick={() => setCancelOpen(false)}>Garder ma place</button><button className="button danger" disabled={a.pending} onClick={() => a.run(() => cancelBooking(s.id, releasedGuests), () => setCancelOpen(false))}>Confirmer mon désistement</button></div>
+      <div className="button-row"><button className="button secondary" onClick={() => setCancelOpen(false)}>Garder ma place</button><button className="button danger" disabled={a.pending} aria-busy={a.pending || undefined} onClick={() => act('cancel', () => cancelBooking(s.id, releasedGuests), () => setCancelOpen(false))}>{a.pending && <Spinner />}Confirmer mon désistement</button></div>
       <Feedback result={a.result} />
     </div></Dialog>
   </>;
