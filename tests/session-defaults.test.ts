@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { nextSessionStart, sessionEnd } from '../lib/session-defaults';
 import { sessionSchema } from '../lib/schemas';
+import { sessionName } from '../lib/utils';
 
 test('le préremplissage propose le vendredi à 19h30 en heure de Paris', () => {
   assert.equal(nextSessionStart(new Date('2026-10-01T12:00:00Z')), '2026-10-02T19:30');
@@ -20,4 +21,13 @@ test('la fin est calculée côté serveur à partir du seul début', () => {
   assert.equal(edited, '2099-10-02T20:30:00.000Z');
   assert.equal(sessionSchema.parse({ ...payload, ends_at: edited }).ends_at, edited);
   assert.equal(sessionSchema.safeParse({ ...payload, ends_at: '2099-10-02T16:30:00Z' }).success, false);
+});
+
+test('le nom de la partie est facultatif et le script le remplace à l’affichage', () => {
+  const payload = { script: 'Trouble Brewing', starts_at: '2099-10-02T17:30:00.000Z', location: 'Brest', address: '', newcomer_seats: 3, release_hours: 72, visibility: 'public' };
+  assert.equal(sessionSchema.parse(payload).title, '');
+  assert.equal(sessionSchema.parse({ ...payload, title: '   ' }).title, '');
+  assert.equal(sessionSchema.safeParse({ ...payload, title: 'x'.repeat(101) }).success, false);
+  assert.equal(sessionName({ title: '', script: 'Trouble Brewing' }), 'Trouble Brewing');
+  assert.equal(sessionName({ title: '  Soirée d’automne ', script: 'Trouble Brewing' }), 'Soirée d’automne');
 });

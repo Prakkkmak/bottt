@@ -5,7 +5,7 @@ import { sessionEnd } from './session-defaults';
 export const nicknameSchema = z.string().trim().min(2,'Choisis un pseudo d’au moins 2 caractères.').max(40).refine(name => name !== 'Nouveau joueur', 'Choisis un pseudo à toi.');
 export const profileSchema = z.object({ display_name: nicknameSchema, bio: z.string().trim().max(300), avatar_color: z.enum(['rose','blue','sage','ochre','lilac']), experience: z.enum(['beginner','some','experienced'], 'Choisis ton niveau.'), can_storytell: z.boolean().optional() });
 export const sessionSchema = z.object({
-  id: z.uuid().optional(), title: z.string().trim().min(3).max(100), description: z.string().trim().max(4000).default(''),
+  id: z.uuid().optional(), title: z.string().trim().max(100).default(''), description: z.string().trim().max(4000).default(''),
   script: z.string().trim().min(2).max(100), starts_at: z.iso.datetime({ offset: true }), ends_at: z.iso.datetime({ offset: true }).optional(),
   location: z.string().trim().min(2).max(150), address: z.string().trim().max(500, 'L’adresse et le lien Maps doivent tenir en 500 caractères.'),
   capacity: z.number().int().min(MIN_PLAYERS, 'Prévois au moins 7 places joueurs.').max(MAX_CAPACITY).default(DEFAULT_CAPACITY), newcomer_seats: z.number().int().min(0).max(MAX_CAPACITY), release_hours: z.number().int().min(0).max(336),

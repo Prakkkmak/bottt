@@ -29,3 +29,9 @@ test('iCalendar échappe les retours à la ligne et replie les lignes sans coupe
   assert.equal(unfolded.split('\r\n').filter(line => line === 'BEGIN:VEVENT').length, 1);
   assert.ok(unfolded.includes('Éléonore '.repeat(15)));
 });
+
+test('une partie sans nom s’inscrit à l’agenda sous le nom de son script', () => {
+  const unnamed = { ...session, title: '', script: 'Sects & Violets' };
+  assert.equal(new URL(externalCalendarUrl('google', unnamed, 'Brest')).searchParams.get('text'), 'Sects & Violets');
+  assert.ok(sessionCalendar(unnamed, 'Brest', new Date('2026-10-01T12:00:00Z')).includes('SUMMARY:Sects & Violets\r\n'));
+});

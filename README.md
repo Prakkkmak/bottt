@@ -48,7 +48,7 @@ Les identifiants locaux sont générés automatiquement dans `.docker/` et `.env
 - Toutes les soirées accueillent les débutants ; aucune catégorie découverte ni page bienvenue séparée.
 - Inscription en cliquant sur un + autour de la Tour Tanguy. Le jeton choisi est conservé ; cliquer sur son jeton permet de se désister après confirmation. Une demande en attente ne réserve pas de jeton.
 - Parties dépliables dans « Jouer » : sièges, inscriptions et désistements restent sur la même page. Plusieurs cercles peuvent être ouverts ensemble. L’ancien lien « Mes parties » redirige vers l’accueil.
-- Événements limités aux informations pratiques, sans champ de description.
+- Événements limités aux informations pratiques, sans champ de description. Le nom de la partie est facultatif : sans nom, elle prend celui de son script. Les fenêtres ne se ferment pas au clic à côté ; celle de la partie demande confirmation avant de perdre une saisie.
 - Parties à partir de 7 joueurs ; capacité de 15 places par défaut, ajustable jusqu’à 20. Compteur des places réservées visible dans la liste des parties.
 - Quotas membres/voyageurs et réunion des quotas avant la soirée.
 - Pas de MJ désigné sur les parties : chaque personne peut se proposer dans son profil. Une petite icône de livre identifie les volontaires parmi les participants.
@@ -85,7 +85,7 @@ Les tests SQL couvrent les droits, l’identité, les quotas, les doublons, le p
 ## Mise en ligne
 
 1. Créer un dépôt avec ce dossier, sans `.env*`, `.docker/`, `node_modules/` ou `.next/`, puis l’importer dans Vercel (projet Next.js).
-2. Appliquer les fichiers `supabase/migrations/` au projet Supabase distant avec le workflow GitHub décrit ci-dessous. Le premier lancement applique les sept migrations ; les suivants appliquent seulement celles qui manquent. Les exemples locaux ne sont pas importés.
+2. Appliquer les fichiers `supabase/migrations/` au projet Supabase distant avec le workflow GitHub décrit ci-dessous. Le premier lancement applique toutes les migrations ; les suivants appliquent seulement celles qui manquent. Les exemples locaux ne sont pas importés.
 3. Renseigner les variables de `.env.example` dans Vercel. La clé de service reste côté serveur ; seule la clé publique peut avoir le préfixe `NEXT_PUBLIC_`.
 4. Configurer le fournisseur d’e-mails d’Auth, utiliser `supabase/templates/code.html` pour la confirmation et la connexion, choisir un code à 6 chiffres avec une expiration de 600 secondes. Vérifier l’URL réelle du site et les limites d’envoi.
 5. Activer la protection Turnstile dans Supabase Auth avec sa clé secrète, et renseigner `NEXT_PUBLIC_TURNSTILE_SITE_KEY` dans Vercel. Sans clé publique configurée, le formulaire bloque les inscriptions sur Vercel. Tester aussi le rejet des requêtes directes sans jeton par Supabase.
