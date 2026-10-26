@@ -9,7 +9,7 @@ export const sessionMessages = {
   scriptShort: 'Indique le script joué, en 2 caractères au moins.', scriptLong: 'Le nom du script tient en 100 caractères au plus.',
   start: 'Choisis le jour et l’heure du début.', past: 'Choisis une date à venir.', end: 'La fin doit être après le début.',
   locationShort: 'Indique le lieu affiché à tous, en 2 caractères au moins.', locationLong: 'Le lieu affiché tient en 150 caractères au plus.',
-  address: 'L’adresse et le lien Maps doivent tenir en 500 caractères.', link: 'Colle un lien complet, qui commence par https://.',
+  address: 'L’adresse et le lien de carte doivent tenir en 500 caractères.', link: 'Colle un lien complet, qui commence par https://.',
   seats: 'Indique le nombre de places joueurs.', wholeSeats: 'Indique un nombre entier de places joueurs.',
   fewSeats: `Prévois au moins ${MIN_PLAYERS} places joueurs : c’est le minimum pour lancer une partie.`, manySeats: `Une partie compte ${MAX_CAPACITY} places joueurs au plus.`,
   visibility: 'Choisis qui peut voir la partie.',
@@ -20,7 +20,7 @@ export type SessionFormValues = { title: string; starts_at: string; script: stri
 export type SessionField = keyof SessionFormValues;
 export type SessionFieldErrors = Partial<Record<SessionField, string>>;
 
-// Mirrors the Maps link input of AddressFields (type url, pattern https?://.*), which the form no longer leaves to the browser.
+// Mirrors the map link input of AddressFields (type url, pattern https?://.*), which the form no longer leaves to the browser.
 const isLink = (value: string) => { if (!/^https?:\/\//.test(value)) return false; try { new URL(value); return true; } catch { return false; } };
 const length = (value: string, min: number, max: number, short: string, long: string) => { const n = value.trim().length; return n < min ? short : n > max ? long : undefined; };
 

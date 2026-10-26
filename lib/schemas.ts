@@ -15,7 +15,7 @@ export const sessionSchema = z.object({
 }, 'La partie envoyée est incomplète. Recharge la page et réessaie.').transform(s => ({ ...s, ends_at: s.ends_at ?? sessionEnd(s.starts_at) })).refine(s => new Date(s.ends_at)>new Date(s.starts_at), m.end);
 export const venueSchema = z.object({
   id: z.uuid('Ce lieu est introuvable.').optional(), name: z.string().trim().min(2, 'Donne au lieu un nom de 2 à 150 caractères.').max(150, 'Donne au lieu un nom de 2 à 150 caractères.'),
-  address: z.string().trim().max(500, 'L’adresse et le lien Maps doivent tenir en 500 caractères.')
+  address: z.string().trim().max(500, 'L’adresse et le lien de carte doivent tenir en 500 caractères.')
 });
 export const guestNameSchema = z.string().trim().min(2, 'Indique un prénom ou un pseudo de 2 à 40 caractères.').max(40, 'Indique un prénom ou un pseudo de 2 à 40 caractères.');
 export const invitationEmailSchema = z.string().trim().toLowerCase().pipe(z.email('Cette adresse e-mail est invalide.').max(254, 'Cette adresse e-mail est invalide.'));

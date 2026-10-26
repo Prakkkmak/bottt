@@ -23,14 +23,14 @@ test('chaque champ refusé reçoit son propre message en français', () => {
     starts_at: 'Choisis le jour et l’heure du début.',
     script: 'Indique le script joué, en 2 caractères au moins.',
     location: 'Indique le lieu affiché à tous, en 2 caractères au moins.',
-    address: 'L’adresse et le lien Maps doivent tenir en 500 caractères.',
+    address: 'L’adresse et le lien de carte doivent tenir en 500 caractères.',
     maps_url: 'Colle un lien complet, qui commence par https://.',
     capacity: 'Indique le nombre de places joueurs.',
     visibility: 'Choisis qui peut voir la partie.',
   });
 });
 
-test('les places joueurs, la date et le lien Maps sont expliqués selon l’erreur', () => {
+test('les places joueurs, la date et le lien de carte sont expliqués selon l’erreur', () => {
   const check = (changes: Partial<SessionFormValues>) => checkSessionForm({ ...values, ...changes }, {}).errors;
   assert.equal(check({ capacity: '7.5' }).capacity, 'Indique un nombre entier de places joueurs.');
   assert.equal(check({ capacity: '21' }).capacity, 'Une partie compte 20 places joueurs au plus.');
