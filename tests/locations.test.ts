@@ -2,11 +2,18 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mapsUrl, splitAddress } from '../lib/locations';
 
-test('les adresses texte ouvrent une recherche cartographique encodée', () => {
+test('les adresses texte ouvrent une recherche OpenStreetMap encodée', () => {
   const address = '1 rue de l’Église, Brest';
   const url = new URL(mapsUrl(address));
-  assert.equal(url.searchParams.get('api'), '1');
+  assert.equal(`${url.origin}${url.pathname}`, 'https://www.openstreetmap.org/search');
   assert.equal(url.searchParams.get('query'), address);
+});
+
+test('la recherche OpenStreetMap ne garde que la première ligne de l’adresse', () => {
+  const search = (value: string) => new URL(mapsUrl(value)).searchParams.get('query');
+  assert.equal(search('  12 rue de Siam, Brest  \r\nInterphone Dupont, 3e étage'), '12 rue de Siam, Brest');
+  assert.equal(search('\n\n1 rue du Port, Brest\nCode 1234'), '1 rue du Port, Brest');
+  assert.equal(search('Brest'), 'Brest');
 });
 
 test('les liens Maps partagés sont préservés dans une adresse privée existante', () => {

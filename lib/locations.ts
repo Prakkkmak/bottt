@@ -12,7 +12,10 @@ export function splitAddress(value: string) {
   }
 }
 
+/** A shared link opens as is; otherwise OpenStreetMap searches the first line, as its search finds nothing once access notes follow the address. */
 export function mapsUrl(value: string) {
   const parsed = splitAddress(value);
-  return parsed.mapsUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(value.trim())}`;
+  if (parsed.mapsUrl) return parsed.mapsUrl;
+  const query = parsed.address.split('\n').map(line => line.trim()).find(Boolean) ?? '';
+  return `https://www.openstreetmap.org/search?query=${encodeURIComponent(query)}`;
 }
