@@ -33,22 +33,29 @@ export function SessionForm({ session, address = '', template, venues = [], onSa
   useEffect(() => {
     if (!edits || !form.current) return;
     const next = check(form.current).errors;
-    setErrors(flagged => { const kept: SessionFieldErrors = {}; for (const k of Object.keys(flagged) as SessionField[]) if (next[k]) kept[k] = next[k]; return kept; });
+    setErrors(flagged => {
+      const kept: SessionFieldErrors = {}; for (const k of Object.keys(flagged) as SessionField[]) if (next[k]) kept[k] = next[k];
+      // Unchanged, the same object spares a second render on each keystroke.
+      return (Object.keys(flagged) as SessionField[]).every(k => kept[k] === flagged[k]) ? flagged : kept;
+    });
   }, [edits]);
   const error = (name: SessionField) => ({ id: `${id}-${name}`, message: errors[name] });
   const wrong = Object.keys(errors).length;
+  // A map link pasted into the address fills both fields without a change event.
+  const recheck = () => { if (wrong) setEdits(n => n + 1); };
   let endLabel = '';
   try { const end = sessionEnd(fromParisInput(start), session); endLabel = `${dateLong(end)} à ${time(end)}`; } catch { /* Validation explains an invalid Paris time on submit. */ }
   // The browser's own checks stay off: they cannot point at a field inside the closed settings, and then say nothing at all.
-  return <form ref={form} className="stack session-form" noValidate onChange={() => { if (wrong) setEdits(n => n + 1); }} onSubmit={e => {
+  return <form ref={form} className="stack session-form" noValidate onChange={recheck} onPaste={recheck} onSubmit={e => {
     e.preventDefault();
     const f = e.currentTarget;
     const { errors: found, message, payload } = check(f);
     flushSync(() => setErrors(found));
     if (!payload) {
       a.setResult(message && !Object.keys(found).length ? { ok: false, message } : null);
+      // The settings open whenever one of their fields is wrong, even when another field comes first.
+      const settings = f.querySelector('details [aria-invalid="true"]')?.closest('details'); if (settings) settings.open = true;
       const first = f.querySelector<HTMLElement>('[aria-invalid="true"]');
-      const settings = first?.closest('details'); if (settings) settings.open = true;
       // Centred, the field and its message stay clear of the sticky submit button.
       first?.focus({ preventScroll: true }); first?.scrollIntoView({ block: 'center' });
       return;

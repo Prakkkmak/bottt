@@ -86,3 +86,14 @@ test('le formulaire et le serveur refusent les mêmes valeurs avec les mêmes mo
     assert.deepEqual({ ...errors, ...(message ? { '': message } : {}) }, server, JSON.stringify(changes));
   }
 });
+
+test('ce que le formulaire laisse partir, le serveur l’accepte, lieu choisi ou partie modifiée', () => {
+  const session = { id: '10000000-0000-4000-8000-000000000001', starts_at: '2026-10-02T17:00:00Z', ends_at: '2026-10-02T20:00:00Z' };
+  for (const context of [{}, { venue }, { session }, { session, venue }]) for (const changes of [{}, { title: 'Soirée d’automne', capacity: '7' }, { capacity: '20', visibility: 'members', maps_url: 'https://maps.app.goo.gl/abc', address: '12 rue de Siam\nhttps://maps.app.goo.gl/abc' }]) {
+    const { payload } = checkSessionForm({ ...values, ...changes }, context);
+    assert.ok(payload, JSON.stringify([context, changes]));
+    assert.equal(sessionSchema.safeParse(payload).success, true, JSON.stringify([context, changes]));
+  }
+  // A venue fills the place with what « Les lieux » accepted: the server then accepts it too.
+  assert.equal(sessionSchema.safeParse(checkSessionForm({ ...values, location: '' }, { venue: { ...venue, name: 'ab', address: 'x'.repeat(500) } }).payload).success, true);
+});
