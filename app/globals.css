@@ -178,6 +178,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .field input, .field textarea, .field select { width: 100%; background: #1b1423; color: var(--ink); border: 1px solid #604b69; border-radius: 5px; padding: 11px 12px; font-size: 16px; line-height: 1.5; }
 .field input::placeholder, .field textarea::placeholder { color: #c4b5cf; }
 .field textarea { resize: vertical; }
+.field-error { font-size: 14px; font-weight: 500; color: #ffa3b5; }
+.field [aria-invalid="true"] { border-color: #e0798f; box-shadow: 0 0 0 1px #e0798f; }
 .check-field { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 14px; min-height: 44px; cursor: pointer; }
 .check-field input { accent-color: var(--wine); width: 18px; height: 18px; }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
