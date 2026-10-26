@@ -29,4 +29,5 @@ export async function proxy(request: NextRequest) {
   return send(response);
 }
 // Prefetches go through here too: they render the root layout, which reads the session, and a token refreshed there could not be saved.
-export const config = { matcher: ['/((?!_next/static|_next/image|favicon.svg|logo-tour-tanguy.svg|fonts/|api/cron).*)'] };
+// robots.txt, the sitemap and the sharing images are the same for everyone; anchored, so that no other address renders the layout without the proxy.
+export const config = { matcher: ['/((?!_next/static|_next/image|favicon.svg|logo-tour-tanguy.svg|fonts/|api/cron|robots\\.txt$|sitemap\\.xml$|og-image\\.png$|apple-touch-icon\\.png$).*)'] };

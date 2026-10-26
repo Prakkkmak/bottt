@@ -1,4 +1,4 @@
-import {getData,getAdminData} from '@/lib/data';import {Shell} from '@/components/shell';import {Admin} from '@/components/admin';import {SignInButton} from '@/components/auth';import {ShieldCheck} from 'lucide-react';
-export const dynamic='force-dynamic';export const metadata={title:'Organiser'};
+import {getData,getAdminData} from '@/lib/data';import {Shell} from '@/components/shell';import {Admin} from '@/components/admin';import {SignInButton} from '@/components/auth';import {ShieldCheck} from 'lucide-react';import {privatePage} from '@/lib/seo';
+export const dynamic='force-dynamic';export const metadata={title:'Organiser',robots:privatePage};
 // The organizer data starts loading with the page and is only read once the rank is confirmed.
 export default async function Page({searchParams}:{searchParams:Promise<{nouvelle?:string}>}){const adminData=getAdminData();adminData.catch(()=>{});const data=await getData();const q=await searchParams;if(data.profile?.membership!=='organizer')return <Shell data={data}><div className="empty-state"><ShieldCheck size={35}/><h1>Les coulisses du cercle.</h1><p>Cet espace est réservé aux organisateurs.</p>{!data.profile&&<SignInButton configured={data.configured}/>}</div></Shell>;const admin=await adminData;return <Shell data={data}><Admin data={data} {...admin} initialCreate={q.nouvelle==='1'}/></Shell>;}

@@ -64,6 +64,7 @@ Les identifiants locaux sont générés automatiquement dans `.docker/` et `.env
 - Lieux habituels gérés par les organisateurs dans « Organiser → Les lieux » : nom affiché à tous, adresse privée et lien Maps. Une partie choisit l’un d’eux ou « Autre lieu » pour une adresse saisie une seule fois ; elle garde sa propre copie du lieu. Modifier un lieu met à jour ses parties à venir et prévient leurs inscrits ; le supprimer laisse ses parties à leur place. À l’installation, les lieux déjà utilisés par les parties existantes sont repris, chacun avec sa dernière adresse.
 - Footer avec conditions d’utilisation, données personnelles et cookies ; coordonnées du responsable : Lévy MARQUES, bonjour@bottt.fr. Bandeau d’information à valider, mémorisé localement six mois et accessible via « Gérer les cookies ». Le site n’ajoute aucun traceur facultatif.
 - Polices variables servies localement avec leurs licences, cadre rendu côté serveur, formulaire organisateur chargé à l’ouverture, requêtes d’invitations réservées à leur page et suppression des requêtes de notifications inutilisées.
+- Référencement : la production est ouverte aux moteurs de recherche, les déploiements de prévisualisation Vercel non. Les visiteurs non connectés voient une courte présentation de Blood on the Clocktower à Brest au-dessus des parties, et la page « Découvrir Blood on the Clocktower » (`/blood-on-the-clocktower`) explique le jeu, le lien avec le Loup-Garou et les questions fréquentes. Titres, descriptions, image de partage, `robots.txt`, `sitemap.xml` et données structurées (site, groupe, parties publiques à venir comme événements situés à Brest, sans adresse privée, et questions fréquentes) sont générés par le site. Le profil, l’organisation, les invitations et les liens de parrainage restent hors des résultats.
 
 ## Protection des données
 
@@ -96,6 +97,17 @@ Les tests SQL couvrent les droits, l’identité, la liste d’attente, les doub
 6. Créer le compte du propriétaire, puis lui donner le rôle `organizer` depuis un accès administrateur à la base. Le site ne permet pas à un utilisateur de s’attribuer ce rôle. Un organisateur peut ensuite en nommer d’autres depuis « Organiser » ; retirer ce rang demande toujours l’accès administrateur.
 7. Configurer Resend, `MAIL_FROM`, `NEXT_PUBLIC_SITE_URL` et `SUPABASE_SERVICE_ROLE_KEY` (clé secrète du projet, sans préfixe `NEXT_PUBLIC_`) : sans cette clé, les e-mails d’inscription et de liste d’attente ne partent pas. Pour les rappels et les nouvelles tentatives, ajouter `CRON_SECRET` et un ordonnanceur authentifié vers `/api/cron` au moins toutes les 5 minutes. Le rythme disponible dépend de l’offre d’hébergement ; aucun abonnement ni ordonnanceur distant n’est créé par ce projet.
 8. Refaire les tests de connexion, de droits et d’envoi sur le déploiement réel. L’ajout d’une double authentification des organisateurs et des sauvegardes est à prévoir avant l’ouverture publique.
+
+### Référencement
+
+Le site s’appuie sur `NEXT_PUBLIC_SITE_URL` (ou, à défaut, le domaine de production Vercel) pour ses liens canoniques, son plan du site et ses données structurées. Après la mise en ligne :
+
+1. Ouvrir [Google Search Console](https://search.google.com/search-console), ajouter la propriété du domaine et choisir la validation par balise HTML. Copier la valeur `content` de la balise dans la variable `GOOGLE_SITE_VERIFICATION` de Vercel (production), redéployer, puis valider.
+2. Dans Search Console, envoyer `https://<domaine>/sitemap.xml` et demander l’indexation de la page d’accueil et de `/blood-on-the-clocktower`.
+3. Faire de même dans [Bing Webmaster Tools](https://www.bing.com/webmasters), qui peut importer la propriété depuis Search Console.
+4. Facultatif : une fiche Google Business Profile, sans adresse publique (zone desservie : Brest), rend le groupe visible sur Google Maps. Le lien du site partagé sur les groupes et pages du jeu (Discord, Facebook, ludothèques et bars à jeux brestois) aide aussi les moteurs à le trouver.
+
+Le [test des résultats enrichis](https://search.google.com/test/rich-results) vérifie les données structurées de la page d’accueil quand une partie publique est prévue.
 
 ### Activer les migrations automatiques
 
