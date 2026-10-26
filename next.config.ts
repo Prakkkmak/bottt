@@ -9,7 +9,11 @@ const config: NextConfig = {
       { key: 'X-Content-Type-Options', value: 'nosniff' },
       { key: 'X-Frame-Options', value: 'DENY' },
       { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
-      { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' }
+      { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
+      // Browsers only honour it over HTTPS, so the local site on http://127.0.0.1 is unaffected.
+      { key: 'Strict-Transport-Security', value: 'max-age=63072000' },
+      { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' }
+      // The Content-Security-Policy, with a nonce for each page, is set by proxy.ts.
     ] }];
   }
 };

@@ -102,11 +102,11 @@ export async function sendInvitation(input: string): Promise<ActionResult> {
     return { ok: true, message: `Invitation envoyée à ${email}.` };
   } catch(e) { return failure(e); }
 }
-export async function revokeInvitation(id: string) { return rpc('revoke_invitation', { p_id: id }, 'Cette invitation est désactivée.'); }
+export async function revokeInvitation(id: string) { if (!isUuid(id)) return failure(new Error('Invitation introuvable.')); return rpc('revoke_invitation', { p_id: id }, 'Cette invitation est désactivée.'); }
 export async function saveSession(input: unknown) { const parsed = sessionSchema.safeParse(input); if (!parsed.success) return failure(parsed.error); return rpc('save_session', { p_data: { ...parsed.data, beginners_welcome: true } }, 'La session est publiée.'); }
 export async function saveVenue(input: unknown) { const parsed = venueSchema.safeParse(input); if (!parsed.success) return failure(parsed.error); return rpc('save_venue', { p_data: parsed.data }, parsed.data.id ? 'Le lieu est enregistré.' : 'Le lieu est ajouté.'); }
 export async function deleteVenue(id: string) { if (!isUuid(id)) return failure(new Error('Lieu introuvable.')); return rpc('delete_venue', { p_id: id }, 'Le lieu est retiré de la liste.'); }
-export async function cancelSession(id: string) { return rpc('cancel_session', { p_id: id }, 'La session est annulée. Les participants seront prévenus.'); }
+export async function cancelSession(id: string) { if (!isUuid(id)) return failure(new Error('Session invalide.')); return rpc('cancel_session', { p_id: id }, 'La session est annulée. Les participants seront prévenus.'); }
 export async function deleteSession(id: string) { if (!isUuid(id)) return failure(new Error('Session invalide.')); return rpc('delete_session', { p_id: id }, 'La partie est supprimée.'); }
 const rankMessages: Record<Membership, string> = { newcomer: 'Le compte est passé voyageur·se.', member: 'Le compte est passé membre.', organizer: 'Le compte rejoint l’organisation.', suspended: 'Le compte est suspendu.' };
 export async function setMembership(id: string, status: Membership) { if (!isUuid(id) || !Object.hasOwn(rankMessages, status)) return failure(new Error('Action non autorisée.')); return rpc('set_membership', { p_user: id, p_status: status }, rankMessages[status]); }
