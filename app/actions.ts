@@ -43,7 +43,7 @@ export async function verifyCode(input: { email: string; code: string }): Promis
     const token = z.string().regex(/^\d{6}$/, 'Le code contient 6 chiffres.').parse(input.code.trim());
     const db = await supabase();
     const { data, error } = await db.auth.verifyOtp({ email, token, type: 'email' });
-    if (error) throw new Error('Ce code est invalide ou a expiré. Demande un nouveau code.');
+    if (error) { if (error.status === 429) throw new Error('Trop de tentatives. Patiente quelques minutes avant de réessayer.'); throw new Error('Ce code est invalide ou a expiré. Demande un nouveau code.'); }
     // A new account chooses its pseudo first, so the seat it clicked before signing in is not booked yet.
     const { data: profile } = await db.from('profiles').select('nickname_chosen').eq('id', data.user?.id ?? '').maybeSingle();
     invalidate(); return { ok: true, message: 'Bienvenue sur BOTTT !', value: profile?.nickname_chosen === false ? 'nickname' : undefined };

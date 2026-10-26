@@ -20,7 +20,7 @@ export async function createDatabase({before}:{before?:string}={}){
   const apply=async(list:string[])=>{for(const name of list)await db.exec(await readFile(new URL(name,migrations),'utf8'));};
   await apply(names.filter(n=>!before||n<before));
   async function root(){await db.exec(`reset role; select set_config('request.jwt.claim.sub','',false); select set_config('request.jwt.claims','{}',false);`);}
-  async function login(n:number){await root();await db.query(`select set_config('request.jwt.claim.sub',$1,false),set_config('request.jwt.claims',$2,false)`,[uuid(n),JSON.stringify({sub:uuid(n),session_id:uuid(n+1000)})]);await db.exec('set role authenticated');}
+  async function login(n:number,method='otp'){await root();await db.query(`select set_config('request.jwt.claim.sub',$1,false),set_config('request.jwt.claims',$2,false)`,[uuid(n),JSON.stringify({sub:uuid(n),session_id:uuid(n+1000),amr:[{method,timestamp:1}]})]);await db.exec('set role authenticated');}
   async function anonymous(){await root();await db.exec('set role anon');}
   /** Applies the migrations held back by `before`, as production does on a database that already has accounts. */
   async function migrate(){await root();await apply(names.filter(n=>before&&n>=before));}
