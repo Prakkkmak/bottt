@@ -1,10 +1,22 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { CookieBanner } from '@/components/cookies';
 import { SiteFrame, headerKey } from '@/components/shell';
 import { getData } from '@/lib/data';
 import { ViewerProvider } from '@/components/viewer';
-export const metadata: Metadata = { title: { default: 'Blood on the Tanguy Tower — Blood on the Clocktower à Brest', template: '%s · BOTTT' }, description: 'Les soirées Blood on the Clocktower à Brest. Retrouve les prochaines parties de Blood on the Tanguy Tower, réserve ta place et invite tes amis.', icons: { icon: '/favicon.svg?v=tanguy' }, robots: { index: false, follow: false } };
+import { homeDescription, homeTitle, indexable, openGraphBase, shareImage, siteName, siteOrigin } from '@/lib/seo';
+export const metadata: Metadata = {
+  metadataBase: new URL(siteOrigin()),
+  title: { default: homeTitle, template: '%s · BOTTT' },
+  description: homeDescription,
+  applicationName: siteName,
+  icons: { icon: '/favicon.svg?v=tanguy', apple: '/apple-touch-icon.png' },
+  openGraph: { ...openGraphBase, title: homeTitle, description: homeDescription },
+  twitter: { card: 'summary_large_image', images: shareImage },
+  robots: indexable() ? { index: true, follow: true, googleBot: { index: true, follow: true, 'max-image-preview': 'large', 'max-snippet': -1 } } : { index: false, follow: false },
+  verification: process.env.GOOGLE_SITE_VERIFICATION ? { google: process.env.GOOGLE_SITE_VERIFICATION } : undefined
+};
+export const viewport: Viewport = { themeColor: '#161321' };
 // The header lives here so it stays on screen while the next page loads; getData is shared with the page in the same request.
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const data = await getData();

@@ -9,6 +9,7 @@ import { CookieSettings } from './cookies';
 import { NicknameStep } from './nickname';
 import { ActivityBar } from './activity';
 import { ViewerCheck } from './viewer';
+import { guidePath } from '@/lib/seo';
 
 /** Everything the header shows about the visitor, to tell whether the one kept by the layout is out of date. */
 export function headerKey(data: AppData) {
@@ -33,6 +34,7 @@ export function SiteFrame({ data, children }: { data: AppData; children: React.R
       <div className="footer-about">
         <h2>Blood on the Tanguy Tower</h2>
         <p>Nous sommes un groupe de joueurs de Blood on the Clocktower à Brest. Tout le monde est le bienvenu, débutants comme habitués. L’essentiel, c’est d’être sympa, de respecter les autres et de passer une bonne session ensemble.</p>
+        <Link href={guidePath} className="footer-guide">Découvrir Blood on the Clocktower</Link>
       </div>
       <nav className="footer-links" aria-label="Informations légales"><Link href="/conditions">Conditions d’utilisation</Link><Link href="/confidentialite">Données personnelles</Link><Link href="/cookies">Cookies</Link><CookieSettings /></nav>
     </footer>

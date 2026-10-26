@@ -1,5 +1,6 @@
 import Link from 'next/link';
-export const metadata = { title: 'Données personnelles' };
+import { pageMetadata } from '@/lib/seo';
+export const metadata = pageMetadata('Données personnelles', 'Les données que Blood on the Tanguy Tower enregistre pour organiser les parties à Brest, pourquoi, combien de temps, et comment exercer tes droits.', '/confidentialite');
 
 export default function Page() {
   return <>

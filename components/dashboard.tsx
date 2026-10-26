@@ -5,7 +5,8 @@ import { CalendarDays, Plus } from 'lucide-react';
 import type { AppData } from '@/lib/types';
 import { SessionCard } from './session-card';
 
-export function Dashboard({ data, addresses, initialSessionId }: { data: AppData; addresses: Record<string, string>; initialSessionId?: string }) {
+/** titled: the page already has its main heading above the list, so the list's own heading steps down a level. */
+export function Dashboard({ data, addresses, initialSessionId, titled = false }: { data: AppData; addresses: Record<string, string>; initialSessionId?: string; titled?: boolean }) {
   const [filter, setFilter] = useState('all');
   const upcoming = data.sessions.filter(s => s.id === initialSessionId || new Date(s.ends_at) > new Date() && s.status === 'published').sort((a, b) => Date.parse(a.starts_at) - Date.parse(b.starts_at));
   const next = upcoming[0];
@@ -13,9 +14,10 @@ export function Dashboard({ data, addresses, initialSessionId }: { data: AppData
   // The loading screen comes first, so the browser could not jump to a linked session (#partie-…) on its own.
   useEffect(() => { if (initialSessionId && location.hash === `#partie-${initialSessionId}`) document.getElementById(`partie-${initialSessionId}`)?.scrollIntoView(); }, [initialSessionId]);
   const toggle = (id: string) => setExpanded(current => { const ids = new Set(current); if (ids.has(id)) ids.delete(id); else ids.add(id); return ids; });
+  const Title = titled ? 'h2' : 'h1';
   const rest = upcoming.slice(1).filter(s => filter === 'all' || filter === 'available' && s.confirmed_count < s.capacity);
   return <div className="lobby">
-    <div className="page-heading lobby-heading"><h1>La prochaine session</h1>{data.profile?.membership === 'organizer' && <Link href="/organiser?nouvelle=1" className="button secondary compact" aria-label="Créer une partie"><Plus size={17} />Créer une partie</Link>}</div>
+    <div className="page-heading lobby-heading"><Title>La prochaine session</Title>{data.profile?.membership === 'organizer' && <Link href="/organiser?nouvelle=1" className="button secondary compact" aria-label="Créer une partie"><Plus size={17} />Créer une partie</Link>}</div>
     {next ? <>
       <SessionCard data={data} session={next} address={addresses[next.id] || null} expanded={expanded.has(next.id)} onToggle={() => toggle(next.id)} featured />
       {upcoming.length > 1 && <section className="upcoming-section" aria-label="Sessions suivantes">

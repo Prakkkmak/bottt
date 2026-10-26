@@ -57,6 +57,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .footer-about { max-width: 720px; }
 .footer-about h2 { font: 600 18px/1.5 'DM Sans', Arial, sans-serif; color: var(--parchment); }
 .footer-about p { margin-top: 8px; font-size: 14px; line-height: 1.8; }
+.footer-about .footer-guide { margin-top: 4px; color: var(--gold); }
 .footer a { display: inline-flex; gap: 8px; align-items: center; min-height: 36px; }
 .footer a:hover { color: var(--parchment); text-decoration: underline; }
 .footer-links { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 18px; }
@@ -71,8 +72,14 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .legal-page section { margin-top: 30px; }
 .legal-page h2 { font-size: 20px; margin-bottom: 12px; }
 .legal-page p { color: var(--muted); font-size: 15px; line-height: 1.85; margin-top: 12px; }
-.legal-page a:not(.back-link) { color: var(--gold); text-decoration: underline; text-underline-offset: 3px; }
+.legal-page a:not(.back-link, .button) { color: var(--gold); text-decoration: underline; text-underline-offset: 3px; }
 .legal-page .legal-updated { font-size: 13px; margin-top: 34px; }
+.guide-page .guide-lead { color: var(--ink); font-size: 17px; }
+.guide-page h3 { color: var(--parchment); margin-top: 22px; }
+.guide-page .guide-question p { margin-top: 6px; }
+.home-intro { max-width: 760px; margin-bottom: 34px; }
+.home-intro p { color: var(--muted); font-size: 15px; line-height: 1.8; margin-top: 12px; }
+.home-intro .text-link { color: var(--gold); font-size: 14px; text-decoration: underline; text-underline-offset: 3px; }
 .profile-editor { max-width: 650px; margin: 0 auto; }
 .profile-editor > .button { margin-top: 18px; }
 .site-error { margin: 0 0 24px; }
