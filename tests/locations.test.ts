@@ -9,11 +9,17 @@ test('les adresses texte ouvrent une recherche OpenStreetMap encodée', () => {
   assert.equal(url.searchParams.get('query'), address);
 });
 
-test('la recherche OpenStreetMap ne garde que la première ligne de l’adresse', () => {
+test('la recherche OpenStreetMap ne garde que l’adresse postale', () => {
   const search = (value: string) => new URL(mapsUrl(value)).searchParams.get('query');
   assert.equal(search('  12 rue de Siam, Brest  \r\nInterphone Dupont, 3e étage'), '12 rue de Siam, Brest');
   assert.equal(search('\n\n1 rue du Port, Brest\nCode 1234'), '1 rue du Port, Brest');
-  assert.equal(search('Brest'), 'Brest');
+  assert.equal(search('12 rue de Siam\rCode 1234'), '12 rue de Siam');
+  assert.equal(search('12 rue de Siam, 29200 Brest\nCode porte 12345'), '12 rue de Siam, 29200 Brest');
+  assert.equal(search('12 rue de Siam\n29200 Brest\n3e étage'), '12 rue de Siam, 29200 Brest');
+  assert.equal(search('Chez Marie, 3e étage\n12 rue de Siam\n29200 Brest'), '12 rue de Siam, 29200 Brest');
+  assert.equal(search('29200 Brest'), '29200 Brest');
+  assert.equal(search('Le Grenier · Brest centre'), 'Le Grenier · Brest centre');
+  assert.equal(mapsUrl('1 rue du Port, Brest\nhttps://maps.app.goo.gl/x'), 'https://maps.app.goo.gl/x');
 });
 
 test('les liens Maps partagés sont préservés dans une adresse privée existante', () => {

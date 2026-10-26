@@ -16,8 +16,8 @@ export function AddressFields({ address = '', note }: { address?: string; note: 
       const input = e.currentTarget;
       setPreciseAddress(input.value.slice(0, input.selectionStart) + pasted.address + input.value.slice(input.selectionEnd));
       setMap(pasted.mapsUrl);
-    }} placeholder="Adresse et indications d’accès" /></label>
-    <label className="field">Lien Maps <span className="field-note">Facultatif · OpenStreetMap, Google Maps, Apple Plans… Sans lien, l’adresse est cherchée sur OpenStreetMap.</span><input type="url" name="maps_url" maxLength={500} pattern="https?://.*" value={map} onChange={e => setMap(e.target.value)} placeholder="Colle le lien de partage du lieu" /></label>
+    }} placeholder="Adresse postale, puis indications d’accès" /></label>
+    <label className="field">Lien de carte <span className="field-note">Facultatif · OpenStreetMap, Google Maps, Apple Plans… Sans lien, l’adresse postale est cherchée sur OpenStreetMap.</span><input type="url" name="maps_url" maxLength={500} pattern="https?://.*" value={map} onChange={e => setMap(e.target.value)} placeholder="Colle le lien de partage du lieu" /></label>
     <input type="hidden" name="address" value={value} />
     {value && <a className="text-link" href={mapsUrl(value)} target="_blank" rel="noopener noreferrer">Vérifier le lieu sur la carte ↗</a>}
   </>;
