@@ -6,7 +6,10 @@ import type { Booking, Profile, GameSession, Venue } from './types';
 import { supabase, authenticatedClient, currentUserId } from './supabase';
 import { cache } from 'react';
 import { unstable_rethrow } from 'next/navigation';
+import { connection } from 'next/server';
 export const getData = cache(async (): Promise<AppData> => {
+  // Every page carries the nonce of its request's CSP (proxy.ts): none may be prerendered, even before the database is configured.
+  await connection();
   if (isDemo()) return initialDemo();
   const empty: AppData = { profile: null, sessions: [], invitations: [], demo: false, configured: isConfigured(), local: process.env.LOCAL_PREVIEW==='true'&&!process.env.VERCEL };
   if (!isConfigured()) return empty;
