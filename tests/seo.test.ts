@@ -14,14 +14,15 @@ function withEnv(values: Record<string, string | undefined>, run: () => void) {
   try { run(); } finally { for (const [key, value] of Object.entries(saved)) if (value === undefined) delete process.env[key]; else process.env[key] = value; }
 }
 
-test('seules les parties publiques à venir sont décrites comme événements, sans adresse privée', () => {
+test('seules les parties publiques à venir sont décrites comme événements, annulées comprises, sans adresse privée', () => {
   const events = sessionEvents([
     session({ id: 'public' }),
     session({ id: 'members', visibility: 'members' }),
     session({ id: 'cancelled', status: 'cancelled' }),
     session({ id: 'past', starts_at: '2026-10-20T18:30:00.000Z', ends_at: '2026-10-20T22:30:00.000Z' })
   ], origin, now);
-  assert.deepEqual(events.map(e => e.url), [`${origin}/?partie=public`]);
+  assert.deepEqual(events.map(e => e.url), [`${origin}/?partie=public`, `${origin}/?partie=cancelled`]);
+  assert.deepEqual(events.map(e => e.eventStatus), ['https://schema.org/EventScheduled', 'https://schema.org/EventCancelled']);
   const [event] = events;
   assert.equal(event.name, 'Blood on the Clocktower : Trouble Brewing');
   assert.equal(event.startDate, '2026-10-30T18:30:00.000Z');

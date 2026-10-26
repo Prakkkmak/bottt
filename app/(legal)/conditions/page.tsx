@@ -1,5 +1,6 @@
 import Link from 'next/link';
-export const metadata = { title: 'Conditions d’utilisation' };
+import { pageMetadata } from '@/lib/seo';
+export const metadata = pageMetadata('Conditions d’utilisation', 'Les règles de Blood on the Tanguy Tower : compte, rangs, parrainage, inscriptions aux parties de Blood on the Clocktower à Brest et respect des autres joueurs.', '/conditions');
 
 export default function Page() {
   return <>

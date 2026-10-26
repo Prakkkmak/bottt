@@ -21,6 +21,10 @@ export const homeDescription = 'Soirées Blood on the Clocktower à Brest, ouver
 export const shareImage = { url: '/og-image.png', width: 1200, height: 630, alt: 'La Tour Tanguy dorée et « Blood on the Clocktower à Brest »' };
 /** Shared by every page that sets its own Open Graph fields, since a page's openGraph replaces the layout's. */
 export const openGraphBase = { type: 'website', locale: 'fr_FR', siteName, images: shareImage } as const;
+/** Title, description, canonical link and sharing card of a public page. */
+export function pageMetadata(title: string, description: string, path: string) {
+  return { title, description, alternates: { canonical: path }, openGraph: { ...openGraphBase, title, description, url: path } };
+}
 /** The robots field of account pages and redirects: nothing on them is meant to be found through a search. */
 export const privatePage = { index: false, follow: true } as const;
 
@@ -35,16 +39,16 @@ function eventName(s: GameSession) {
   return s.title.trim() ? `${name} · Blood on the Clocktower` : `Blood on the Clocktower : ${name}`;
 }
 
-/** The games a visitor can book, for search engines: only public ones still to come, located in Brest without their private address. */
+/** The public games still to come, for search engines, located in Brest without their private address. A cancelled one stays listed as cancelled, so a search that picked it up does not keep it as planned. */
 export function sessionEvents(sessions: GameSession[], origin: string, now = Date.now()) {
   const organizer = { '@type': 'Organization', name: siteName, url: origin };
-  return sessions.filter(s => s.status === 'published' && s.visibility === 'public' && Date.parse(s.ends_at) > now).map(s => ({
+  return sessions.filter(s => s.visibility === 'public' && Date.parse(s.ends_at) > now).map(s => ({
     '@type': 'Event',
     name: eventName(s),
     description: `Partie de Blood on the Clocktower à Brest sur le script ${s.script}, ouverte aux débutants comme aux habitués.`,
     startDate: s.starts_at,
     endDate: s.ends_at,
-    eventStatus: 'https://schema.org/EventScheduled',
+    eventStatus: s.status === 'cancelled' ? 'https://schema.org/EventCancelled' : 'https://schema.org/EventScheduled',
     eventAttendanceMode: 'https://schema.org/OfflineEventAttendanceMode',
     location: { '@type': 'Place', name: s.location, address: brest },
     image: [`${origin}${shareImage.url}`],

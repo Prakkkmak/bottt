@@ -1,15 +1,13 @@
 import Link from 'next/link';
-import { faqJsonLd, guidePath, openGraphBase } from '@/lib/seo';
+import { faqJsonLd, guidePath, pageMetadata } from '@/lib/seo';
 import { JsonLd } from '@/components/json-ld';
 
-const title = 'Blood on the Clocktower, le jeu et nos soirées à Brest';
-const description = 'Blood on the Clocktower, jeu de bluff et de déduction sociale cousin du Loup-Garou : le principe, une soirée à Brest et les réponses pour débuter.';
-export const metadata = { title, description, alternates: { canonical: guidePath }, openGraph: { ...openGraphBase, title, description, url: guidePath } };
+export const metadata = pageMetadata('Blood on the Clocktower, le jeu et nos soirées à Brest', 'Blood on the Clocktower, jeu de bluff et de déduction sociale cousin du Loup-Garou : le principe, une soirée à Brest et les réponses pour débuter.', guidePath);
 
 // Shown on the page and given to search engines as they are, so both always say the same thing.
 const questions = [
   { question: 'Faut-il connaître les règles pour venir ?', answer: 'Non. Toutes les soirées accueillent les débutants : le principe s’explique en quelques minutes et le conteur accompagne les nouveaux pendant la partie.' },
-  { question: 'Combien de joueurs faut-il pour une partie ?', answer: 'Une partie se lance à partir de 7 joueurs. Une session compte en général 15 places et peut en accueillir jusqu’à 20.' },
+  { question: 'Combien de joueurs faut-il pour une partie ?', answer: 'Le jeu se joue à partir de 5 joueurs. Nos parties se lancent à partir de 7 et comptent en général 15 places, jusqu’à 20.' },
   { question: 'Comment réserver ma place ?', answer: 'Connecte-toi avec ton adresse e-mail, choisis une partie sur la page d’accueil et prends un jeton libre autour de la tour. Si la partie est complète, tu rejoins la liste d’attente et un e-mail te prévient dès qu’une place te revient.' },
   { question: 'Où ont lieu les parties ?', answer: 'À Brest. Le lieu est indiqué sur chaque partie et l’adresse précise s’affiche pour les personnes inscrites avant la soirée.' },
   { question: 'Puis-je venir avec des amis ?', answer: 'Oui. Depuis la partie, inscris les personnes que tu amènes, même si elles n’ont pas de compte : elles prennent une place libre ou la liste d’attente comme tout le monde.' }

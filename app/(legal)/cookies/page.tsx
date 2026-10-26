@@ -1,5 +1,6 @@
 import { CookieSettings } from '@/components/cookies';
-export const metadata = { title: 'Politique de cookies' };
+import { pageMetadata } from '@/lib/seo';
+export const metadata = pageMetadata('Politique de cookies', 'Les seuls cookies de Blood on the Tanguy Tower servent à la connexion : aucun cookie publicitaire ni de mesure d’audience.', '/cookies');
 
 export default function Page() {
   return <>
