@@ -7,7 +7,7 @@ export const metadata = pageMetadata('Blood on the Clocktower, le jeu et nos soi
 // Shown on the page and given to search engines as they are, so both always say the same thing.
 const questions = [
   { question: 'Faut-il connaître les règles pour venir ?', answer: 'Non. Toutes les soirées accueillent les débutants : le principe s’explique en quelques minutes et le conteur accompagne les nouveaux pendant la partie.' },
-  { question: 'Combien de joueurs faut-il pour une partie ?', answer: 'Le jeu se joue à partir de 5 joueurs. Nos parties se lancent à partir de 7 et comptent en général 15 places, jusqu’à 20.' },
+  { question: 'Combien de joueurs faut-il pour une partie ?', answer: 'Le jeu se joue à partir de 5 joueurs, plus le conteur qui mène la partie. Nos parties comptent de 7 à 20 places, conteur compris : 16 places, par exemple, pour 15 joueurs et leur conteur.' },
   { question: 'Comment réserver ma place ?', answer: 'Connecte-toi avec ton adresse e-mail, choisis une partie sur la page d’accueil et prends un jeton libre autour de la tour. Si la partie est complète, tu rejoins la liste d’attente et un e-mail te prévient dès qu’une place te revient.' },
   { question: 'Où ont lieu les parties ?', answer: 'À Brest. Le lieu est indiqué sur chaque partie et l’adresse précise s’affiche pour les personnes inscrites avant la soirée.' },
   { question: 'Puis-je venir avec des amis ?', answer: 'Oui. Depuis la partie, inscris les personnes que tu amènes, même si elles n’ont pas de compte : elles prennent une place libre ou la liste d’attente comme tout le monde.' }

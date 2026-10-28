@@ -1,5 +1,7 @@
-export const MIN_PLAYERS = 7;
-export const DEFAULT_CAPACITY = 15;
+// The storyteller is one of the people who book (see the « Volontaire MJ » badge): every count of places includes them.
+export const MIN_CAPACITY = 7;
+/** 15 players and the storyteller. The database keeps 15 as its own fallback, which the site never relies on: it always sends the number. */
+export const DEFAULT_CAPACITY = 16;
 export const MAX_CAPACITY = 20;
 
 /** Mirrors the limits enforced by public.add_guest: travellers bring 2 people, members as many as member seats allow… */

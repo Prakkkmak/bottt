@@ -2,7 +2,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { CalendarDays, MapPin, Settings2 } from 'lucide-react';
-import { MIN_PLAYERS, DEFAULT_CAPACITY, MAX_CAPACITY } from '@/lib/session-rules';
+import { MIN_CAPACITY, DEFAULT_CAPACITY, MAX_CAPACITY } from '@/lib/session-rules';
 import type { GameSession, Venue } from '@/lib/types';
 import { parisInput, fromParisInput, dateLong, time } from '@/lib/utils';
 import { checkSessionForm, type SessionField, type SessionFieldErrors } from '@/lib/session-form';
@@ -85,8 +85,8 @@ export function SessionForm({ session, address = '', template, venues = [], onSa
       </fieldset>
     </fieldset>
     <details className="disclosure session-options"><summary><span><Settings2 size={16} />Réglages de la partie</span></summary><div className="stack">
-      <div className="form-grid"><label className="field">Places joueurs<input name="capacity" type="number" required min={MIN_PLAYERS} max={MAX_CAPACITY} defaultValue={defaults?.capacity ?? DEFAULT_CAPACITY} {...invalidField(error('capacity'))} /><FieldError {...error('capacity')} /></label><label className="field">Visibilité<select name="visibility" defaultValue={defaults?.visibility || 'public'} {...invalidField(error('visibility'))}><option value="public">Ouverte à tous</option><option value="members">Membres et leurs invités</option></select><FieldError {...error('visibility')} /></label></div>
-      <p className="field-note">Les places vont aux premiers inscrits, membres, voyageurs et invités confondus. Une fois le cercle complet, une liste d’attente prend le relais : chaque place libérée revient à la première personne qui attend.</p>
+      <div className="form-grid"><label className="field">Places, MJ compris<input name="capacity" type="number" required min={MIN_CAPACITY} max={MAX_CAPACITY} defaultValue={defaults?.capacity ?? DEFAULT_CAPACITY} {...invalidField(error('capacity'))} /><FieldError {...error('capacity')} /></label><label className="field">Visibilité<select name="visibility" defaultValue={defaults?.visibility || 'public'} {...invalidField(error('visibility'))}><option value="public">Ouverte à tous</option><option value="members">Membres et leurs invités</option></select><FieldError {...error('visibility')} /></label></div>
+      <p className="field-note">Le MJ prend l’une de ces places : {DEFAULT_CAPACITY} places, par exemple, pour {DEFAULT_CAPACITY - 1} joueurs et le MJ. Une nouvelle partie reprend le nombre de la dernière. Les places vont aux premiers inscrits, membres, voyageurs et invités confondus. Une fois le cercle complet, une liste d’attente prend le relais : chaque place libérée revient à la première personne qui attend.</p>
     </div></details>
     {wrong > 0 && <p className="alert error" role="alert">{wrong > 1 ? `${wrong} champs sont à corriger` : 'Un champ est à corriger'} {session ? 'avant d’enregistrer les modifications' : 'avant de publier la partie'}.</p>}
     <Feedback result={a.result} /><button className="button primary full" disabled={a.pending}>{a.pending ? 'Enregistrement…' : session ? 'Enregistrer les modifications' : 'Publier la partie'}</button>
