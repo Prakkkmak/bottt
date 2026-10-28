@@ -79,7 +79,7 @@ test('Règles de réservation et isolation des comptes',async t=>{
    const seated=(await db.query<{seat_index:number}>(`select seat_index from bookings where session_id=$1 and status='confirmed' order by seat_index`,[circleId])).rows.map(r=>r.seat_index);
    assert.deepEqual(seated,[0,1,2,3,4,5,6]);
  });
- await t.test('le minimum est de sept places et la création propose quinze sans MJ désigné',async()=>{
+ await t.test('le minimum est de sept places, la base garde quinze en repli et aucun MJ n’est désigné',async()=>{
    await login(1);
    const input={title:'Capacité par défaut',description:'',script:'Trouble Brewing',starts_at:new Date(Date.now()+10*86400000).toISOString(),ends_at:new Date(Date.now()+10*86400000+14400000).toISOString(),location:'Brest',address:'',newcomer_seats:3,release_hours:72,beginners_welcome:true,visibility:'public'};
    await assert.rejects(db.query('select save_session($1::jsonb)',[JSON.stringify({...input,capacity:6})]),/sessions_capacity_check/);

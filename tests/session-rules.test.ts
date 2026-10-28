@@ -8,9 +8,9 @@ const input = {
   location: 'Brest', address: '', visibility: 'public'
 };
 
-test('une partie se crée sans MJ désigné et propose quinze places', () => {
+test('une partie se crée sans MJ désigné et propose seize places, MJ compris', () => {
   const session = sessionSchema.parse(input);
-  assert.equal(session.capacity, 15);
+  assert.equal(session.capacity, 16);
   assert.equal(Object.hasOwn(session, 'storyteller'), false);
 });
 

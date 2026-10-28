@@ -1,5 +1,5 @@
 import type { GameSession, Venue } from './types';
-import { MIN_PLAYERS, MAX_CAPACITY } from './session-rules';
+import { MIN_CAPACITY, MAX_CAPACITY } from './session-rules';
 import { sessionEnd } from './session-defaults';
 import { fromParisInput } from './utils';
 
@@ -10,8 +10,8 @@ export const sessionMessages = {
   start: 'Choisis le jour et l’heure du début.', past: 'Choisis une date à venir.', end: 'La fin doit être après le début.',
   locationShort: 'Indique le lieu affiché à tous, en 2 caractères au moins.', locationLong: 'Le lieu affiché tient en 150 caractères au plus.',
   address: 'L’adresse et le lien de carte doivent tenir en 500 caractères.', link: 'Colle un lien complet, qui commence par https://.',
-  seats: 'Indique le nombre de places joueurs.', wholeSeats: 'Indique un nombre entier de places joueurs.',
-  fewSeats: `Prévois au moins ${MIN_PLAYERS} places joueurs : c’est le minimum pour lancer une partie.`, manySeats: `Une partie compte ${MAX_CAPACITY} places joueurs au plus.`,
+  seats: 'Indique le nombre de places, MJ compris.', wholeSeats: 'Indique un nombre entier de places.',
+  fewSeats: `Prévois au moins ${MIN_CAPACITY} places, MJ compris : c’est le minimum pour lancer une partie.`, manySeats: `Une partie compte ${MAX_CAPACITY} places au plus, MJ compris.`,
   visibility: 'Choisis qui peut voir la partie.',
 };
 
@@ -49,7 +49,7 @@ export function checkSessionForm(values: SessionFormValues, { session, venue }: 
     set('maps_url', map && !isLink(map) ? sessionMessages.link : undefined);
   }
   const capacity = values.capacity.trim() ? Number(values.capacity) : NaN;
-  set('capacity', !Number.isFinite(capacity) ? sessionMessages.seats : !Number.isInteger(capacity) ? sessionMessages.wholeSeats : capacity < MIN_PLAYERS ? sessionMessages.fewSeats : capacity > MAX_CAPACITY ? sessionMessages.manySeats : undefined);
+  set('capacity', !Number.isFinite(capacity) ? sessionMessages.seats : !Number.isInteger(capacity) ? sessionMessages.wholeSeats : capacity < MIN_CAPACITY ? sessionMessages.fewSeats : capacity > MAX_CAPACITY ? sessionMessages.manySeats : undefined);
   set('visibility', values.visibility === 'public' || values.visibility === 'members' ? undefined : sessionMessages.visibility);
   const payload = {
     ...(session ? { id: session.id } : {}),

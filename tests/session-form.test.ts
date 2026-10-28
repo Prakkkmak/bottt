@@ -1,17 +1,17 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { checkSessionForm, type SessionFormValues } from '../lib/session-form';
-import { MIN_PLAYERS } from '../lib/session-rules';
+import { MIN_CAPACITY } from '../lib/session-rules';
 import { sessionSchema } from '../lib/schemas';
 import { fromParisInput } from '../lib/utils';
 
 const values: SessionFormValues = { title: '', starts_at: '2099-10-02T19:30', script: 'Trouble Brewing', location: 'Brest', address: '', maps_url: '', capacity: '15', visibility: 'public' };
 const venue = { id: '20000000-0000-4000-8000-000000000001', name: 'Le Grenier · Brest centre', address: '12 rue de Siam' };
 
-test('le formulaire de partie dit pourquoi 2 places joueurs ne suffisent pas', () => {
+test('le formulaire de partie dit pourquoi 2 places ne suffisent pas', () => {
   const { errors, payload } = checkSessionForm({ ...values, capacity: '2' }, {});
   assert.equal(payload, undefined);
-  assert.deepEqual(errors, { capacity: `Prévois au moins ${MIN_PLAYERS} places joueurs : c’est le minimum pour lancer une partie.` });
+  assert.deepEqual(errors, { capacity: `Prévois au moins ${MIN_CAPACITY} places, MJ compris : c’est le minimum pour lancer une partie.` });
 });
 
 test('chaque champ refusé reçoit son propre message en français', () => {
@@ -25,15 +25,15 @@ test('chaque champ refusé reçoit son propre message en français', () => {
     location: 'Indique le lieu affiché à tous, en 2 caractères au moins.',
     address: 'L’adresse et le lien de carte doivent tenir en 500 caractères.',
     maps_url: 'Colle un lien complet, qui commence par https://.',
-    capacity: 'Indique le nombre de places joueurs.',
+    capacity: 'Indique le nombre de places, MJ compris.',
     visibility: 'Choisis qui peut voir la partie.',
   });
 });
 
-test('les places joueurs, la date et le lien de carte sont expliqués selon l’erreur', () => {
+test('les places, la date et le lien de carte sont expliqués selon l’erreur', () => {
   const check = (changes: Partial<SessionFormValues>) => checkSessionForm({ ...values, ...changes }, {}).errors;
-  assert.equal(check({ capacity: '7.5' }).capacity, 'Indique un nombre entier de places joueurs.');
-  assert.equal(check({ capacity: '21' }).capacity, 'Une partie compte 20 places joueurs au plus.');
+  assert.equal(check({ capacity: '7.5' }).capacity, 'Indique un nombre entier de places.');
+  assert.equal(check({ capacity: '21' }).capacity, 'Une partie compte 20 places au plus, MJ compris.');
   assert.equal(check({ starts_at: '2020-10-02T19:30' }).starts_at, 'Choisis une date à venir.');
   // 29 mars 2099 : à 2 h, Paris passe directement à 3 h.
   assert.equal(check({ starts_at: '2099-03-29T02:30' }).starts_at, 'Cette heure n’existe pas lors du changement d’heure. Choisis un autre horaire.');

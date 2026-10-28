@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { MIN_PLAYERS, DEFAULT_CAPACITY, MAX_CAPACITY } from './session-rules';
+import { MIN_CAPACITY, DEFAULT_CAPACITY, MAX_CAPACITY } from './session-rules';
 import { sessionEnd } from './session-defaults';
 import { sessionMessages as m } from './session-form';
 // « Nouveau joueur » is the placeholder of an account that has not chosen yet (see the nickname migration).
@@ -10,7 +10,7 @@ export const sessionSchema = z.object({
   script: z.string(m.scriptShort).trim().min(2, m.scriptShort).max(100, m.scriptLong),
   starts_at: z.iso.datetime({ offset: true, error: m.start }).refine(s => new Date(s) > new Date(), m.past), ends_at: z.iso.datetime({ offset: true, error: 'La fin de la partie est invalide.' }).optional(),
   location: z.string(m.locationShort).trim().min(2, m.locationShort).max(150, m.locationLong), venue_id: z.uuid('Ce lieu n’est plus dans la liste. Choisis-en un autre.').nullable().default(null), address: z.string(m.address).trim().max(500, m.address),
-  capacity: z.number(m.seats).int(m.wholeSeats).min(MIN_PLAYERS, m.fewSeats).max(MAX_CAPACITY, m.manySeats).default(DEFAULT_CAPACITY),
+  capacity: z.number(m.seats).int(m.wholeSeats).min(MIN_CAPACITY, m.fewSeats).max(MAX_CAPACITY, m.manySeats).default(DEFAULT_CAPACITY),
   visibility: z.enum(['public','members'], m.visibility)
 }, 'La partie envoyée est incomplète. Recharge la page et réessaie.').transform(s => ({ ...s, ends_at: s.ends_at ?? sessionEnd(s.starts_at) })).refine(s => new Date(s.ends_at)>new Date(s.starts_at), m.end);
 export const venueSchema = z.object({
