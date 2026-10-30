@@ -5,10 +5,10 @@ import { useEffect, useRef, useState } from 'react';
 import { CalendarDays, Clock3, MapPin, ChevronLeft, LockKeyhole, BookOpen } from 'lucide-react';
 import type { ActionResult, AppData, GameSession, MyGuest } from '@/lib/types';
 import { dateLong, time, activeBooking, sessionName } from '@/lib/utils';
-import { mapsUrl } from '@/lib/locations';
 import { activeGuests, canSeeAddress, hasSeat, participantLabel, recentGuestNames, seatPlan, waitingLabel, waitlistHint } from '@/lib/guests';
 import { MAX_TRAVELLER_GUESTS, MAX_WAITING_GUESTS, TRAVELLER_ADDRESS_HOURS } from '@/lib/session-rules';
 import { CalendarLink } from './calendar-link';
+import { MapLinks } from './map-links';
 import { Dialog } from './dialog';
 import { AuthForm } from './auth';
 import { VillageCircle } from './tableau';
@@ -72,7 +72,7 @@ export function SessionDetail({ data, session: s, address, embedded = false }: {
   const addressLater = data.profile?.membership === 'newcomer' && hasSeat(s) && !privateAddress;
   const practical = <div className={`detail-when ${embedded ? 'session-practical' : ''}`}>
     {s.status === 'published' ? <CalendarLink session={s} address={privateAddress} /> : <span><CalendarDays size={16} />{dateLong(s.starts_at)}</span>}
-    <span><Clock3 size={16} />{time(s.starts_at)}</span><a className="practical-link" href={mapsUrl(privateAddress || s.location)} target="_blank" rel="noopener noreferrer" title="Ouvrir le lieu sur la carte"><MapPin size={16} />{s.location}</a>
+    <span><Clock3 size={16} />{time(s.starts_at)}</span><span className="detail-place"><MapPin size={16} />{s.location}<span className="map-links"><MapLinks value={privateAddress || s.location} fallback={s.location} className="practical-link" /></span></span>
     {addressLater && <span className="address-later">Adresse exacte {TRAVELLER_ADDRESS_HOURS} h avant la partie</span>}
   </div>;
   return <>
