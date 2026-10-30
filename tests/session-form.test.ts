@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { checkSessionForm, type SessionFormValues } from '../lib/session-form';
 import { MIN_CAPACITY } from '../lib/session-rules';
-import { sessionSchema } from '../lib/schemas';
+import { sessionSchema, seriesSchema } from '../lib/schemas';
 import { fromParisInput } from '../lib/utils';
 
 const values: SessionFormValues = { title: '', starts_at: '2099-10-02T19:30', script: 'Trouble Brewing', location: 'Brest', address: '', maps_url: '', capacity: '15', visibility: 'public' };
@@ -96,4 +96,50 @@ test('ce que le formulaire laisse partir, le serveur l’accepte, lieu choisi ou
   }
   // A venue fills the place with what « Les lieux » accepted: the server then accepts it too.
   assert.equal(sessionSchema.safeParse(checkSessionForm({ ...values, location: '' }, { venue: { ...venue, name: 'ab', address: 'x'.repeat(500) } }).payload).success, true);
+});
+
+const weekly: Partial<SessionFormValues> = { repeat: '1', weeks_ahead: '4', ends_on: '' };
+
+test('une partie récurrente donne son rythme, ses dates ouvertes et sa dernière date', () => {
+  assert.deepEqual(checkSessionForm({ ...values, ...weekly }, {}).payload, {
+    title: '', script: 'Trouble Brewing', starts_at: '2099-10-02T17:30:00.000Z', location: 'Brest', address: '', venue_id: null, capacity: 15, visibility: 'public',
+    every_weeks: 1, weeks_ahead: 4, ends_on: null,
+  });
+  assert.equal(checkSessionForm({ ...values, ...weekly, repeat: '2', ends_on: '2099-12-31' }, {}).payload?.ends_on, '2099-12-31');
+  // A game being edited stays one date, whatever the form holds.
+  const session = { id: '10000000-0000-4000-8000-000000000001', starts_at: '2026-10-02T17:00:00Z', ends_at: '2026-10-02T20:00:00Z' };
+  assert.equal('every_weeks' in (checkSessionForm({ ...values, ...weekly }, { session }).payload ?? {}), false);
+  const check = (changes: Partial<SessionFormValues>) => checkSessionForm({ ...values, ...weekly, ...changes }, {}).errors;
+  assert.deepEqual(check({ repeat: '3' }), { repeat: 'Choisis le rythme de la série.' });
+  assert.deepEqual(check({ weeks_ahead: '13' }), { weeks_ahead: 'Choisis jusqu’à quand les dates sont ouvertes.' });
+  assert.deepEqual(check({ ends_on: '2099-10-01' }), { ends_on: 'La dernière date doit suivre la première partie.' });
+  assert.deepEqual(check({ ends_on: '2099-02-30' }), { ends_on: 'Choisis une dernière date valide, ou laisse le champ vide.' });
+  // The last date may be the first one: the series then holds one game.
+  assert.deepEqual(check({ ends_on: '2099-10-02' }), {});
+});
+
+test('le formulaire et le serveur refusent les mêmes séries avec les mêmes mots', () => {
+  const cases: Partial<SessionFormValues>[] = [{}, { repeat: '2' }, { repeat: '3' }, { repeat: '0' }, { weeks_ahead: '' }, { weeks_ahead: '0' }, { weeks_ahead: '1' }, { weeks_ahead: '12' }, { weeks_ahead: '13' }, { weeks_ahead: '2.5' },
+    { ends_on: '2099-10-01' }, { ends_on: '2099-10-02' }, { ends_on: '2100-01-01' }, { ends_on: '2099-02-30' }, { ends_on: '2099-13-01' }, { ends_on: 'demain' },
+    { capacity: '2', weeks_ahead: '0' }, { script: '', repeat: '5', ends_on: 'x' }];
+  for (const changes of cases) {
+    const form = { ...values, ...weekly, ...changes };
+    const { errors, message } = checkSessionForm(form, {});
+    const parsed = seriesSchema.safeParse({ title: form.title, script: form.script, starts_at: fromParisInput(form.starts_at), location: form.location, address: form.address, venue_id: null, capacity: form.capacity.trim() ? Number(form.capacity) : NaN, visibility: form.visibility,
+      every_weeks: Number(form.repeat), weeks_ahead: Number(form.weeks_ahead), ends_on: form.ends_on || null });
+    const server: Record<string, string> = {};
+    for (const issue of parsed.success ? [] : parsed.error.issues) server[String(issue.path[0] ?? '')] ??= issue.message;
+    const client: Record<string, string> = { ...errors, ...(message ? { '': message } : {}) };
+    // The form names the field of the rhythm « repeat »; the server, every_weeks.
+    if (client.repeat) { client.every_weeks = client.repeat; delete client.repeat; }
+    assert.deepEqual(client, server, JSON.stringify(changes));
+  }
+});
+
+test('ce que le formulaire laisse partir comme série, le serveur l’accepte', () => {
+  for (const context of [{}, { venue }]) for (const changes of [{}, { repeat: '2', weeks_ahead: '12', ends_on: '2100-06-30', capacity: '20', visibility: 'members' }]) {
+    const { payload } = checkSessionForm({ ...values, ...weekly, ...changes }, context);
+    assert.ok(payload, JSON.stringify([context, changes]));
+    assert.equal(seriesSchema.safeParse(payload).success, true, JSON.stringify([context, changes]));
+  }
 });

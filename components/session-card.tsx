@@ -1,15 +1,16 @@
 'use client';
 import { useId } from 'react';
-import { Clock3, Check, ChevronDown, Moon, Flame, Flower2, LockKeyhole, UsersRound, BellRing, X } from 'lucide-react';
+import { Clock3, Check, ChevronDown, Moon, Flame, Flower2, LockKeyhole, UsersRound, BellRing, X, History } from 'lucide-react';
 import type { AppData, GameSession } from '@/lib/types';
 import { dateLong, time, statusLabels, activeBooking, sessionName } from '@/lib/utils';
 import { activeGuests } from '@/lib/guests';
 import { SessionDetail } from './session-detail';
 import { DateTile } from './date-tile';
 
-export function SessionCard({ data, session: s, address, expanded, onToggle, featured = false }: {
+/** past: the game is over, listed under « Sessions passées ». */
+export function SessionCard({ data, session: s, address, expanded, onToggle, featured = false, past = false }: {
   data: AppData; session: GameSession; address: string | null;
-  expanded: boolean; onToggle: () => void; featured?: boolean;
+  expanded: boolean; onToggle: () => void; featured?: boolean; past?: boolean;
 }) {
   const id = useId();
   const free = Math.max(0, s.capacity - s.confirmed_count);
@@ -18,10 +19,10 @@ export function SessionCard({ data, session: s, address, expanded, onToggle, fea
   const Icon = s.script === 'Bad Moon Rising' ? Moon : s.script === 'Sects & Violets' ? Flower2 : Flame;
   const brought = activeGuests(s).length;
   const rank = s.my_status === 'waitlisted' && s.my_waitlist_position ? ` · n° ${s.my_waitlist_position}` : '';
-  const state = cancelled ? 'Annulée' : active && s.my_status ? `${statusLabels[s.my_status]}${rank}${brought ? ` · +${brought}` : ''}` : brought ? `+${brought} invité·e${brought > 1 ? 's' : ''}` : free > 0 ? `${free} place${free > 1 ? 's' : ''} libre${free > 1 ? 's' : ''}` : 'Liste d’attente';
-  const stateType = cancelled ? 'cancelled' : active && s.my_status ? s.my_status : brought ? 'confirmed' : free ? 'available' : 'waitlisted';
-  const StateIcon = cancelled ? X : s.my_status === 'confirmed' ? Check : s.my_status === 'offered' ? BellRing : stateType === 'pending' || stateType === 'waitlisted' ? Clock3 : UsersRound;
-  return <article id={`partie-${s.id}`} data-script={s.script} className={`session-accordion ${expanded ? 'is-expanded' : ''} ${featured ? 'is-next' : ''} ${cancelled ? 'is-cancelled' : ''}`}>
+  const state = cancelled ? 'Annulée' : past ? s.my_status === 'confirmed' ? 'Terminée · tu y étais' : 'Terminée' : active && s.my_status ? `${statusLabels[s.my_status]}${rank}${brought ? ` · +${brought}` : ''}` : brought ? `+${brought} invité·e${brought > 1 ? 's' : ''}` : free > 0 ? `${free} place${free > 1 ? 's' : ''} libre${free > 1 ? 's' : ''}` : 'Liste d’attente';
+  const stateType = cancelled ? 'cancelled' : past ? 'past' : active && s.my_status ? s.my_status : brought ? 'confirmed' : free ? 'available' : 'waitlisted';
+  const StateIcon = cancelled ? X : past ? History : s.my_status === 'confirmed' ? Check : s.my_status === 'offered' ? BellRing : stateType === 'pending' || stateType === 'waitlisted' ? Clock3 : UsersRound;
+  return <article id={`partie-${s.id}`} data-script={s.script} className={`session-accordion ${expanded ? 'is-expanded' : ''} ${featured ? 'is-next' : ''} ${cancelled ? 'is-cancelled' : ''} ${past ? 'is-past' : ''}`}>
     <h2 className="session-summary">
       <button type="button" className="session-row session-toggle" id={`${id}-summary`} aria-expanded={expanded} aria-controls={`${id}-panel`} aria-label={`${expanded ? 'Replier' : 'Déplier'} la partie ${sessionName(s)} · ${dateLong(s.starts_at)} · ${s.confirmed_count} places réservées sur ${s.capacity} · ${state}`} onClick={onToggle}>
         <DateTile date={s.starts_at} />

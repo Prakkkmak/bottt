@@ -559,6 +559,9 @@ a.practical-link, .calendar-link > span { text-decoration: underline; text-under
 .session-accordion[data-script="Sects & Violets"] { --script-accent: #aff0d0; --script-bg: #243932; }
 .session-accordion.is-expanded { border-color: #b492b4; border-top-color: var(--script-accent); background: radial-gradient(ellipse at 90% 20%, #73335445, transparent 65%), #422039; box-shadow: 0 5px 0 #211528, 0 6px 0 #896d89; }
 .session-accordion.is-next { margin-bottom: 8px; }
+/* Over: quieter than the games still open, like the past rows of « Organiser ». */
+.session-accordion.is-past:not(.is-expanded) { background: #1f1a2b; border-top-color: #77678380; box-shadow: none; }
+.session-accordion.is-past .session-toggle .date-tile { background: #d9ccc0; box-shadow: none; }
 .session-summary { font-size: 19px; }
 .session-toggle { width: 100%; border: 0; border-radius: 11px 11px 0 0; background: transparent; padding: 22px 24px; text-align: left; transition: background .18s; }
 .session-toggle:hover { background: #fff0cd0a; }
@@ -573,6 +576,7 @@ a.practical-link, .calendar-link > span { text-decoration: underline; text-under
 .session-toggle .row-state-confirmed { color: #c5f7db; }
 .session-toggle .row-state-pending, .session-toggle .row-state-waitlisted, .session-toggle .row-state-offered { color: #ffe3a2; }
 .session-toggle .row-state-cancelled { color: #ffd7e0; }
+.session-toggle .row-state-past { color: var(--muted); font-weight: 500; }
 .session-chevron { color: var(--gold); transition: transform .18s; }
 .session-toggle[aria-expanded="true"] .session-chevron { transform: rotate(180deg); }
 .session-accordion.is-expanded .session-summary { border-bottom: 1px solid #b492b4; }
@@ -664,6 +668,7 @@ a.practical-link, .calendar-link > span { text-decoration: underline; text-under
 .venue-other { display: flex; flex-direction: column; gap: 16px; min-width: 0; margin: 0; padding: 0; border: 0; }
 .venue-other[hidden] { display: none; }
 .venue-panel .panel-heading { flex-wrap: wrap; }
+.series-panel { margin-bottom: 18px; }
 @media (max-width: 540px) {
   /* Name and address take the first line; the count and the actions go under them. */
   .venue-row > div:nth-child(2) { flex-basis: calc(100% - 52px); }

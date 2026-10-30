@@ -2,17 +2,32 @@ import 'server-only';
 import { isConfigured, isDemo } from './config';
 import { initialDemo, demoVenues } from './fixtures';
 import type { AppData } from './types';
-import type { Booking, Profile, GameSession, Venue } from './types';
+import type { Booking, Profile, GameSession, Series, Venue } from './types';
 import { supabase, authenticatedClient, currentUserId } from './supabase';
+import { extendSeries, serviceClient } from './notifications';
 import { cache } from 'react';
 import { unstable_rethrow } from 'next/navigation';
-import { connection } from 'next/server';
+import { after, connection } from 'next/server';
+
+let seriesCheckedAt = 0;
+/**
+ * The scheduled job opens the next dates of the recurring games; the site does too, after a page is sent and at most every
+ * 10 minutes per server, so that they still open on time when the job runs rarely or not at all.
+ */
+function openSeriesDates() {
+  if (Date.now() - seriesCheckedAt < 10 * 60000) return;
+  const db = serviceClient();
+  if (!db) return;
+  seriesCheckedAt = Date.now();
+  after(() => extendSeries(db));
+}
 export const getData = cache(async (): Promise<AppData> => {
   // Every page carries the nonce of its request's CSP (proxy.ts): none may be prerendered, even before the database is configured.
   await connection();
   if (isDemo()) return initialDemo();
   const empty: AppData = { profile: null, sessions: [], invitations: [], demo: false, configured: isConfigured(), local: process.env.LOCAL_PREVIEW==='true'&&!process.env.VERCEL };
   if (!isConfigured()) return empty;
+  openSeriesDates();
   try {
     const db = await supabase();
     // The sessions and the profile load side by side: the profile only waits for the token check, not for the sessions.
@@ -53,20 +68,22 @@ export async function getAddress(id: string): Promise<string | null> {
   const { data } = await db.from('session_addresses').select('address').eq('session_id', id).maybeSingle();
   return data?.address || null;
 }
-export async function getAdminData(): Promise<{ bookings: Booking[]; profiles: Profile[]; addresses: Record<string, string>; venues: Venue[] }> {
-  if (isDemo()) return { bookings: [], profiles: [], addresses: {}, venues: demoVenues };
+export async function getAdminData(): Promise<{ bookings: Booking[]; profiles: Profile[]; addresses: Record<string, string>; venues: Venue[]; series: Series[] }> {
+  if (isDemo()) return { bookings: [], profiles: [], addresses: {}, venues: demoVenues, series: [] };
   const { db } = await authenticatedClient();
   // The rank check runs with the reads, which row security already limits to the viewer's own rows.
-  const [{ data: organizer }, bookings, profiles, addresses, venues] = await Promise.all([
+  const [{ data: organizer }, bookings, profiles, addresses, venues, series] = await Promise.all([
     db.rpc('is_organizer'),
     db.from('bookings').select('*,profile:profiles(*)').order('created_at'),
     db.from('profiles').select('*').order('display_name'),
     db.from('session_addresses').select('*'),
-    db.from('venues').select('id,name,address').order('name')
+    db.from('venues').select('id,name,address').order('name'),
+    db.from('session_series').select('id,title,script,location,venue_id,capacity,visibility,first_date,starts_local,every_weeks,weeks_ahead,ends_on').order('created_at')
   ]);
   if (!organizer) throw new Error('Accès organisateur requis.');
   if (bookings.error || profiles.error || addresses.error) throw new Error('Impossible de charger les participants.');
-  // The page still opens, without the list, while the venues migration has not reached the database.
+  // The page still opens, without these lists, while their migration has not reached the database.
   if (venues.error) console.error('Venues unavailable', venues.error.message);
-  return { bookings: bookings.data || [], profiles: profiles.data || [], addresses: Object.fromEntries((addresses.data || []).map(a => [a.session_id, a.address])), venues: venues.data || [] };
+  if (series.error) console.error('Series unavailable', series.error.message);
+  return { bookings: bookings.data || [], profiles: profiles.data || [], addresses: Object.fromEntries((addresses.data || []).map(a => [a.session_id, a.address])), venues: venues.data || [], series: series.data || [] };
 }
