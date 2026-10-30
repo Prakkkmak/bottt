@@ -35,18 +35,22 @@ grant select on public.session_series to authenticated;
 grant all on public.session_series to service_role;
 
 -- Creates the dates that come within each series' horizon, and always its first one. Dates already past, when nothing
--- ran for a while, are skipped. A series being extended elsewhere is left to that call.
+-- ran for a while, are skipped. A series being extended elsewhere is left to that call. A series whose creator is no
+-- longer an organizer (rank removed, account suspended) opens nothing more until another organizer replaces it.
 -- The venue is locked like save_venue does, so that a renamed venue reaches the games created meanwhile.
 create function public.extend_series(p_id uuid default null) returns integer language plpgsql security definer set search_path='' as $$
 declare r public.session_series; v public.venues; slot date; starts timestamptz; sid uuid; created integer=0;
 begin
-  for r in select * from public.session_series where p_id is null or id=p_id order by id for update skip locked loop
+  for r in select * from public.session_series s where (p_id is null or s.id=p_id)
+      and exists(select 1 from public.profiles p where p.id=s.created_by and p.membership='organizer')
+      order by s.id for update skip locked loop
     slot=coalesce(r.generated_through+7*r.every_weeks,r.first_date);
     loop
       exit when r.ends_on is not null and slot>r.ends_on;
       starts=(slot+r.starts_local) at time zone 'Europe/Paris';
       exit when slot>r.first_date and starts>now()+make_interval(weeks=>r.weeks_ahead);
-      if starts>now() then
+      -- A date moved by hand onto this day already stands for it.
+      if starts>now() and not exists(select 1 from public.sessions g where g.series_id=r.id and (g.starts_at at time zone 'Europe/Paris')::date=slot) then
         v=null;
         if r.venue_id is not null then select * into v from public.venues where id=r.venue_id for share; end if;
         insert into public.sessions(title,script,starts_at,ends_at,location,venue_id,capacity,newcomer_seats,release_hours,beginners_welcome,visibility,created_by,series_id)
@@ -97,8 +101,9 @@ begin
   if not public.is_organizer() then raise exception 'Accès organisateur requis.'; end if;
   perform 1 from public.session_series where id=p_id for update;
   if not found then raise exception 'Cette série est déjà arrêtée.'; end if;
-  -- Locked first, like book_session does: a registration made meanwhile is seen, and keeps its game.
-  perform 1 from public.sessions where series_id=p_id and starts_at>now() order by id for update;
+  -- Locked first, like book_session does: a registration made meanwhile is seen, and keeps its game. Past dates too, in id
+  -- order like set_membership, since deleting the series then unlinks them all.
+  perform 1 from public.sessions where series_id=p_id order by id for update;
   delete from public.sessions s where s.series_id=p_id and s.starts_at>now()
     and not exists(select 1 from public.bookings b where b.session_id=s.id and b.status in ('pending','confirmed','waitlisted','offered'));
   get diagnostics removed=row_count;

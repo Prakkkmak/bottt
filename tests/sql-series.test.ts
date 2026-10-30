@@ -59,16 +59,38 @@ test('Parties récurrentes',async t=>{
     assert.deepEqual(after.map(g=>Date.parse(g.starts_at)),[Date.parse(at(3,'20:00')),Date.parse(at(9)),Date.parse(at(23))]);
   });
 
+  await t.test('une date déplacée sur un jour suivant de la série n’y est pas doublée',async()=>{
+    await h.login(1);
+    const id=await save(series({starts_at:at(1),weeks_ahead:2}));
+    const [first,second]=await games(id);
+    await h.login(1);
+    await h.call('select save_session($1)',[{...series({starts_at:at(15)}),id:second.id,description:'',beginners_welcome:true}]);
+    // Weeks later the window reaches that day: the moved game stands for it, and the next dates still open.
+    await h.root();await h.call('update session_series set weeks_ahead=4 where id=$1',[id]);await h.call('select extend_series($1)',[id]);
+    assert.deepEqual((await games(id)).map(g=>Date.parse(g.starts_at)),[first.starts_at,at(15),at(22)].map(t=>Date.parse(t)));
+  });
+
   await t.test('les dates passées sans traitement sont sautées, les suivantes s’ouvrent',async()=>{
     await h.root();
     const [{id}]=await h.call<{id:string}>(`insert into session_series(script,location,capacity,visibility,first_date,starts_local,duration,weeks_ahead,created_by)
       values('Bad Moon Rising','Le local',12,'public',$1,'19:30','4 hours',2,$2) returning id`,[day(-21),uuid(1)]);
     await h.call('select extend_series($1)',[id]);
-    const listed=await games(id);
-    // Of today and two weeks from now, exactly one falls within the two weeks ahead; next week's always does.
-    assert.equal(listed.length,2);
-    assert.ok(listed.every(g=>Date.parse(g.starts_at)>Date.now()));
-    assert.ok(listed.some(g=>Date.parse(g.starts_at)===Date.parse(at(7))));
+    // The dates still to come within two weeks: today's or the one in two weeks (a change of hour can let in both), and next week's.
+    const now=Date.now();
+    const expected=[-21,-14,-7,0,7,14,21].map(n=>Date.parse(at(n))).filter(t=>t>now&&t<=now+14*86400000);
+    assert.deepEqual((await games(id)).map(g=>Date.parse(g.starts_at)),expected);
+    assert.ok(expected.includes(Date.parse(at(7))));
+  });
+
+  await t.test('la série d’un organisateur qui perd son rang n’ouvre plus de date',async()=>{
+    await h.user(5,'organizer');await h.login(5);
+    const id=await save(series({starts_at:at(1),weeks_ahead:1}));
+    assert.equal((await games(id)).length,1);
+    await h.root();await h.call(`update profiles set membership='suspended' where id=$1`,[uuid(5)]);
+    await h.call('update session_series set weeks_ahead=12 where id=$1',[id]);
+    assert.equal((await h.call<{extend_series:number}>('select extend_series($1)',[id]))[0].extend_series,0);
+    await h.call(`update profiles set membership='organizer' where id=$1`,[uuid(5)]);
+    assert.ok((await h.call<{extend_series:number}>('select extend_series($1)',[id]))[0].extend_series>0);
   });
 
   await t.test('une série un mercredi sur deux s’arrête à sa dernière date, et la première date s’ouvre même lointaine',async()=>{

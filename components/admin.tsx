@@ -57,7 +57,7 @@ export function Admin({ data, bookings, profiles, addresses, venues, series = []
       <p className="muted">Chaque série ouvre ses prochaines dates d’elle-même. Chaque date se modifie ou s’annule dans la liste ci-dessous, sans toucher aux autres.</p>
       {series.map(r => { const upcoming = datesOf(r).filter(s => s.status === 'published').length; return <div className="member-row venue-row" key={r.id}>
         <span className="venue-icon" aria-hidden="true"><Repeat size={18} /></span>
-        <div><h3>{sessionName(r)}</h3><p>{seriesSummary(r)} · {r.location}</p></div>
+        <div><h3>{sessionName(r)}</h3><p>{seriesSummary(r)} · {venues.find(v => v.id === r.venue_id)?.name ?? r.location}</p></div>
         <span className="badge">{upcoming ? `${upcoming} date${upcoming > 1 ? 's' : ''} à venir` : 'Aucune date à venir'}</span>
         <div className="row-actions"><button className="button secondary compact" disabled={a.pending} aria-label={`Arrêter la série ${sessionName(r)}`} onClick={() => open(setStopping, r)}>Arrêter</button></div>
       </div>; })}
