@@ -7,10 +7,11 @@ import type { GameSession, Venue } from '@/lib/types';
 import { parisInput, fromParisInput, dateLong, time } from '@/lib/utils';
 import { checkSessionForm, type SessionField, type SessionFieldErrors } from '@/lib/session-form';
 import { nextSessionStart, sessionEnd, DEFAULT_SESSION_HOURS } from '@/lib/session-defaults';
-import { splitAddress, mapsUrl } from '@/lib/locations';
+import { splitAddress } from '@/lib/locations';
 import { saveSession } from '@/app/actions';
 import { Feedback, useAction } from './action-feedback';
 import { AddressFields } from './address-fields';
+import { MapLinks } from './map-links';
 import { FieldError, invalidField } from './ui';
 
 export function SessionForm({ session, address = '', template, venues = [], onSaved }: { session?: GameSession; address?: string; template?: GameSession; venues?: Venue[]; onSaved: () => void }) {
@@ -75,7 +76,7 @@ export function SessionForm({ session, address = '', template, venues = [], onSa
       </fieldset>}
       {venue && <>
         <p className="field-note">Le nom du lieu est affiché à tous ; l’adresse, aux inscrits confirmés et aux personnes dont un·e invité·e est confirmé·e. Elle se modifie dans l’onglet « Les lieux ».</p>
-        {venue.address && <a className="text-link" href={mapsUrl(venue.address)} target="_blank" rel="noopener noreferrer">Vérifier le lieu sur la carte ↗</a>}
+        {venue.address && <p className="map-check">Vérifier sur <MapLinks value={venue.address} className="text-link" external /></p>}
       </>}
       {/* Kept while a venue is picked, so that coming back to « Autre lieu » finds what was typed; disabled, it is neither checked nor sent. */}
       <fieldset className="venue-other" disabled={!!venue} hidden={!!venue}>

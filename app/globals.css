@@ -334,6 +334,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .practical-link { display: inline-flex; align-items: center; gap: 8px; padding: 0; color: inherit; font: inherit; background: transparent; border: 0; text-align: left; min-height: 44px; }
 .practical-link:hover { color: var(--gold); }
 a.practical-link, .calendar-link > span { text-decoration: underline; text-underline-offset: 4px; }
+.detail-when > .detail-place { flex-wrap: wrap; }
+.map-links { display: inline-flex; flex-wrap: wrap; column-gap: 14px; margin-left: 6px; font-size: 13px; }
+.map-check { display: flex; flex-wrap: wrap; align-items: center; column-gap: 14px; margin: 10px 0 0; font-size: 13px; }
+.map-check .text-link { margin: 0; }
 .address-later { display: inline-flex; align-items: center; min-height: 44px; font-size: 13px; opacity: .8; }
 
 @media (max-width: 680px) {
