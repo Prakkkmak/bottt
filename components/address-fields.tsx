@@ -1,7 +1,8 @@
 'use client';
 import { useId, useState } from 'react';
-import { splitAddress, mapsUrl } from '@/lib/locations';
+import { splitAddress } from '@/lib/locations';
 import { FieldError, invalidField } from './ui';
+import { MapLinks } from './map-links';
 
 /** The private address and an optional map link, joined in the `address` form value the way the database keeps them. */
 export function AddressFields({ address = '', note, errors = {} }: { address?: string; note: string; errors?: { address?: string; maps_url?: string } }) {
@@ -20,8 +21,8 @@ export function AddressFields({ address = '', note, errors = {} }: { address?: s
       setPreciseAddress(input.value.slice(0, input.selectionStart) + pasted.address + input.value.slice(input.selectionEnd));
       setMap(pasted.mapsUrl);
     }} placeholder="Adresse postale, puis indications d’accès" {...invalidField(addressError)} /><FieldError {...addressError} /></label>
-    <label className="field">Lien de carte <span className="field-note">Facultatif · OpenStreetMap, Google Maps, Apple Plans… Sans lien, l’adresse postale est cherchée sur OpenStreetMap.</span><input type="url" name="maps_url" maxLength={500} pattern="https?://.*" value={map} onChange={e => setMap(e.target.value)} placeholder="Colle le lien de partage du lieu" {...invalidField(mapError)} /><FieldError {...mapError} /></label>
+    <label className="field">Lien de carte <span className="field-note">Facultatif · Google Maps, OpenStreetMap, Apple Plans, Waze… Sans lien, l’adresse postale est cherchée sur OpenStreetMap et Google Maps.</span><input type="url" name="maps_url" maxLength={500} pattern="https?://.*" value={map} onChange={e => setMap(e.target.value)} placeholder="Colle le lien de partage du lieu" {...invalidField(mapError)} /><FieldError {...mapError} /></label>
     <input type="hidden" name="address" value={value} />
-    {value && <a className="text-link" href={mapsUrl(value)} target="_blank" rel="noopener noreferrer">Vérifier le lieu sur la carte ↗</a>}
+    {value && <p className="map-check">Vérifier sur <MapLinks value={value} className="text-link" external /></p>}
   </>;
 }
