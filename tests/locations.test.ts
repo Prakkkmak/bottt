@@ -44,7 +44,18 @@ test('un lien collé remplace la recherche de son service, ou s’ajoute aux deu
   assert.deepEqual(links('1 rue du Port, Brest\nhttps://www.mappy.com/plan/x'), [['OpenStreetMap', osm], ['Google Maps', google], ['mappy.com', 'https://www.mappy.com/plan/x']]);
   assert.deepEqual(links('https://www.waze.com/ul?ll=48.39,-4.49'), [['Waze', 'https://www.waze.com/ul?ll=48.39,-4.49']]);
   assert.deepEqual(links('https://notgoogle.com/maps'), [['notgoogle.com', 'https://notgoogle.com/maps']]);
+  assert.deepEqual(links('https://maps.google.com/?q=Brest'), [['Google Maps', 'https://maps.google.com/?q=Brest']]);
+  for (const url of ['https://g.page/r/abc', 'https://share.google/abc', 'https://www.google.co.uk/maps/place/x', 'https://WWW.GOOGLE.FR/maps/place/x']) {
+    assert.deepEqual(links(`1 rue du Port, Brest\n${url}`), [['OpenStreetMap', osm], ['Google Maps', new URL(url).href]]);
+  }
+  assert.deepEqual(links('1 rue du Port, Brest\nhttps://www.google.com/url?q=https://evil.example'), [['OpenStreetMap', osm], ['Google Maps', google], ['google.com', 'https://www.google.com/url?q=https://evil.example']]);
+  for (const url of ['https://sites.google.com/view/x', 'https://google.com.de/maps', 'https://google.xyz/maps', 'https://www.apple.com/fr/', 'https://goo.gl/abc']) {
+    assert.equal(links(url)[0][0], new URL(url).hostname.replace(/^www\./, ''));
+  }
   assert.deepEqual(links('  '), []);
+  // A link stored without an address still gets the searches of the public place.
+  assert.deepEqual(mapLinks('https://www.waze.com/ul?ll=48.39,-4.49', '1 rue du Port, Brest').map(link => link.label), ['OpenStreetMap', 'Google Maps', 'Waze']);
+  assert.deepEqual(mapLinks('https://maps.app.goo.gl/x', 'Brest').map(link => [link.label, link.href]), [['OpenStreetMap', 'https://www.openstreetmap.org/search?query=Brest'], ['Google Maps', 'https://maps.app.goo.gl/x']]);
 });
 
 test('les liens Maps partagés sont préservés dans une adresse privée existante', () => {

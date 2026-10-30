@@ -72,7 +72,7 @@ export function SessionDetail({ data, session: s, address, embedded = false }: {
   const addressLater = data.profile?.membership === 'newcomer' && hasSeat(s) && !privateAddress;
   const practical = <div className={`detail-when ${embedded ? 'session-practical' : ''}`}>
     {s.status === 'published' ? <CalendarLink session={s} address={privateAddress} /> : <span><CalendarDays size={16} />{dateLong(s.starts_at)}</span>}
-    <span><Clock3 size={16} />{time(s.starts_at)}</span><span className="detail-place"><MapPin size={16} />{s.location}<span className="map-links"><MapLinks value={privateAddress || s.location} className="practical-link" /></span></span>
+    <span><Clock3 size={16} />{time(s.starts_at)}</span><span className="detail-place"><MapPin size={16} />{s.location}<span className="map-links"><MapLinks value={privateAddress || s.location} fallback={s.location} className="practical-link" /></span></span>
     {addressLater && <span className="address-later">Adresse exacte {TRAVELLER_ADDRESS_HOURS} h avant la partie</span>}
   </div>;
   return <>

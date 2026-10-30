@@ -21,21 +21,26 @@ function postalAddress(address: string) {
   return lines.slice(start, Math.max(postcode, start) + 1).join(', ');
 }
 
+const googleDomain = /^(www\.|maps\.)?google\.(com|fr|be|ch|lu|ca|de|es|it|nl|pt|ie|at|co\.uk)$/;
+// A service's name is only given to its map pages: any other link, a Google redirect for one, is named after its site.
 const searchedServices = [
-  { label: 'OpenStreetMap', host: /(^|\.)(openstreetmap\.org|osm\.org)$/, search: 'https://www.openstreetmap.org/search?query=' },
-  { label: 'Google Maps', host: /(^|\.)(google\.[a-z]{2,3}(\.[a-z]{2})?|goo\.gl)$/, search: 'https://www.google.com/maps/search/?api=1&query=' },
+  { label: 'OpenStreetMap', owns: (url: URL) => /^(www\.)?(openstreetmap|osm)\.org$/.test(url.hostname), search: 'https://www.openstreetmap.org/search?query=' },
+  { label: 'Google Maps', owns: (url: URL) => ['maps.app.goo.gl', 'g.page', 'share.google'].includes(url.hostname) || (url.hostname === 'goo.gl' && url.pathname.startsWith('/maps')) || (googleDomain.test(url.hostname) && (url.hostname.startsWith('maps.') || url.pathname.startsWith('/maps'))), search: 'https://www.google.com/maps/search/?api=1&query=' },
 ];
-const otherServices = [{ label: 'Apple Plans', host: /(^|\.)apple\.com$/ }, { label: 'Waze', host: /(^|\.)waze\.com$/ }];
+const otherServices = [
+  { label: 'Apple Plans', owns: (url: URL) => url.hostname === 'maps.apple.com' },
+  { label: 'Waze', owns: (url: URL) => /^(www\.|ul\.)?waze\.com$/.test(url.hostname) },
+];
 
-/** OpenStreetMap and Google Maps search the postal address, unless the pasted link belongs to one of them; a link to another service comes after them. */
-export function mapLinks(value: string) {
+/** OpenStreetMap and Google Maps search the postal address, or the fallback when there is only a link, unless the pasted link belongs to one of them; a link to another service comes after them. */
+export function mapLinks(value: string, fallback = '') {
   const parsed = splitAddress(value);
-  const host = parsed.mapsUrl && new URL(parsed.mapsUrl).hostname;
-  const query = postalAddress(parsed.address);
-  const links = searchedServices.flatMap(service => service.host.test(host) ? [{ label: service.label, href: parsed.mapsUrl }]
+  const pasted = parsed.mapsUrl ? new URL(parsed.mapsUrl) : null;
+  const query = postalAddress(parsed.address) || postalAddress(fallback);
+  const links = searchedServices.flatMap(service => pasted && service.owns(pasted) ? [{ label: service.label, href: pasted.href }]
     : query ? [{ label: service.label, href: service.search + encodeURIComponent(query) }] : []);
-  if (host && !searchedServices.some(service => service.host.test(host))) {
-    links.push({ label: otherServices.find(service => service.host.test(host))?.label ?? host.replace(/^www\./, ''), href: parsed.mapsUrl });
+  if (pasted && !searchedServices.some(service => service.owns(pasted))) {
+    links.push({ label: otherServices.find(service => service.owns(pasted))?.label ?? pasted.hostname.replace(/^www\./, ''), href: pasted.href });
   }
   return links;
 }

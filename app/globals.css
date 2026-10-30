@@ -539,6 +539,8 @@ a.practical-link, .calendar-link > span { text-decoration: underline; text-under
   .booking-circle .village-center > span { font-size: 28px; }
   .booking-circle .village-center small { font-size: 12px; }
   .detail-when { gap: 10px 17px; font-size: 13px; margin-top: 16px; }
+  /* Wrapped under the place, the links line up with its name. */
+  .map-links { margin-left: 24px; }
   .session-help { margin-top: 22px; }
 }
 @media (max-width: 360px) {
