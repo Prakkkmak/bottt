@@ -44,6 +44,8 @@ export function SessionDetail({ data, session: s, address, embedded = false }: {
   const guests = activeGuests(s);
   const active = activeBooking(s.my_status);
   const closed = s.status === 'cancelled' || new Date(s.starts_at).getTime() <= Date.now() + 30 * 60000;
+  // A game that is over only shows who played: nobody leaves it or brings anyone any more.
+  const ended = new Date(s.ends_at).getTime() <= Date.now();
   const waiting = s.my_status === 'waitlisted';
   // Within the last 30 minutes, a freed seat goes to nobody.
   const lastMinute = closed && s.status !== 'cancelled';
@@ -62,12 +64,12 @@ export function SessionDetail({ data, session: s, address, embedded = false }: {
   };
   const ownGuest = (guest: MyGuest) => { a.setResult(null); setRemoving(guest); };
   const guestAdded = (result: ActionResult) => { setGuestRequest(null); setFeedbackSpot('guests'); a.setResult(result); setGuestChanges(n => n + 1); };
-  const heading = s.status === 'cancelled' ? 'Partie annulée' : s.my_status === 'confirmed' ? 'Tu es inscrit·e.' : closed ? 'Inscriptions closes' : waiting ? `Tu es ${waitingLabel(s.my_waitlist_position)}.` : s.my_status === 'declined' ? 'Participation non retenue' : 'Inscris-toi';
-  const hint = s.status === 'cancelled' ? 'On se retrouve à une prochaine soirée.' : s.my_status === 'confirmed' ? '' : closed ? 'Rendez-vous à la prochaine partie.' : waiting ? 'Si une place se libère jusqu’à 30 minutes avant le début, elle est à toi automatiquement : tu recevras un e-mail de confirmation.' : s.my_status === 'declined' ? 'Contacte un organisateur pour en discuter.' : plan.waitlist === 'self' ? waitlistHint(s) : data.profile ? 'Clique sur un + pour choisir ta place.' : 'Clique sur un + pour choisir ta place. Il te faudra juste ton e-mail.';
+  const heading = s.status === 'cancelled' ? 'Partie annulée' : ended ? 'Partie terminée' : s.my_status === 'confirmed' ? 'Tu es inscrit·e.' : closed ? 'Inscriptions closes' : waiting ? `Tu es ${waitingLabel(s.my_waitlist_position)}.` : s.my_status === 'declined' ? 'Participation non retenue' : 'Inscris-toi';
+  const hint = s.status === 'cancelled' ? 'On se retrouve à une prochaine soirée.' : ended ? 'Rendez-vous à la prochaine partie.' : s.my_status === 'confirmed' ? '' : closed ? 'Rendez-vous à la prochaine partie.' : waiting ? 'Si une place se libère jusqu’à 30 minutes avant le début, elle est à toi automatiquement : tu recevras un e-mail de confirmation.' : s.my_status === 'declined' ? 'Contacte un organisateur pour en discuter.' : plan.waitlist === 'self' ? waitlistHint(s) : data.profile ? 'Clique sur un + pour choisir ta place.' : 'Clique sur un + pour choisir ta place. Il te faudra juste ton e-mail.';
   const guestHint = plan.limitReached ? traveller ? `Tu amènes déjà ${MAX_TRAVELLER_GUESTS} personnes, le maximum pour un·e voyageur·se.` : `La partie est complète et ${MAX_WAITING_GUESTS} de tes invité·es attendent déjà une place.` : plan.canBringOther ? 'Tu peux inscrire quelqu’un même sans venir toi-même.' : plan.onFreeSeat === 'guest' ? traveller ? 'Clique sur un + libre pour placer un·e ami·e.' : 'Clique sur un + libre pour placer quelqu’un.' : plan.waitlist === 'guest' ? waitlistHint(s) : '';
   // One way to bring someone, booked or not: the same button, above the circle, with the people already brought.
   const canAddGuest = plan.canBringOther || plan.onFreeSeat === 'guest' || plan.waitlist === 'guest';
-  const showGuests = !!data.profile && s.status !== 'cancelled' && (canAddGuest || (s.my_guests ?? []).some(g => g.status !== 'cancelled'));
+  const showGuests = !!data.profile && s.status !== 'cancelled' && !ended && (canAddGuest || (s.my_guests ?? []).some(g => g.status !== 'cancelled'));
   const privateAddress = canSeeAddress(s, data.profile) ? address : null;
   const addressLater = data.profile?.membership === 'newcomer' && hasSeat(s) && !privateAddress;
   const practical = <div className={`detail-when ${embedded ? 'session-practical' : ''}`}>
@@ -84,11 +86,11 @@ export function SessionDetail({ data, session: s, address, embedded = false }: {
     </div>}
     {embedded && practical}
     <section className="session-table" aria-label={`Inscriptions pour ${sessionName(s)}`}>
-      {(s.my_status !== 'confirmed' || s.status === 'cancelled') && <div className="session-table-status">
+      {(s.my_status !== 'confirmed' || s.status === 'cancelled' || ended) && <div className="session-table-status">
         <p className="session-status-title" aria-live="polite">{heading}</p>
         {hint && <p className="table-hint">{hint}</p>}
         {plan.waitlist === 'self' && <button className="button parchment" disabled={a.pending} aria-busy={busyOn === 'waitlist' || undefined} onClick={() => choose()}>{busyOn === 'waitlist' && <Spinner />}Rejoindre la liste d’attente</button>}
-        {active && s.status !== 'cancelled' && <div className="table-actions"><button className="text-link" disabled={a.pending} onClick={openCancel}>{waiting ? 'Quitter la liste d’attente' : 'Retirer ma demande'}</button></div>}
+        {active && s.status !== 'cancelled' && !ended && <div className="table-actions"><button className="text-link" disabled={a.pending} onClick={openCancel}>{waiting ? 'Quitter la liste d’attente' : 'Retirer ma demande'}</button></div>}
       </div>}
       {showGuests && <SessionGuests ref={guestsRef} session={s} limit={traveller ? MAX_TRAVELLER_GUESTS : undefined} hint={guestHint} busy={a.pending}
         result={feedbackSpot === 'guests' ? a.result : null} onAdd={canAddGuest ? () => openGuest() : undefined}
@@ -97,9 +99,9 @@ export function SessionDetail({ data, session: s, address, embedded = false }: {
         <VillageCircle reserved={s.confirmed_count} capacity={s.capacity} occupiedSeats={s.occupied_seats} participants={s.participants} mySeat={s.my_seat} interactive busy={a.pending} pendingSeat={typeof busyOn === 'number' ? busyOn : null}
           onChoose={plan.onFreeSeat ? choose : undefined}
           chooseLabel={plan.onFreeSeat === 'guest' ? 'Placer quelqu’un à la place' : 'Prendre la place'}
-          onOwnSeat={s.status === 'cancelled' || s.my_status !== 'confirmed' ? undefined : openCancel}
+          onOwnSeat={s.status === 'cancelled' || ended || s.my_status !== 'confirmed' ? undefined : openCancel}
           ownSeatLabel="Ta place · me désister"
-          ownGuests={s.my_guests} onOwnGuest={s.status === 'cancelled' ? undefined : ownGuest} />
+          ownGuests={s.my_guests} onOwnGuest={s.status === 'cancelled' || ended ? undefined : ownGuest} />
         {s.participants.length > 0 && <ul className="circle-roster" aria-label="Participants confirmés">{[...s.participants].sort((x, y) => (x.seat_index ?? 0) - (y.seat_index ?? 0)).map((p, index) => {
           const mine = p.seat_index != null && guests.some(g => g.seat_index === p.seat_index);
           return <li key={p.seat_index ?? index}><Avatar name={p.display_name} color={p.avatar_color} small /><span>{p.display_name}{s.my_seat != null && p.seat_index === s.my_seat && <small> · toi</small>}<small className="roster-role">{participantLabel(p, { mine })}</small></span>{p.can_storytell && <BookOpen size={15} role="img" aria-label="Volontaire MJ"><title>Volontaire MJ</title></BookOpen>}</li>;

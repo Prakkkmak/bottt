@@ -2,13 +2,14 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { CalendarDays, MapPin, Settings2 } from 'lucide-react';
-import { MIN_CAPACITY, DEFAULT_CAPACITY, MAX_CAPACITY } from '@/lib/session-rules';
+import { MIN_CAPACITY, DEFAULT_CAPACITY, MAX_CAPACITY, SERIES_WEEKS_AHEAD, DEFAULT_WEEKS_AHEAD } from '@/lib/session-rules';
 import type { GameSession, Venue } from '@/lib/types';
 import { parisInput, fromParisInput, dateLong, time } from '@/lib/utils';
 import { checkSessionForm, type SessionField, type SessionFieldErrors } from '@/lib/session-form';
 import { nextSessionStart, sessionEnd, DEFAULT_SESSION_HOURS } from '@/lib/session-defaults';
 import { splitAddress, mapsUrl } from '@/lib/locations';
-import { saveSession } from '@/app/actions';
+import { rhythmLabel, weeksAheadLabel } from '@/lib/series';
+import { saveSeries, saveSession } from '@/app/actions';
 import { Feedback, useAction } from './action-feedback';
 import { AddressFields } from './address-fields';
 import { FieldError, invalidField } from './ui';
@@ -22,11 +23,16 @@ export function SessionForm({ session, address = '', template, venues = [], onSa
   // A game opens on its venue, a new one on the last game's; '' is a place typed in for this game only.
   const [venueId, setVenueId] = useState(() => { const id = defaults ? defaults.venue_id : venues[0]?.id; return venues.some(v => v.id === id) ? id! : ''; });
   const venue = venues.find(v => v.id === venueId);
+  // A new game may come back every week or every other week ('1', '2'); '' is one date. A game being edited stays one date.
+  const [repeat, setRepeat] = useState('');
+  const [weeksAhead, setWeeksAhead] = useState(String(DEFAULT_WEEKS_AHEAD));
+  const repeating = !session && repeat !== '';
   const id = useId(); const form = useRef<HTMLFormElement>(null);
   const [errors, setErrors] = useState<SessionFieldErrors>({}); const [edits, setEdits] = useState(0);
   const check = (f: HTMLFormElement) => {
     const d = new FormData(f); const value = (name: string) => String(d.get(name) ?? '');
-    return checkSessionForm({ title: value('title'), starts_at: start, script, location, address: value('address'), maps_url: value('maps_url'), capacity: value('capacity'), visibility: value('visibility') }, { session, venue });
+    return checkSessionForm({ title: value('title'), starts_at: start, script, location, address: value('address'), maps_url: value('maps_url'), capacity: value('capacity'), visibility: value('visibility'),
+      ...(repeating ? { repeat, weeks_ahead: weeksAhead, ends_on: value('ends_on') } : {}) }, { session, venue });
   };
   // Once a try is refused, a flagged field's message follows what is typed and leaves as soon as it is right; anything new waits for the next try.
   // Checked after the render, when the form shows what was just changed (a venue picked hides the fields it fills).
@@ -60,13 +66,23 @@ export function SessionForm({ session, address = '', template, venues = [], onSa
       first?.focus({ preventScroll: true }); first?.scrollIntoView({ block: 'center' });
       return;
     }
-    a.run(() => saveSession(payload), onSaved);
+    a.run(() => 'every_weeks' in payload ? saveSeries(payload) : saveSession(payload), onSaved);
   }}>
     <p className="muted">{!session && template ? 'Le lieu, le script et les réglages de la dernière partie sont repris. Choisis la date et ajuste ce dont tu as besoin.' : 'Choisis le début de la soirée, vérifie le lieu et publie.'}</p>
     <fieldset className="form-section"><legend><CalendarDays size={18} />La soirée</legend>
       <label className="field">Nom de la partie <span className="field-note">Facultatif · sans nom, la partie prend celui du script</span><input name="title" maxLength={100} defaultValue={session?.title || ''} placeholder={script.trim() || 'Trouble Brewing'} autoFocus={!session} data-autofocus={!session || undefined} {...invalidField(error('title'))} /><FieldError {...error('title')} /></label>
       <div className="form-grid"><label className="field">Début · heure de Paris<input name="starts_at" required type="datetime-local" value={start} onChange={e => setStart(e.target.value)} {...invalidField(error('starts_at'))} /><FieldError {...error('starts_at')} /></label><label className="field">Script<input name="script" required list="session-scripts" minLength={2} maxLength={100} value={script} onChange={e => setScript(e.target.value)} {...invalidField(error('script'))} /><FieldError {...error('script')} /><datalist id="session-scripts"><option>Trouble Brewing</option><option>Bad Moon Rising</option><option>Sects &amp; Violets</option></datalist></label></div>
       <p className="field-note">{session ? 'La durée de la partie est conservée.' : `Durée estimée de ${DEFAULT_SESSION_HOURS} h pour l’agenda.`}{endLabel && ` Fin prévue : ${endLabel}.`}</p>
+      {!session && <>
+        <div className="form-grid">
+          <label className="field">Répétition<select name="repeat" value={repeat} onChange={e => setRepeat(e.target.value)} {...invalidField(error('repeat'))}><option value="">Une seule fois</option><option value="1">{rhythmLabel(1, start.slice(0, 10))}</option><option value="2">{rhythmLabel(2, start.slice(0, 10))}</option></select><FieldError {...error('repeat')} /></label>
+          {repeating && <label className="field">Dates ouvertes<select name="weeks_ahead" value={weeksAhead} onChange={e => setWeeksAhead(e.target.value)} {...invalidField(error('weeks_ahead'))}>{SERIES_WEEKS_AHEAD.map(n => <option key={n} value={n}>{weeksAheadLabel(n)}</option>)}</select><FieldError {...error('weeks_ahead')} /></label>}
+        </div>
+        {repeating && <>
+          <label className="field">Dernière date <span className="field-note">Facultatif · sans date, la série continue jusqu’à ce que tu l’arrêtes</span><input name="ends_on" type="date" min={start.slice(0, 10)} {...invalidField(error('ends_on'))} /><FieldError {...error('ends_on')} /></label>
+          <p className="field-note">Chaque date devient une partie à part, avec ses propres inscrits : tu peux la modifier ou l’annuler sans toucher aux autres. Les dates s’ouvrent au fur et à mesure, {weeksAheadLabel(Number(weeksAhead))}, pour que chacun puisse s’inscrire à l’avance.</p>
+        </>}
+      </>}
     </fieldset>
     <fieldset className="form-section"><legend><MapPin size={18} />Le lieu</legend>
       {venues.length > 0 && <fieldset className="choice-options"><legend>Où se joue la partie ?</legend>
@@ -88,7 +104,7 @@ export function SessionForm({ session, address = '', template, venues = [], onSa
       <div className="form-grid"><label className="field">Places, MJ compris<input name="capacity" type="number" required min={MIN_CAPACITY} max={MAX_CAPACITY} defaultValue={defaults?.capacity ?? DEFAULT_CAPACITY} {...invalidField(error('capacity'))} /><FieldError {...error('capacity')} /></label><label className="field">Visibilité<select name="visibility" defaultValue={defaults?.visibility || 'public'} {...invalidField(error('visibility'))}><option value="public">Ouverte à tous</option><option value="members">Membres et leurs invités</option></select><FieldError {...error('visibility')} /></label></div>
       <p className="field-note">Le MJ prend l’une de ces places : {DEFAULT_CAPACITY} places, par exemple, pour {DEFAULT_CAPACITY - 1} joueurs et le MJ. Une nouvelle partie reprend le nombre de la dernière. Les places vont aux premiers inscrits, membres, voyageurs et invités confondus. Une fois le cercle complet, une liste d’attente prend le relais : chaque place libérée revient à la première personne qui attend.</p>
     </div></details>
-    {wrong > 0 && <p className="alert error" role="alert">{wrong > 1 ? `${wrong} champs sont à corriger` : 'Un champ est à corriger'} {session ? 'avant d’enregistrer les modifications' : 'avant de publier la partie'}.</p>}
-    <Feedback result={a.result} /><button className="button primary full" disabled={a.pending}>{a.pending ? 'Enregistrement…' : session ? 'Enregistrer les modifications' : 'Publier la partie'}</button>
+    {wrong > 0 && <p className="alert error" role="alert">{wrong > 1 ? `${wrong} champs sont à corriger` : 'Un champ est à corriger'} {session ? 'avant d’enregistrer les modifications' : repeating ? 'avant de publier la série' : 'avant de publier la partie'}.</p>}
+    <Feedback result={a.result} /><button className="button primary full" disabled={a.pending}>{a.pending ? 'Enregistrement…' : session ? 'Enregistrer les modifications' : repeating ? 'Publier la série' : 'Publier la partie'}</button>
   </form>;
 }

@@ -13,6 +13,8 @@ export type GameSession = {
   starts_at: string; ends_at: string; location: string;
   /** The saved venue the game takes its name and address from; null for a place typed in for this game only. */
   venue_id?: string | null;
+  /** The recurring game this date was created by; the date is still a game of its own. */
+  series_id?: string | null;
   /** newcomer_seats and release_hours are the former member/traveller quotas, kept in the database but no longer applied. */
   capacity: number; newcomer_seats: number; release_hours: number;
   beginners_welcome: boolean; visibility: 'public' | 'members';
@@ -25,6 +27,8 @@ export type GameSession = {
   member_seats_free?: number; traveller_seats_free?: number; my_guests?: MyGuest[];
   participants: Participant[];
 };
+/** A recurring game, as organizers read it: dates in Paris time, starts_local as 'HH:MM:SS', ends_on the last date allowed, if any. */
+export type Series = { id: string; title: string; script: string; location: string; venue_id: string | null; capacity: number; visibility: 'public' | 'members'; first_date: string; starts_local: string; every_weeks: number; weeks_ahead: number; ends_on: string | null; };
 /** A usual place, managed by organizers. The address is private, like a game's, and may end with a map link. */
 export type Venue = { id: string; name: string; address: string; };
 export type Booking = { id: string; session_id: string; user_id: string | null; guest_name: string | null; sponsor_id: string | null; status: BookingStatus; pool: 'circle' | 'newcomer'; created_at: string; offer_expires_at: string | null; profile?: Profile | null; };

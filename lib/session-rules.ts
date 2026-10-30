@@ -10,3 +10,8 @@ export const MAX_TRAVELLER_GUESTS = 2;
 export const MAX_WAITING_GUESTS = 2;
 /** Mirrors the addresses_read policy: travellers book without an organizer, and read the exact address this close to the game. */
 export const TRAVELLER_ADDRESS_HOURS = 48;
+
+/** How far ahead a recurring game opens its dates, as offered in the form; the database accepts 1 to 12 weeks. */
+export const SERIES_WEEKS_AHEAD = [2, 4, 8, 12] as const;
+export const DEFAULT_WEEKS_AHEAD = 4;
+export const MAX_WEEKS_AHEAD = 12;

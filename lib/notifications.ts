@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import { canSendMail, localMail, notificationMail, sendMail, type QueuedEmail } from './mail';
 
 /** The outbox is read with the service key: a player never sees another player's address. */
-function serviceClient() {
+export function serviceClient() {
   const url=process.env.NEXT_PUBLIC_SUPABASE_URL;const key=process.env.SUPABASE_SERVICE_ROLE_KEY;
   if(!url||!key)return null;
   return createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false}});
@@ -25,10 +25,19 @@ export async function sendQueuedEmails(db=serviceClient()){
   return {sent,failed,pending:false};
 }
 
-/** The scheduled job: reminders and housekeeping, then the messages. */
+/** Opens the next dates of the recurring games. Never throws: before the series migration, the rest of the job still runs. */
+export async function extendSeries(db=serviceClient()){
+  if(!db)return 0;
+  const {data,error}=await db.rpc('extend_series');
+  if(error){console.error('Séries indisponibles',error.message);return 0;}
+  return Number(data)||0;
+}
+
+/** The scheduled job: the next dates of the recurring games, reminders and housekeeping, then the messages. */
 export async function deliverNotifications() {
   const db=serviceClient();
   if(!db)throw new Error('Base de données non configurée.');
+  await extendSeries(db);
   const {error:maintenanceError}=await db.rpc('maintenance');if(maintenanceError)throw new Error(maintenanceError.message);
   return sendQueuedEmails(db);
 }

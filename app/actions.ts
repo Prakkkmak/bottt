@@ -4,7 +4,8 @@ import { after } from 'next/server';
 import { z } from 'zod';
 import { supabase, authenticatedClient } from '@/lib/supabase';
 import { isConfigured, isDemo } from '@/lib/config';
-import { profileSchema, nicknameSchema, sessionSchema, venueSchema, guestNameSchema, invitationEmailSchema } from '@/lib/schemas';
+import { profileSchema, nicknameSchema, sessionSchema, seriesSchema, venueSchema, guestNameSchema, invitationEmailSchema } from '@/lib/schemas';
+import { stoppedSeriesMessage } from '@/lib/series';
 import { canSendMail, invitationMail, sendMail, siteUrl } from '@/lib/mail';
 import { flushEmails } from '@/lib/notifications';
 import type { ActionResult, Membership } from '@/lib/types';
@@ -12,7 +13,8 @@ function failure(e: unknown): ActionResult { return { ok: false, message: e inst
 function invalidate() { revalidatePath('/', 'layout'); }
 // Only the French messages raised by our own functions reach the player, never PostgREST internals.
 function databaseMessage(error: { code?: string; message: string }) { return error.code === 'P0001' ? error.message : 'La demande n’a pas abouti. Réessaie.'; }
-async function rpc(name: string, args: Record<string, unknown> = {}, message = 'C’est enregistré.'): Promise<ActionResult> {
+/** message: what the player reads once it worked, or how to say it from what the function returned. */
+async function rpc(name: string, args: Record<string, unknown> = {}, message: string | ((data: unknown) => string) = 'C’est enregistré.'): Promise<ActionResult> {
   try {
     if (isDemo()) return { ok: false, message: 'L’aperçu est en cours de raccordement à la base locale.' };
     const { db } = await authenticatedClient();
@@ -20,7 +22,7 @@ async function rpc(name: string, args: Record<string, unknown> = {}, message = '
     if (error) throw new Error(databaseMessage(error));
     // The messages this action queued (booking, waiting list, a seat passed on to the next person) leave once the page has its answer.
     after(flushEmails);
-    invalidate(); return { ok: true, message, value: typeof data === 'string' ? data : undefined };
+    invalidate(); return { ok: true, message: typeof message === 'function' ? message(data) : message, value: typeof data === 'string' ? data : undefined };
   } catch(e) { return failure(e); }
 }
 export async function sendCode(input: { email: string; captcha: string; website: string }): Promise<ActionResult> {
@@ -104,6 +106,8 @@ export async function sendInvitation(input: string): Promise<ActionResult> {
 }
 export async function revokeInvitation(id: string) { if (!isUuid(id)) return failure(new Error('Invitation introuvable.')); return rpc('revoke_invitation', { p_id: id }, 'Cette invitation est désactivée.'); }
 export async function saveSession(input: unknown) { const parsed = sessionSchema.safeParse(input); if (!parsed.success) return failure(parsed.error); return rpc('save_session', { p_data: { ...parsed.data, beginners_welcome: true } }, 'La session est publiée.'); }
+export async function saveSeries(input: unknown) { const parsed = seriesSchema.safeParse(input); if (!parsed.success) return failure(parsed.error); return rpc('save_series', { p_data: parsed.data }, 'La série est publiée : ses prochaines dates sont ouvertes aux inscriptions.'); }
+export async function stopSeries(id: string) { if (!isUuid(id)) return failure(new Error('Cette série est introuvable.')); return rpc('stop_series', { p_id: id }, data => stoppedSeriesMessage((data ?? {}) as { removed?: number; kept?: number })); }
 export async function saveVenue(input: unknown) { const parsed = venueSchema.safeParse(input); if (!parsed.success) return failure(parsed.error); return rpc('save_venue', { p_data: parsed.data }, parsed.data.id ? 'Le lieu est enregistré.' : 'Le lieu est ajouté.'); }
 export async function deleteVenue(id: string) { if (!isUuid(id)) return failure(new Error('Lieu introuvable.')); return rpc('delete_venue', { p_id: id }, 'Le lieu est retiré de la liste.'); }
 export async function cancelSession(id: string) { if (!isUuid(id)) return failure(new Error('Session invalide.')); return rpc('cancel_session', { p_id: id }, 'La session est annulée. Les participants seront prévenus.'); }
