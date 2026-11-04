@@ -137,6 +137,6 @@ Documentation de référence : [Supabase Auth](https://supabase.com/docs/guides/
 
 Les contributions sont les bienvenues : [CONTRIBUTING.md](CONTRIBUTING.md) explique comment travailler en local et les règles à respecter, en particulier pour les migrations. Une faille de sécurité se signale en privé, comme l’explique [SECURITY.md](SECURITY.md), jamais dans une issue publique.
 
-Le code est publié sous [licence MIT](LICENSE). Les polices de `public/fonts/` gardent leur propre licence, la SIL Open Font License, jointe à côté de chaque police.
+Le contenu de ce dépôt (code, textes, logo de la Tour Tanguy) est publié sous la [licence MIT](LICENSE). Les polices de `public/fonts/` gardent leur propre licence, la SIL Open Font License, jointe à côté de chaque famille.
 
-Blood on the Clocktower est un jeu créé par Steven Medway et édité par The Pandemonium Institute, qui en détient la marque. BOTTT est un projet communautaire indépendant, sans lien avec The Pandemonium Institute ni approuvé par lui. La licence MIT couvre le code de ce dépôt, pas le jeu, son nom ni ses contenus.
+Blood on the Clocktower est un jeu créé par Steven Medway et édité par The Pandemonium Institute ; le jeu, son nom et ses contenus appartiennent à leurs ayants droit. BOTTT est un projet communautaire gratuit et indépendant, ni affilié à The Pandemonium Institute ni approuvé par lui. La licence MIT ne couvre pas le jeu.

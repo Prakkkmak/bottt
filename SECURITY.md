@@ -12,12 +12,13 @@ Décris ce que tu as trouvé, comment le reproduire (de préférence sur la pile
 ## Ce qui est concerné
 
 - Le code de ce dépôt : le site Next.js, les migrations SQL et leurs règles d’accès, les scripts et le workflow GitHub.
+- La configuration du site en ligne dont dépend cette protection : en-têtes de sécurité, réglages de Supabase Auth décrits dans le README.
 - Par exemple : lire l’adresse privée d’une partie sans y avoir droit, agir à la place d’un autre joueur, contourner les rangs ou la liste d’attente, injecter un script.
 
 Les failles des services utilisés (Supabase, Vercel, Resend, Cloudflare Turnstile) se signalent directement à eux.
 
 ## En retour
 
-BOTTT est un projet bénévole : une première réponse arrive dès que possible, en général sous quelques jours. Tu es tenu·e au courant de la correction et, si tu le souhaites, remercié·e dans la pull request qui la corrige.
+BOTTT est un projet bénévole : une première réponse arrive dès que possible, en général sous quelques jours. La correction est préparée en privé et publiée au moment de son déploiement. Tu es tenu·e au courant et, si tu le souhaites, remercié·e quand elle est publiée.
 
-Merci de ne pas tester sur le site en ligne avec les comptes ou les données d’autres personnes, de ne pas envoyer d’e-mails en masse et de ne pas publier la faille avant sa correction.
+Merci de ne pas tester sur le site en ligne avec les comptes ou les données d’autres personnes. Ne t’inscris pas aux vraies parties pour tester la liste d’attente ou les rangs, car tu prendrais la place de vrais joueurs, et ne déclenche pas d’envoi d’e-mails. Merci enfin de ne pas publier la faille avant sa correction.
