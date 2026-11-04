@@ -74,7 +74,8 @@ export async function getAdminData(): Promise<{ bookings: Booking[]; profiles: P
   // The rank check runs with the reads, which row security already limits to the viewer's own rows.
   const [{ data: organizer }, bookings, profiles, addresses, venues, series] = await Promise.all([
     db.rpc('is_organizer'),
-    db.from('bookings').select('*,profile:profiles(*)').order('created_at'),
+    // Newest first: the API returns 1000 rows at most, and those it leaves out are then the oldest games', never the upcoming ones.
+    db.from('bookings').select('*,profile:profiles(*)').order('created_at', { ascending: false }).order('id', { ascending: false }).limit(1000),
     db.from('profiles').select('*').order('display_name'),
     db.from('session_addresses').select('*'),
     db.from('venues').select('id,name,address').order('name'),
@@ -85,5 +86,5 @@ export async function getAdminData(): Promise<{ bookings: Booking[]; profiles: P
   // The page still opens, without these lists, while their migration has not reached the database.
   if (venues.error) console.error('Venues unavailable', venues.error.message);
   if (series.error) console.error('Series unavailable', series.error.message);
-  return { bookings: bookings.data || [], profiles: profiles.data || [], addresses: Object.fromEntries((addresses.data || []).map(a => [a.session_id, a.address])), venues: venues.data || [], series: series.data || [] };
+  return { bookings: (bookings.data || []).reverse(), profiles: profiles.data || [], addresses: Object.fromEntries((addresses.data || []).map(a => [a.session_id, a.address])), venues: venues.data || [], series: series.data || [] };
 }

@@ -43,17 +43,24 @@ export async function deliverNotifications() {
 }
 
 let flushing:Promise<void>|null=null;let again=false;
+/** public.claim_emails hands out this many messages at a time. */
+const CLAIM_BATCH=30;
 /** Right after an action, so that a booking, a place on the waiting list or a freed seat is told at once. Never throws.
- * Flushes asked for while one runs are folded into one more round, so the sender's pace holds. */
+ * Flushes asked for while one runs are folded into one more round, so the sender's pace holds. A full batch, such as
+ * a message to a game with a long waiting list, is followed by the next one for 40 seconds at most, then left to the cron. */
 export function flushEmails():Promise<void> {
   if(!canSendMail())return Promise.resolve();
   if(!process.env.SUPABASE_SERVICE_ROLE_KEY){console.error('E-mails en attente : SUPABASE_SERVICE_ROLE_KEY n’est pas configurée.');return Promise.resolve();}
   if(flushing){again=true;return flushing;}
   flushing=(async()=>{
+    const deadline=Date.now()+40000;
     try{
       do{
         again=false;
-        try{const r=await sendQueuedEmails();if(r.failed)console.error(`E-mails : ${r.failed} en échec, nouvel essai plus tard.`);}
+        try{
+          const r=await sendQueuedEmails();if(r.failed)console.error(`E-mails : ${r.failed} en échec, nouvel essai plus tard.`);
+          if(!r.failed&&r.sent>=CLAIM_BATCH&&Date.now()<deadline)again=true;
+        }
         catch(e){console.error('E-mails indisponibles',e instanceof Error?e.message:'erreur');}
       }while(again);
     }finally{flushing=null;}
