@@ -4,7 +4,7 @@ import { after } from 'next/server';
 import { z } from 'zod';
 import { supabase, authenticatedClient } from '@/lib/supabase';
 import { isConfigured, isDemo } from '@/lib/config';
-import { profileSchema, nicknameSchema, sessionSchema, seriesSchema, venueSchema, guestNameSchema, invitationEmailSchema } from '@/lib/schemas';
+import { profileSchema, nicknameSchema, sessionSchema, seriesSchema, venueSchema, guestNameSchema, invitationEmailSchema, sessionMessageSchema } from '@/lib/schemas';
 import { stoppedSeriesMessage } from '@/lib/series';
 import { canSendMail, invitationMail, sendMail, siteUrl } from '@/lib/mail';
 import { flushEmails } from '@/lib/notifications';
@@ -111,6 +111,13 @@ export async function stopSeries(id: string) { if (!isUuid(id)) return failure(n
 export async function saveVenue(input: unknown) { const parsed = venueSchema.safeParse(input); if (!parsed.success) return failure(parsed.error); return rpc('save_venue', { p_data: parsed.data }, parsed.data.id ? 'Le lieu est enregistré.' : 'Le lieu est ajouté.'); }
 export async function deleteVenue(id: string) { if (!isUuid(id)) return failure(new Error('Lieu introuvable.')); return rpc('delete_venue', { p_id: id }, 'Le lieu est retiré de la liste.'); }
 export async function cancelSession(id: string) { if (!isUuid(id)) return failure(new Error('Session invalide.')); return rpc('cancel_session', { p_id: id }, 'La session est annulée. Les participants seront prévenus.'); }
+/** An organizer writes to everyone registered for an upcoming game, the waiting list included unless left out. */
+export async function sendSessionMessage(id: string, message: string, waitlist = true) {
+  if (!isUuid(id)) return failure(new Error('Session invalide.'));
+  const parsed = sessionMessageSchema.safeParse(message);
+  if (!parsed.success) return failure(parsed.error);
+  return rpc('send_session_message', { p_session: id, p_message: parsed.data, p_waitlist: waitlist === true }, data => { const n = Number(data) || 0; return `Ton message part à ${n} personne${n > 1 ? 's' : ''}.`; });
+}
 export async function deleteSession(id: string) { if (!isUuid(id)) return failure(new Error('Session invalide.')); return rpc('delete_session', { p_id: id }, 'La partie est supprimée.'); }
 const rankMessages: Record<Membership, string> = { newcomer: 'Le compte est passé voyageur·se.', member: 'Le compte est passé membre.', organizer: 'Le compte rejoint l’organisation.', suspended: 'Le compte est suspendu.' };
 export async function setMembership(id: string, status: Membership) { if (!isUuid(id) || !Object.hasOwn(rankMessages, status)) return failure(new Error('Action non autorisée.')); return rpc('set_membership', { p_user: id, p_status: status }, rankMessages[status]); }
