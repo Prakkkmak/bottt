@@ -132,3 +132,11 @@ Ces secrets restent dans GitHub Actions ; les fichiers publics contiennent uniqu
 Pour les futurs changements de schéma, ajouter une **nouvelle** migration plutôt que modifier un fichier déjà appliqué. Garder les migrations compatibles avec le site déployé : le traitement GitHub et le déploiement Vercel démarrent indépendamment. Une exécution en échec arrête les migrations suivantes ; elle ne relance pas celles déjà enregistrées avec succès. Une nouvelle exécution permet de reprendre après correction.
 
 Documentation de référence : [Supabase Auth](https://supabase.com/docs/guides/auth/auth-email-passwordless), [installation locale](https://supabase.com/docs/guides/local-development/cli/getting-started), [Supabase avec Docker](https://supabase.com/docs/guides/self-hosting/docker), [Next.js](https://nextjs.org/docs/app/getting-started/installation).
+
+## Contribuer, sécurité et licence
+
+Les contributions sont les bienvenues : [CONTRIBUTING.md](CONTRIBUTING.md) explique comment travailler en local et les règles à respecter, en particulier pour les migrations. Une faille de sécurité se signale en privé, comme l’explique [SECURITY.md](SECURITY.md), jamais dans une issue publique.
+
+Le code est publié sous [licence MIT](LICENSE). Les polices de `public/fonts/` gardent leur propre licence, la SIL Open Font License, jointe à côté de chaque police.
+
+Blood on the Clocktower est un jeu créé par Steven Medway et édité par The Pandemonium Institute, qui en détient la marque. BOTTT est un projet communautaire indépendant, sans lien avec The Pandemonium Institute ni approuvé par lui. La licence MIT couvre le code de ce dépôt, pas le jeu, son nom ni ses contenus.
