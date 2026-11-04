@@ -32,8 +32,9 @@ export async function sendMail({ to, subject, text, idempotencyKey }: Mail) {
   if (!result.ok) throw new Error('Email provider unavailable');
 }
 
-/** A field of a game that an organizer changed, with the value it had and the one it has now, as public.notify_session_change writes it. */
-export type Change = { field: 'starts_at' | 'location' | 'address'; before: string; after: string };
+/** A field of a game that an organizer changed, with the value it had and the one it has now, as public.notify_session_change writes it.
+ * An address the person could not read before comes without its former value. */
+export type Change = { field: 'starts_at' | 'location' | 'address'; before?: string; after: string };
 
 /** A queued notification as public.claim_emails returns it, with the game it is about when there is one. */
 export type QueuedEmail = {
@@ -49,8 +50,9 @@ function readChanges(value: unknown) {
   const found: Partial<Record<Change['field'], Change>> = {};
   for (const item of Array.isArray(value) ? value : []) {
     const c = item as Partial<Change> | null;
-    if (!c || !changedFields.includes(c.field!) || typeof c.before !== 'string' || typeof c.after !== 'string') continue;
-    if (c.field === 'starts_at' && !(validDate(c.before) && validDate(c.after))) continue;
+    if (!c || !changedFields.includes(c.field!) || typeof c.after !== 'string') continue;
+    if (typeof c.before !== 'string' && !(c.field === 'address' && c.before === undefined)) continue;
+    if (c.field === 'starts_at' && !(validDate(c.before!) && validDate(c.after))) continue;
     found[c.field!] = c as Change;
   }
   return found;
@@ -65,10 +67,11 @@ export function notificationMail(m: QueuedEmail, site = siteUrl()) {
   const game = m.session_script ? sessionName({ title: m.session_title ?? '', script: m.session_script }) : '';
   const day = m.session_starts_at ? dateLong(m.session_starts_at) : '';
   const { starts_at: moved, location: place, address } = readChanges(m.changes);
-  const sameDay = moved && parisInput(moved.before).slice(0, 10) === parisInput(moved.after).slice(0, 10);
-  const when = moved ? `Quand : ${moment(moved.before)} → ${sameDay ? time(moved.after) : moment(moved.after)}` : day && `Quand : ${day} à ${time(m.session_starts_at!)}`;
-  const where = place ? `Où : ${oneLine(place.before, 'non précisé')} → ${oneLine(place.after, 'non précisé')}` : m.session_location && `Où : ${m.session_location}`;
-  const details = game ? [`Partie : ${game}`, when, where, address && `Adresse : ${oneLine(address.before, 'aucune')} → ${oneLine(address.after, 'aucune')}`].filter(Boolean).join('\n') : '';
+  const sameDay = moved && parisInput(moved.before!).slice(0, 10) === parisInput(moved.after).slice(0, 10);
+  const when = moved ? `Quand : ${moment(moved.before!)} → ${sameDay ? time(moved.after) : moment(moved.after)}` : day && `Quand : ${day} à ${time(m.session_starts_at!)}`;
+  const where = place ? `Où : ${oneLine(place.before!, 'non précisé')} → ${oneLine(place.after, 'non précisé')}` : m.session_location && `Où : ${m.session_location}`;
+  const exact = address && (address.before === undefined ? `Adresse : ${oneLine(address.after, 'aucune')}` : `Adresse : ${oneLine(address.before, 'aucune')} → ${oneLine(address.after, 'aucune')}`);
+  const details = game ? [`Partie : ${game}`, when, where, exact].filter(Boolean).join('\n') : '';
   const link = `${site}${m.session_id ? `/sessions/${m.session_id}` : '/'}`;
   // Guest names reach the title: a line break must not end the subject header.
   const subject = [m.title, game && [game, day].filter(Boolean).join(', ')].filter(Boolean).join(' · ').replace(/\s+/g, ' ').trim();

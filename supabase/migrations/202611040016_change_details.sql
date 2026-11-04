@@ -4,21 +4,52 @@
 alter table public.notifications add column changes jsonb not null default '[]'::jsonb check (jsonb_typeof(changes)='array');
 
 -- Writes once to each person registered for the game, naming the people they bring. Everyone reads p_changes; p_address,
--- the exact address before and after, only reaches those who read it on the site (see the addresses_read policy):
--- a seat, and being a member or the game being 48 hours away at most. Nobody hears about a change they could not see.
-create function public.notify_session_change(p_session uuid,p_title text,p_body text,p_changes jsonb,p_address jsonb)
-returns void language sql security definer set search_path = '' as $$
-  insert into public.notifications(user_id,session_id,title,body,changes)
-    select r.recipient,p_session,p_title,p_body||coalesce(' Préviens '||r.guests||'.',''),
-      p_changes||case when x.reads_address then jsonb_build_array(p_address) else '[]'::jsonb end
+-- the exact address before and after, only reaches those who read it on the site (see the addresses_read policy): an account
+-- that is not suspended, with a seat for themselves or a guest, and being a member or the game being 48 hours away at most;
+-- or an organizer. The former address follows the same rule at the former date (p_previous_start): a game brought within
+-- 48 hours tells a traveller its new address alone. Nobody hears about a change they could not see.
+-- A message of the same kind about this game still waiting to leave is replaced by the new one, which starts from its former
+-- values: a game edited twice in a row tells each person once, from the first value to the last, and a change undone tells nothing.
+create function public.notify_session_change(p_session uuid,p_title text,p_body text,p_changes jsonb,p_address jsonb,p_previous_start timestamptz)
+returns void language plpgsql security definer set search_path = '' as $$
+declare r record; fresh jsonb; earlier jsonb; merged jsonb; f text; newest jsonb; oldest jsonb; latest jsonb; former jsonb; latter jsonb;
+begin
+  for r in select b.recipient,b.guests,
+      coalesce(x.may_read and (p.membership in ('member','organizer') or s.starts_at<=now()+interval '48 hours'),false) as reads_now,
+      coalesce(x.may_read and (p.membership in ('member','organizer') or p_previous_start<=now()+interval '48 hours'),false) as read_before
     from (select coalesce(user_id,sponsor_id) as recipient,string_agg(guest_name,' et ' order by guest_name) filter(where user_id is null) as guests,
         bool_or(status='confirmed') as seated
-      from public.bookings where session_id=p_session and status in ('confirmed','offered','waitlisted','pending') group by 1) r
-    join public.profiles p on p.id=r.recipient
-    cross join lateral (select coalesce(p_address is not null and r.seated and (p.membership in ('member','organizer')
-      or exists(select 1 from public.sessions s where s.id=p_session and s.starts_at<=now()+interval '48 hours')),false) as reads_address) x
-    where jsonb_array_length(p_changes)>0 or x.reads_address;
-$$;
+      from public.bookings where session_id=p_session and status in ('confirmed','offered','waitlisted','pending') group by 1) b
+    join public.profiles p on p.id=b.recipient
+    join public.sessions s on s.id=p_session
+    cross join lateral (select p_address is not null and p.membership<>'suspended' and (b.seated or p.membership='organizer') as may_read) x
+    order by b.recipient
+  loop
+    fresh=p_changes||case when r.reads_now then jsonb_build_array(case when r.read_before then p_address else p_address-'before' end) else '[]'::jsonb end;
+    continue when jsonb_array_length(fresh)=0;
+    -- A message being sent right now is left to leave.
+    with replaced as (update public.notifications n set email_attempts=5
+        where n.user_id=r.recipient and n.session_id=p_session and n.title=p_title and n.changes<>'[]'::jsonb
+          and n.emailed_at is null and n.email_attempts<5 and (n.claimed_until is null or n.claimed_until<now())
+        returning n.id,n.created_at,n.changes)
+    select coalesce(jsonb_agg(e.change order by q.created_at,q.id,e.idx),'[]'::jsonb) into earlier
+      from replaced q cross join lateral jsonb_array_elements(q.changes) with ordinality e(change,idx);
+    merged='[]';
+    foreach f in array array['starts_at','location','address'] loop
+      newest=(select e.change from jsonb_array_elements(fresh) e(change) where e.change->>'field'=f);
+      oldest=(select e.change from jsonb_array_elements(earlier) with ordinality e(change,idx) where e.change->>'field'=f order by e.idx limit 1);
+      latest=(select e.change from jsonb_array_elements(earlier) with ordinality e(change,idx) where e.change->>'field'=f order by e.idx desc limit 1);
+      -- The address only goes to those who read it now, its former value only if they could read it then.
+      continue when coalesce(newest,oldest) is null or (f='address' and not r.reads_now);
+      former=coalesce(oldest,newest)->'before';latter=coalesce(newest,latest)->'after';
+      continue when former is not null and case when f='starts_at' then (former#>>'{}')::timestamptz=(latter#>>'{}')::timestamptz else former=latter end;
+      merged=merged||jsonb_build_array(jsonb_build_object('field',f,'after',latter)||case when former is null then '{}'::jsonb else jsonb_build_object('before',former) end);
+    end loop;
+    continue when jsonb_array_length(merged)=0;
+    insert into public.notifications(user_id,session_id,title,body,changes)
+      values(r.recipient,p_session,p_title,p_body||coalesce(' Préviens '||r.guests||'.',''),merged);
+  end loop;
+end; $$;
 
 -- Same as the waitlist migration, except that the message gives the former and the new date, place and address.
 create or replace function public.save_session(p_data jsonb) returns uuid language plpgsql security definer set search_path = '' as $$
@@ -60,7 +91,7 @@ begin
     end if;
     perform public.notify_session_change(sid,'Les informations de ta session ont changé','Vérifie ce qui change avant de venir.',changed,
       case when coalesce(previous_address,'') is distinct from coalesce(p_data->>'address','')
-        then jsonb_build_object('field','address','before',coalesce(previous_address,''),'after',coalesce(p_data->>'address','')) end);
+        then jsonb_build_object('field','address','before',coalesce(previous_address,''),'after',coalesce(p_data->>'address','')) end,previous.starts_at);
   else
     insert into public.sessions(title,description,script,starts_at,ends_at,location,venue_id,capacity,newcomer_seats,release_hours,beginners_welcome,visibility,created_by)
       values(p_data->>'title',p_data->>'description',p_data->>'script',(p_data->>'starts_at')::timestamptz,(p_data->>'ends_at')::timestamptz,
@@ -97,19 +128,19 @@ begin
   exception when unique_violation then raise exception 'Un lieu porte déjà ce nom.';
   end;
   -- Upcoming games at this venue follow the change, and the people registered hear about it, as when a game is edited.
-  for game in select s.id,s.location,coalesce(a.address,'') as address from public.sessions s left join public.session_addresses a on a.session_id=s.id
+  for game in select s.id,s.location,s.starts_at,coalesce(a.address,'') as address from public.sessions s left join public.session_addresses a on a.session_id=s.id
     where s.venue_id=vid and s.status='published' and s.starts_at>now() order by s.id for update of s loop
     update public.sessions set location=clean_name where id=game.id;
     insert into public.session_addresses(session_id,address) values(game.id,clean_address) on conflict(session_id) do update set address=excluded.address;
     perform public.notify_session_change(game.id,'Le lieu de ta session a changé','Vérifie le nouveau lieu avant de venir.',
       case when lower(game.location)<>lower(clean_name)
         then jsonb_build_array(jsonb_build_object('field','location','before',game.location,'after',clean_name)) else '[]'::jsonb end,
-      case when game.address<>clean_address then jsonb_build_object('field','address','before',game.address,'after',clean_address) end);
+      case when game.address<>clean_address then jsonb_build_object('field','address','before',game.address,'after',clean_address) end,game.starts_at);
   end loop;
   return vid;
 end; $$;
 
--- Same as the waitlist migration, with the changes of each message.
+-- Same as the waitlist migration, with the changes of each message, in the order written.
 drop function public.claim_emails();
 create function public.claim_emails() returns table(id uuid,email text,title text,body text,session_id uuid,
   session_title text,session_script text,session_starts_at timestamptz,session_location text,changes jsonb) language sql security definer set search_path = '' as $$
@@ -119,9 +150,11 @@ create function public.claim_emails() returns table(id uuid,email text,title tex
     order by created_at for update skip locked limit 30),
   claimed as (update public.notifications n set claimed_until=now()+interval '5 minutes',email_attempts=email_attempts+1 from picked where n.id=picked.id returning n.*)
   select c.id,u.email,c.title,c.body,c.session_id,s.title,s.script,s.starts_at,s.location,c.changes
-  from claimed c join auth.users u on u.id=c.user_id left join public.sessions s on s.id=c.session_id;
+  from claimed c join auth.users u on u.id=c.user_id left join public.sessions s on s.id=c.session_id
+  -- In the order written, so that a later message about a game never arrives first.
+  order by c.created_at,c.id;
 $$;
 
 -- The helper only runs inside save_session and save_venue: nobody may write messages to the people registered through it.
-revoke execute on function public.notify_session_change(uuid,text,text,jsonb,jsonb),public.claim_emails() from public,anon,authenticated;
+revoke execute on function public.notify_session_change(uuid,text,text,jsonb,jsonb,timestamptz),public.claim_emails() from public,anon,authenticated;
 grant execute on function public.claim_emails() to service_role;

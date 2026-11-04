@@ -60,9 +60,12 @@ test('e-mail d’une partie modifiée : l’ancienne valeur puis la nouvelle', (
   assert.equal(later.text.split('\n\n')[1], 'Partie : Trouble Brewing\nQuand : samedi 24 octobre à 19h30 → 20h00\nOù : La Tour\nAdresse : aucune → 8 rue de Siam');
   assert.equal(notificationMail({ ...game, changes: [{ field: 'address', before: '8 rue de Siam', after: '' }] }, 'https://bottt.fr').text.split('\n\n')[1],
     'Partie : Trouble Brewing\nQuand : samedi 24 octobre à 20h00\nOù : La Tour\nAdresse : 8 rue de Siam → aucune');
+  // An address the person could not read before comes alone.
+  assert.equal(notificationMail({ ...game, changes: [{ field: 'address', after: '8 rue de Siam' }] }, 'https://bottt.fr').text.split('\n\n')[1],
+    'Partie : Trouble Brewing\nQuand : samedi 24 octobre à 20h00\nOù : La Tour\nAdresse : 8 rue de Siam');
   // A change that is not well formed is left out rather than stopping the message.
   const plain = 'Partie : Trouble Brewing\nQuand : samedi 24 octobre à 20h00\nOù : La Tour';
-  for (const changes of [null, [], 'x', [null, 3, { field: 'title', before: 'a', after: 'b' }, { field: 'starts_at', before: 'hier', after: '2026-10-24T18:00:00Z' }, { field: 'location', before: 1, after: 'La Tour' }]]) {
+  for (const changes of [null, [], 'x', [null, 3, { field: 'title', before: 'a', after: 'b' }, { field: 'starts_at', before: 'hier', after: '2026-10-24T18:00:00Z' }, { field: 'location', before: 1, after: 'La Tour' }, { field: 'location', after: 'La Tour' }, { field: 'address', before: null, after: 'x' }]]) {
     assert.equal(notificationMail({ ...game, changes }, 'https://bottt.fr').text.split('\n\n')[1], plain);
   }
 });

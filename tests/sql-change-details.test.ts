@@ -62,6 +62,27 @@ test('Les messages de modification donnent l’ancienne et la nouvelle valeur',a
     assert.equal(await book(3,soon),'confirmed');
     await edit({address:'2 rue du Port, Brest'},soon);
     assert.deepEqual((await notices('Les informations de ta session ont changé')).map(n=>[n.user_id,fields(n)]),[[uuid(3),['address']]]);
+    // An account suspended directly in the database keeps its seat, but not the address.
+    await h.root();await h.call(`update profiles set membership='suspended' where id=$1`,[uuid(3)]);
+    await edit({address:'3 rue du Port, Brest'},soon);
+    assert.equal((await notices('Les informations de ta session ont changé')).length,0);
+    await h.root();await h.call(`update profiles set membership='newcomer' where id=$1`,[uuid(3)]);
+  });
+  await t.test('une partie ramenée à moins de 48 heures donne à un·e voyageur·se la nouvelle adresse seule',async()=>{
+    const far=uuid(102);await h.session(far,{capacity:7,startsIn:'10 days'});
+    await h.root();await h.call(`insert into session_addresses values($1,'Chez Léa, 4 rue Privée')`,[far]);
+    assert.equal(await book(3,far),'confirmed');assert.equal(await book(2,far),'confirmed');
+    const starts=new Date(Date.now()+30*3600000);
+    await edit({starts_at:starts.toISOString(),ends_at:new Date(starts.getTime()+4*3600000).toISOString(),address:'5 rue du Port, Brest'},far);
+    const sent=await notices('Les informations de ta session ont changé');
+    assert.deepEqual(sent.map(n=>[n.user_id,n.changes.find(c=>c.field==='address')]),[
+      [uuid(2),{field:'address',before:'Chez Léa, 4 rue Privée',after:'5 rue du Port, Brest'}],
+      [uuid(3),{field:'address',after:'5 rue du Port, Brest'}],
+    ]);
+    // Moved back beyond 48 hours, the traveller reads neither address.
+    const later=new Date(Date.now()+5*86400000);
+    await edit({starts_at:later.toISOString(),ends_at:new Date(later.getTime()+4*3600000).toISOString(),address:'6 rue du Port, Brest'},far);
+    assert.deepEqual((await notices('Les informations de ta session ont changé')).map(n=>[n.user_id,fields(n)]),[[uuid(2),['starts_at','address']],[uuid(3),['starts_at']]]);
   });
   await t.test('modifier un lieu donne, partie par partie, l’ancien et le nouveau lieu',async()=>{
     await h.login(1);
@@ -84,6 +105,36 @@ test('Les messages de modification donnent l’ancienne et la nouvelle valeur',a
     await h.login(1);await h.call('select save_venue($1)',[{id:venue,name:'Le Grenier du Port',address:'9 rue du Port, Brest'}]);
     assert.deepEqual((await notices('Le lieu de ta session a changé')).map(n=>[n.user_id,fields(n)]),[[uuid(2),['address']],[uuid(4),['address']]]);
   });
+  await t.test('deux modifications avant l’envoi font un seul message, du premier état au dernier',async()=>{
+    const twice=uuid(103);await h.session(twice,{capacity:7,startsIn:'10 days'});
+    await h.root();await h.call(`insert into session_addresses values($1,'1 rue du Port, Brest')`,[twice]);
+    assert.equal(await book(2,twice),'confirmed');
+    const waiting=async()=>{await h.root();return (await h.call<{changes:Change[]}>(`select changes from notifications where user_id=$1 and session_id=$2 and changes<>'[]' and emailed_at is null and email_attempts<5 order by created_at`,[uuid(2),twice])).map(n=>n.changes);};
+    const first=await current(twice);
+    await edit({location:'La Tour'},twice);
+    const moved=new Date(first.starts_at.getTime()+86400000);
+    await edit({location:'Quimper',starts_at:moved.toISOString(),ends_at:new Date(moved.getTime()+4*3600000).toISOString()},twice);
+    const [only,...rest]=await waiting();
+    assert.equal(rest.length,0);
+    assert.deepEqual(only.map(c=>[c.field,c.field==='starts_at'?Date.parse(c.before):c.before,c.field==='starts_at'?Date.parse(c.after):c.after]),
+      [['starts_at',first.starts_at.getTime(),moved.getTime()],['location','Brest','Quimper']]);
+    // Undone before it leaves, a change tells nothing; the date still moved, from its first value.
+    await edit({location:'Brest'},twice);
+    assert.deepEqual((await waiting()).map(changes=>changes.map(c=>c.field)),[['starts_at']]);
+    await edit({starts_at:first.starts_at.toISOString(),ends_at:first.ends_at.toISOString()},twice);
+    assert.deepEqual(await waiting(),[]);
+    // A message already sent, or being sent, stays as it is: the next one starts from where it left off.
+    await edit({location:'La Tour'},twice);
+    await h.root();await h.call(`update notifications set emailed_at=now() where session_id=$1 and changes<>'[]'`,[twice]);
+    await edit({location:'Quimper'},twice);
+    await h.root();await h.call(`update notifications set claimed_until=now()+interval '5 minutes' where session_id=$1 and emailed_at is null`,[twice]);
+    await edit({location:'Morlaix'},twice);
+    assert.deepEqual((await waiting()).map(changes=>changes.map(c=>[c.before,c.after])),[[['La Tour','Quimper']],[['Quimper','Morlaix']]]);
+    // The outbox gives them in the order written.
+    await h.call(`update notifications set claimed_until=null where session_id=$1`,[twice]);
+    assert.deepEqual((await h.call<{changes:Change[]}>(`select changes from claim_emails() where session_id=$1 and changes<>'[]'`,[twice])).map(m=>m.changes[0].after),['Quimper','Morlaix']);
+    await h.call('delete from notifications where session_id=$1',[twice]);
+  });
   await t.test('la boîte d’envoi donne les changements ; personne d’autre n’écrit avec la fonction d’envoi',async()=>{
     await edit({location:'Quimper'});
     await h.root();
@@ -94,9 +145,9 @@ test('Les messages de modification donnent l’ancienne et la nouvelle valeur',a
     assert.deepEqual((await h.call<{changes:Change[]}>(`select changes from claim_emails() where title='Ancien message'`)).map(m=>m.changes),[[]]);
     for(const n of [1,2]){
       await h.login(n);
-      await assert.rejects(h.call(`select notify_session_change($1,'x','x','[]'::jsonb,null)`,[game]),/permission denied/);
+      await assert.rejects(h.call(`select notify_session_change($1,'x','x','[]'::jsonb,null,now())`,[game]),/permission denied/);
     }
     await h.anonymous();
-    await assert.rejects(h.call(`select notify_session_change($1,'x','x','[]'::jsonb,null)`,[game]),/permission denied/);
+    await assert.rejects(h.call(`select notify_session_change($1,'x','x','[]'::jsonb,null,now())`,[game]),/permission denied/);
   });
 });
