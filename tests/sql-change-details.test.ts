@@ -123,16 +123,39 @@ test('Les messages de modification donnent l’ancienne et la nouvelle valeur',a
     assert.deepEqual((await waiting()).map(changes=>changes.map(c=>c.field)),[['starts_at']]);
     await edit({starts_at:first.starts_at.toISOString(),ends_at:first.ends_at.toISOString()},twice);
     assert.deepEqual(await waiting(),[]);
-    // A message already sent, or being sent, stays as it is: the next one starts from where it left off.
+    // A message already sent stays as it is: the next one starts from where it left off.
     await edit({location:'La Tour'},twice);
     await h.root();await h.call(`update notifications set emailed_at=now() where session_id=$1 and changes<>'[]'`,[twice]);
     await edit({location:'Quimper'},twice);
-    await h.root();await h.call(`update notifications set claimed_until=now()+interval '5 minutes' where session_id=$1 and emailed_at is null`,[twice]);
+    assert.deepEqual((await waiting()).map(changes=>changes.map(c=>[c.before,c.after])),[[['La Tour','Quimper']]]);
+    // One that failed, or is being sent, is replaced too: a retry never brings older news after newer.
+    await h.root();await h.call(`update notifications set claimed_until=now()+interval '5 minutes',email_attempts=1 where session_id=$1 and emailed_at is null`,[twice]);
     await edit({location:'Morlaix'},twice);
-    assert.deepEqual((await waiting()).map(changes=>changes.map(c=>[c.before,c.after])),[[['La Tour','Quimper']],[['Quimper','Morlaix']]]);
-    // The outbox gives them in the order written.
-    await h.call(`update notifications set claimed_until=null where session_id=$1`,[twice]);
-    assert.deepEqual((await h.call<{changes:Change[]}>(`select changes from claim_emails() where session_id=$1 and changes<>'[]'`,[twice])).map(m=>m.changes[0].after),['Quimper','Morlaix']);
+    assert.deepEqual((await waiting()).map(changes=>changes.map(c=>[c.before,c.after])),[[['La Tour','Morlaix']]]);
+    // A queued address change survives an edit that leaves the address alone.
+    await edit({address:'2 rue du Port, Brest',location:'Morlaix'},twice);
+    await edit({location:'Brest',address:'2 rue du Port, Brest'},twice);
+    assert.deepEqual((await waiting()).map(changes=>changes.map(c=>[c.field,c.before,c.after])),
+      [[['location','La Tour','Brest'],['address','1 rue du Port, Brest','2 rue du Port, Brest']]]);
+    // A venue's message and the game's own merge into one, in the general wording.
+    await h.login(1);
+    const venue=(await h.call<{save_venue:string}>(`select save_venue('{"name":"Le Phare","address":"3 quai Est, Brest"}'::jsonb)`))[0].save_venue;
+    await h.root();await h.call('update notifications set emailed_at=now() where session_id=$1',[twice]);
+    const s=await current(twice);
+    await h.login(1);
+    await h.call('select save_session($1::jsonb)',[JSON.stringify({id:twice,title:'Soirée de test',description:'',script:'Trouble Brewing',starts_at:s.starts_at.toISOString(),ends_at:s.ends_at.toISOString(),
+      venue_id:venue,capacity:7,beginners_welcome:true,visibility:'public'})]);
+    await h.root();await h.call('update notifications set emailed_at=now() where session_id=$1',[twice]);
+    await h.login(1);await h.call('select save_venue($1)',[{id:venue,name:'Le Phare du port',address:'4 quai Est, Brest'}]);
+    await edit({location:'Brest',address:'1 rue du Port, Brest'},twice);
+    await h.root();
+    const pending=await h.call<{title:string;body:string;changes:Change[]}>(`select title,body,changes from notifications where session_id=$1 and user_id=$2 and emailed_at is null and email_attempts<5`,[twice,uuid(2)]);
+    assert.deepEqual(pending.map(n=>[n.title,n.body,n.changes.map(c=>[c.field,c.before,c.after])]),[['Les informations de ta session ont changé','Vérifie ce qui change avant de venir.',
+      [['location','Le Phare','Brest'],['address','3 quai Est, Brest','1 rue du Port, Brest']]]]);
+    await h.call('delete from notifications where session_id=$1',[twice]);
+    // The outbox gives messages in the order written.
+    await h.call(`insert into notifications(user_id,session_id,title,body,created_at) values($1,$2,'Deuxième','x',now()),($1,$2,'Premier','x',now()-interval '1 minute')`,[uuid(2),twice]);
+    assert.deepEqual((await h.call<{title:string}>('select title from claim_emails() where session_id=$1',[twice])).map(m=>m.title),['Premier','Deuxième']);
     await h.call('delete from notifications where session_id=$1',[twice]);
   });
   await t.test('la boîte d’envoi donne les changements ; personne d’autre n’écrit avec la fonction d’envoi',async()=>{

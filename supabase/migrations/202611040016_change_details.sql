@@ -8,11 +8,12 @@ alter table public.notifications add column changes jsonb not null default '[]':
 -- that is not suspended, with a seat for themselves or a guest, and being a member or the game being 48 hours away at most;
 -- or an organizer. The former address follows the same rule at the former date (p_previous_start): a game brought within
 -- 48 hours tells a traveller its new address alone. Nobody hears about a change they could not see.
--- A message of the same kind about this game still waiting to leave is replaced by the new one, which starts from its former
--- values: a game edited twice in a row tells each person once, from the first value to the last, and a change undone tells nothing.
+-- A change message about this game that has not left yet is replaced by the new one, which starts from its former values:
+-- a game edited twice in a row tells each person once, from the first value to the last, and a change undone tells nothing.
+-- So a person has at most one such message waiting per game, and a failed send never brings an older one back after it.
 create function public.notify_session_change(p_session uuid,p_title text,p_body text,p_changes jsonb,p_address jsonb,p_previous_start timestamptz)
 returns void language plpgsql security definer set search_path = '' as $$
-declare r record; fresh jsonb; earlier jsonb; merged jsonb; f text; newest jsonb; oldest jsonb; latest jsonb; former jsonb; latter jsonb;
+declare r record; fresh jsonb; earlier jsonb; kinds text[]; merged jsonb; heading text; message text; f text; newest jsonb; oldest jsonb; latest jsonb; former jsonb; latter jsonb;
 begin
   for r in select b.recipient,b.guests,
       coalesce(x.may_read and (p.membership in ('member','organizer') or s.starts_at<=now()+interval '48 hours'),false) as reads_now,
@@ -22,17 +23,16 @@ begin
       from public.bookings where session_id=p_session and status in ('confirmed','offered','waitlisted','pending') group by 1) b
     join public.profiles p on p.id=b.recipient
     join public.sessions s on s.id=p_session
-    cross join lateral (select p_address is not null and p.membership<>'suspended' and (b.seated or p.membership='organizer') as may_read) x
+    cross join lateral (select p.membership<>'suspended' and (b.seated or p.membership='organizer') as may_read) x
     order by b.recipient
   loop
-    fresh=p_changes||case when r.reads_now then jsonb_build_array(case when r.read_before then p_address else p_address-'before' end) else '[]'::jsonb end;
+    fresh=p_changes||case when p_address is not null and r.reads_now then jsonb_build_array(case when r.read_before then p_address else p_address-'before' end) else '[]'::jsonb end;
     continue when jsonb_array_length(fresh)=0;
-    -- A message being sent right now is left to leave.
+    -- One being sent right now may still leave: the new one then repeats its former values, which stay true.
     with replaced as (update public.notifications n set email_attempts=5
-        where n.user_id=r.recipient and n.session_id=p_session and n.title=p_title and n.changes<>'[]'::jsonb
-          and n.emailed_at is null and n.email_attempts<5 and (n.claimed_until is null or n.claimed_until<now())
-        returning n.id,n.created_at,n.changes)
-    select coalesce(jsonb_agg(e.change order by q.created_at,q.id,e.idx),'[]'::jsonb) into earlier
+        where n.user_id=r.recipient and n.session_id=p_session and n.changes<>'[]'::jsonb and n.emailed_at is null and n.email_attempts<5
+        returning n.id,n.created_at,n.title,n.changes)
+    select coalesce(jsonb_agg(e.change order by q.created_at,q.id,e.idx),'[]'::jsonb),array_agg(distinct q.title) into earlier,kinds
       from replaced q cross join lateral jsonb_array_elements(q.changes) with ordinality e(change,idx);
     merged='[]';
     foreach f in array array['starts_at','location','address'] loop
@@ -46,8 +46,11 @@ begin
       merged=merged||jsonb_build_array(jsonb_build_object('field',f,'after',latter)||case when former is null then '{}'::jsonb else jsonb_build_object('before',former) end);
     end loop;
     continue when jsonb_array_length(merged)=0;
+    -- A venue's message merged with a game's own takes the general wording.
+    heading=p_title;message=p_body;
+    if kinds<>array[p_title] then heading='Les informations de ta session ont changé';message='Vérifie ce qui change avant de venir.'; end if;
     insert into public.notifications(user_id,session_id,title,body,changes)
-      values(r.recipient,p_session,p_title,p_body||coalesce(' Préviens '||r.guests||'.',''),merged);
+      values(r.recipient,p_session,heading,message||coalesce(' Préviens '||r.guests||'.',''),merged);
   end loop;
 end; $$;
 
