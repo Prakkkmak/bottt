@@ -1,5 +1,5 @@
 import nodemailer from 'nodemailer';
-import { dateLong, sessionName, time } from './utils';
+import { dateLong, parisInput, sessionName, time } from './utils';
 
 export type Mail = { to: string; subject: string; text: string; idempotencyKey?: string };
 
@@ -32,17 +32,46 @@ export async function sendMail({ to, subject, text, idempotencyKey }: Mail) {
   if (!result.ok) throw new Error('Email provider unavailable');
 }
 
+/** A field of a game that an organizer changed, with the value it had and the one it has now, as public.notify_session_change writes it.
+ * An address the person could not read before comes without its former value. */
+export type Change = { field: 'starts_at' | 'location' | 'address'; before?: string; after: string };
+
 /** A queued notification as public.claim_emails returns it, with the game it is about when there is one. */
 export type QueuedEmail = {
   id: string; email: string; title: string; body: string; session_id: string | null;
   session_title?: string | null; session_script?: string | null; session_starts_at?: string | null; session_location?: string | null;
+  changes?: unknown;
 };
 
-/** A notification as an e-mail: the subject names the game and its date, the text adds when and where, and a link back to it. */
+const changedFields: readonly Change['field'][] = ['starts_at', 'location', 'address'];
+const validDate = (value: string) => Number.isFinite(Date.parse(value));
+/** The changes kept from the outbox, by field. One that is not well formed is left out, so the message still leaves. */
+function readChanges(value: unknown) {
+  const found: Partial<Record<Change['field'], Change>> = {};
+  for (const item of Array.isArray(value) ? value : []) {
+    const c = item as Partial<Change> | null;
+    if (!c || !changedFields.includes(c.field!) || typeof c.after !== 'string') continue;
+    if (typeof c.before !== 'string' && !(c.field === 'address' && c.before === undefined)) continue;
+    if (c.field === 'starts_at' && !(validDate(c.before!) && validDate(c.after))) continue;
+    found[c.field!] = c as Change;
+  }
+  return found;
+}
+const moment = (date: string) => `${dateLong(date)} à ${time(date)}`;
+/** A place or an address on one line, its lines joined, or a word when there is none. */
+const oneLine = (value: string, none: string) => value.split(/\r\n|[\r\n\u2028\u2029]/).map(line => line.trim()).filter(Boolean).join(', ') || none;
+
+/** A notification as an e-mail: the subject names the game and its date, the text adds when and where, and a link back to it.
+ * When the game changed, each changed line reads as before → now, a time alone after the arrow when the day stays the same. */
 export function notificationMail(m: QueuedEmail, site = siteUrl()) {
   const game = m.session_script ? sessionName({ title: m.session_title ?? '', script: m.session_script }) : '';
   const day = m.session_starts_at ? dateLong(m.session_starts_at) : '';
-  const details = game ? [`Partie : ${game}`, day && `Quand : ${day} à ${time(m.session_starts_at!)}`, m.session_location && `Où : ${m.session_location}`].filter(Boolean).join('\n') : '';
+  const { starts_at: moved, location: place, address } = readChanges(m.changes);
+  const sameDay = moved && parisInput(moved.before!).slice(0, 10) === parisInput(moved.after).slice(0, 10);
+  const when = moved ? `Quand : ${moment(moved.before!)} → ${sameDay ? time(moved.after) : moment(moved.after)}` : day && `Quand : ${day} à ${time(m.session_starts_at!)}`;
+  const where = place ? `Où : ${oneLine(place.before!, 'non précisé')} → ${oneLine(place.after, 'non précisé')}` : m.session_location && `Où : ${m.session_location}`;
+  const exact = address && (address.before === undefined ? `Adresse : ${oneLine(address.after, 'aucune')}` : `Adresse : ${oneLine(address.before, 'aucune')} → ${oneLine(address.after, 'aucune')}`);
+  const details = game ? [`Partie : ${game}`, when, where, exact].filter(Boolean).join('\n') : '';
   const link = `${site}${m.session_id ? `/sessions/${m.session_id}` : '/'}`;
   // Guest names reach the title: a line break must not end the subject header.
   const subject = [m.title, game && [game, day].filter(Boolean).join(', ')].filter(Boolean).join(' · ').replace(/\s+/g, ' ').trim();
