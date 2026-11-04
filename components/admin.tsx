@@ -3,12 +3,12 @@ import { DateTile } from './date-tile';
 import { useState } from 'react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
-import { Plus, CalendarDays, UsersRound, Clock3, X, Pencil, BookOpen, Link2, Trash2, Repeat } from 'lucide-react';
-import type { AppData, GameSession, Booking, Membership, Profile, Series, Venue } from '@/lib/types';
+import { Plus, CalendarDays, UsersRound, Clock3, X, Pencil, BookOpen, Link2, Trash2, Repeat, Mail, Send } from 'lucide-react';
+import type { ActionResult, AppData, GameSession, Booking, Membership, Profile, Series, Venue } from '@/lib/types';
 import { time, statusLabels, sessionUrl, activeBooking, sessionName } from '@/lib/utils';
 import { seriesSummary } from '@/lib/series';
-import { bookingLabel, experienceLabels, experienceOf, membershipLabels, orderBySponsor, waitlistPositions } from '@/lib/guests';
-import { cancelSession, deleteSession, removeParticipant, setMembership, stopSeries } from '@/app/actions';
+import { bookingLabel, experienceLabels, experienceOf, membershipLabels, messageRecipients, orderBySponsor, waitlistPositions } from '@/lib/guests';
+import { cancelSession, deleteSession, removeParticipant, sendSessionMessage, setMembership, stopSeries } from '@/app/actions';
 import { Dialog } from './dialog';
 import { Avatar } from './ui';
 import { Venues } from './venues';
@@ -30,6 +30,7 @@ export function Admin({ data, bookings, profiles, addresses, venues, series = []
   const [member, setMember] = useState<Profile | null>(null);
   const [removing, setRemoving] = useState<Booking | null>(null);
   const [stopping, setStopping] = useState<Series | null>(null);
+  const [writing, setWriting] = useState<GameSession | null>(null);
   const a = useAction();
   // One action hook serves every dialog: each opens without the previous dialog's message.
   const open = <T,>(set: (value: T) => void, value: T) => { a.setResult(null); set(value); };
@@ -49,6 +50,9 @@ export function Admin({ data, bookings, profiles, addresses, venues, series = []
   const nameOf = (b: Booking) => b.guest_name ?? b.profile?.display_name ?? 'Joueur';
   const participants = selected ? orderBySponsor(bookings.filter(b => b.session_id === selected.id && !['cancelled', 'declined'].includes(b.status))) : [];
   const queue = waitlistPositions(participants);
+  // A message reaches the people registered for a game that has not started yet, the writer aside (see send_session_message).
+  const recipientsOf = (s: GameSession) => messageRecipients(bookings, s.id, data.profile?.id);
+  const writable = (s: GameSession) => { const r = recipientsOf(s); return s.status === 'published' && new Date(s.starts_at) > new Date() && r.registered + r.waiting > 0; };
   return <><div className="page-heading admin-heading"><h1>Organiser</h1><button className="button primary compact" onClick={() => setEditing('new')}><Plus size={17} />Créer une partie</button></div>
     <div className="admin-stats"><div><CalendarDays /><span><strong>{future.length}</strong>sessions à venir</span></div><div><UsersRound /><span><strong>{profiles.filter(p => p.membership !== 'suspended').length}</strong>personnes dans le cercle</span></div><div><Clock3 /><span><strong>{waitingCount}</strong>{waitingCount > 1 ? 'personnes' : 'personne'} en liste d’attente</span></div></div>
     <div className="session-tabs admin-tabs" role="group" aria-label="Espace organisateur">{([['sessions', 'Les sessions'], ['members', 'Les membres'], ['venues', 'Les lieux']] as const).map(([value, label]) => <button key={value} aria-pressed={tab === value} className={tab === value ? 'selected' : ''} onClick={() => setTab(value)}>{label}</button>)}</div><Feedback result={a.result} />
@@ -61,7 +65,7 @@ export function Admin({ data, bookings, profiles, addresses, venues, series = []
         <span className="badge">{upcoming ? `${upcoming} date${upcoming > 1 ? 's' : ''} à venir` : 'Aucune date à venir'}</span>
         <div className="row-actions"><button className="button secondary compact" disabled={a.pending} aria-label={`Arrêter la série ${sessionName(r)}`} onClick={() => open(setStopping, r)}>Arrêter</button></div>
       </div>; })}
-    </div>}<div className="admin-session-list">{listed.length ? listed.map(s => <article className={`admin-session-row ${s.status === 'cancelled' ? 'is-cancelled' : isPast(s) ? 'is-past' : ''}`} key={s.id}><DateTile date={s.starts_at} /><div className="admin-session-name"><Link href={sessionUrl(s.id)}><h2>{sessionName(s)}</h2></Link><p>{s.status === 'cancelled' ? <span className="session-state">Annulée · </span> : isPast(s) ? <span className="session-state">Passée · </span> : null}{s.script} · {time(s.starts_at)} · {s.visibility === 'public' ? 'Ouverte à tous' : 'Membres et invités'}{s.series_id && ' · Série'}</p></div><span className="badge">{s.confirmed_count}/{s.capacity} inscrits</span><div className="row-actions"><button className="button secondary compact" onClick={() => open(setSelected, s)}><UsersRound size={15} />Participants</button>{s.status === 'published' && !isPast(s) && <><button aria-label={`Modifier ${sessionName(s)}`} className="icon-btn" onClick={() => open(setEditing, s)}><Pencil size={17} /></button><button aria-label={`Annuler ${sessionName(s)}`} className="icon-btn" onClick={() => open(setCancel, s)}><X size={17} /></button></>}{deletable(s) && <button aria-label={`Supprimer ${sessionName(s)}`} title="Supprimer définitivement" className="icon-btn" onClick={() => open(setRemoval, s)}><Trash2 size={17} /></button>}</div></article>) : <div className="empty-state"><CalendarDays /><h2>Crée votre première soirée.</h2><p>Tu choisis la date, le script et les places disponibles.</p></div>}</div></>
+    </div>}<div className="admin-session-list">{listed.length ? listed.map(s => <article className={`admin-session-row ${s.status === 'cancelled' ? 'is-cancelled' : isPast(s) ? 'is-past' : ''}`} key={s.id}><DateTile date={s.starts_at} /><div className="admin-session-name"><Link href={sessionUrl(s.id)}><h2>{sessionName(s)}</h2></Link><p>{s.status === 'cancelled' ? <span className="session-state">Annulée · </span> : isPast(s) ? <span className="session-state">Passée · </span> : null}{s.script} · {time(s.starts_at)} · {s.visibility === 'public' ? 'Ouverte à tous' : 'Membres et invités'}{s.series_id && ' · Série'}</p></div><span className="badge">{s.confirmed_count}/{s.capacity} inscrits</span><div className="row-actions"><button className="button secondary compact" onClick={() => open(setSelected, s)}><UsersRound size={15} />Participants</button>{writable(s) && <button aria-label={`Écrire aux inscrits de ${sessionName(s)}`} title="Écrire aux inscrits" className="icon-btn" onClick={() => open(setWriting, s)}><Mail size={17} /></button>}{s.status === 'published' && !isPast(s) && <><button aria-label={`Modifier ${sessionName(s)}`} className="icon-btn" onClick={() => open(setEditing, s)}><Pencil size={17} /></button><button aria-label={`Annuler ${sessionName(s)}`} className="icon-btn" onClick={() => open(setCancel, s)}><X size={17} /></button></>}{deletable(s) && <button aria-label={`Supprimer ${sessionName(s)}`} title="Supprimer définitivement" className="icon-btn" onClick={() => open(setRemoval, s)}><Trash2 size={17} /></button>}</div></article>) : <div className="empty-state"><CalendarDays /><h2>Crée votre première soirée.</h2><p>Tu choisis la date, le script et les places disponibles.</p></div>}</div></>
     : tab === 'venues' ? <Venues venues={venues} sessions={data.sessions} />
     : <div className="panel">{profiles.map(p => <div className="member-row" key={p.id}><Avatar name={p.display_name} color={p.avatar_color} /><div><h3>{p.display_name}</h3><p>{experienceLabels[experienceOf(p)]}{p.can_storytell && ' · volontaire MJ'}{p.bio && ` · ${p.bio}`}</p></div><span className={`badge ${p.membership === 'suspended' ? 'red' : ''}`}>{membershipLabels[p.membership]}</span>{p.membership !== 'organizer' && <button className="button secondary compact" disabled={a.pending} onClick={() => open(setMember, p)}>{p.membership === 'suspended' ? 'Réactiver' : 'Gérer'}</button>}</div>)}</div>}
     <Dialog title={editing === 'new' ? 'Créer une partie' : 'Modifier la partie'} open={editing !== null} onClose={() => setEditing(null)} wide guard>{editing && <SessionForm session={editing === 'new' ? undefined : editing} template={template} address={editing === 'new' ? (template ? addresses[template.id] : undefined) : addresses[editing.id]} venues={venues} onSaved={() => setEditing(null)} />}</Dialog>
@@ -73,6 +77,7 @@ export function Admin({ data, bookings, profiles, addresses, venues, series = []
         <button className="icon-btn" aria-label={`Retirer ${nameOf(b)}`} disabled={a.pending} onClick={() => open(setRemoving, b)}><X size={16} /></button>
       </div>)}
       {selected && !participants.length && <p className="muted">Pas encore de participation.</p>}
+      {selected && writable(selected) && <button className="button secondary" onClick={() => { open(setWriting, selected); setSelected(null); }}><Mail size={16} />Écrire aux inscrits</button>}
       <Feedback result={a.result} />
     </div></Dialog>
     <Dialog title="Retirer cette participation ?" open={!!removing} onClose={() => setRemoving(null)}><div className="stack"><p>{removing && !removing.user_id ? `${sponsorOf(removing)?.display_name ?? 'La personne qui l’amène'} sera prévenu·e.` : `${removing ? nameOf(removing) : ''} sera prévenu·e.`} Sa place éventuelle revient à la première personne de la liste d’attente.</p><button className="button danger" disabled={a.pending} onClick={() => removing && a.run(() => removeParticipant(removing.id), () => setRemoving(null))}>Retirer la participation</button><Feedback result={a.result} /></div></Dialog>
@@ -82,8 +87,28 @@ export function Admin({ data, bookings, profiles, addresses, venues, series = []
       <p>« {stopping && sessionName(stopping)} » n’ouvrira plus de nouvelle date.{stopPlan && stopPlan.removed > 0 && (stopPlan.removed > 1 ? ` Ses ${stopPlan.removed} dates à venir sans inscrit seront retirées.` : ' Sa date à venir sans inscrit sera retirée.')}{stopPlan && stopPlan.kept > 0 && (stopPlan.kept > 1 ? ` Ses ${stopPlan.kept} parties avec des inscrits restent prévues : tu pourras les annuler une par une pour prévenir chacun.` : ' Sa partie avec des inscrits reste prévue : tu pourras l’annuler pour prévenir chacun.')}</p>
       <div className="button-row"><button className="button secondary" onClick={() => setStopping(null)}>Garder la série</button><button className="button danger" disabled={a.pending} onClick={() => stopping && a.run(() => stopSeries(stopping.id), () => setStopping(null))}>Arrêter la série</button></div><Feedback result={a.result} />
     </div></Dialog>
+    <Dialog title={writing ? `Écrire aux inscrits · ${sessionName(writing)}` : 'Écrire aux inscrits'} open={!!writing} onClose={() => setWriting(null)} guard>{writing && <MessageForm key={writing.id} session={writing} recipients={recipientsOf(writing)} onSent={result => { setWriting(null); a.setResult(result); }} />}</Dialog>
     <Dialog title={`Le compte de ${member?.display_name || ''}`} open={!!member} onClose={() => setMember(null)}>{member && <MemberAccount key={member.id} member={member} pending={a.pending} onChange={status => a.run(() => setMembership(member.id, status), () => setMember(null))} />}<Feedback result={a.result} /></Dialog>
   </>;
+}
+
+/** The organizer's message to the people registered for a game, sent by e-mail with the game's name, date and place. */
+function MessageForm({ session, recipients, onSent }: { session: GameSession; recipients: { registered: number; waiting: number }; onSent: (result: ActionResult) => void }) {
+  const a = useAction();
+  const [waitlist, setWaitlist] = useState(true);
+  const count = recipients.registered + (waitlist ? recipients.waiting : 0);
+  const people = (n: number) => `${n} personne${n > 1 ? 's' : ''}`;
+  return <form className="stack" onSubmit={e => {
+    e.preventDefault();
+    const message = String(new FormData(e.currentTarget).get('message') ?? '');
+    a.run(() => sendSessionMessage(session.id, message, waitlist), onSent);
+  }}>
+    <p className="muted">Chaque personne le reçoit par e-mail, avec le nom de la partie, sa date et son lieu. Les personnes qui amènent des invité·es le reçoivent pour eux. Tu n’en reçois pas de copie.</p>
+    <label className="field">Ton message<textarea name="message" rows={6} required minLength={2} maxLength={2000} placeholder="Une précision sur l’accès, ce qu’il faut apporter, un mot d’accueil…" data-autofocus /></label>
+    {recipients.waiting > 0 && <label className="check-field"><input type="checkbox" name="waitlist" checked={waitlist} onChange={e => setWaitlist(e.target.checked)} /><span>Aussi {recipients.waiting > 1 ? `les ${people(recipients.waiting)}` : 'la personne'} en liste d’attente</span></label>}
+    <Feedback result={a.result} />
+    <button className="button primary full" disabled={a.pending || count === 0}><Send size={16} />{a.pending ? 'Envoi…' : count ? `Envoyer à ${people(count)}` : 'Personne à prévenir'}</button>
+  </form>;
 }
 
 function MemberAccount({ member, pending, onChange }: { member: Profile; pending: boolean; onChange: (status: Membership) => void }) {

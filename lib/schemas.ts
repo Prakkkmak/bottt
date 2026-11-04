@@ -28,3 +28,5 @@ export const venueSchema = z.object({
 });
 export const guestNameSchema = z.string().trim().min(2, 'Indique un prénom ou un pseudo de 2 à 40 caractères.').max(40, 'Indique un prénom ou un pseudo de 2 à 40 caractères.');
 export const invitationEmailSchema = z.string().trim().toLowerCase().pipe(z.email('Cette adresse e-mail est invalide.').max(254, 'Cette adresse e-mail est invalide.'));
+/** What an organizer writes to the people registered for a game, sent as a plain-text e-mail. */
+export const sessionMessageSchema = z.string('Écris un message de 2 à 2000 caractères.').trim().min(2, 'Écris un message de 2 à 2000 caractères.').max(2000, 'Écris un message de 2 à 2000 caractères.');

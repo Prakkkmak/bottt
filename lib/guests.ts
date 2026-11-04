@@ -93,6 +93,18 @@ export function waitlistPositions(bookings: Booking[]): Map<string, number> {
   return positions;
 }
 
+/** Who an organizer's message about a game reaches, counted like public.send_session_message: one person per account,
+ * the people who bring guests reading it for them, never the writer. `waiting` is who the waiting list adds. */
+export function messageRecipients(bookings: Booking[], sessionId: string, writer?: string | null): { registered: number; waiting: number } {
+  const registered = new Set<string>(); const all = new Set<string>();
+  for (const b of bookings) {
+    const person = b.user_id ?? b.sponsor_id;
+    if (b.session_id !== sessionId || !person || person === writer || !activeBooking(b.status)) continue;
+    all.add(person); if (b.status !== 'waitlisted') registered.add(person);
+  }
+  return { registered: registered.size, waiting: all.size - registered.size };
+}
+
 /** Each account's booking followed by the people it brings; guests of absent sponsors come last. */
 export function orderBySponsor(bookings: Booking[]): Booking[] {
   const people = bookings.filter(b => b.user_id);
