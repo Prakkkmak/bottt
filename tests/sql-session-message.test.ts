@@ -37,14 +37,18 @@ test('Message d’un organisateur aux inscrits d’une partie',async t=>{
     assert.equal((await messages('Message de Joueur 2')).length,0);
   });
   await t.test('chaque inscrit reçoit un message, les invité·es par la personne qui les amène, sans copie pour l’auteur',async()=>{
-    assert.equal(await send(1,'  Sonnez à l’interphone « Tanguy ».\r\nÀ ce soir !\n  '),5);
+    assert.equal(await send(1,'  Apportez de quoi grignoter « maison ».\r\nÀ ce soir !\n  '),5);
     const sent=await messages();
     assert.deepEqual(sent.map(m=>m.user_id),[uuid(2),uuid(3),uuid(4),uuid(6),uuid(7)]);
     const of=(n:number)=>sent.find(m=>m.user_id===uuid(n))!.body;
     // Line endings are tidied and the people brought are named, in order.
-    assert.equal(of(4),'Sonnez à l’interphone « Tanguy ».\nÀ ce soir !');
-    assert.equal(of(2),'Sonnez à l’interphone « Tanguy ».\nÀ ce soir !\n\nTransmets ce message à Paul et Zoé.');
-    assert.equal(of(3),'Sonnez à l’interphone « Tanguy ».\nÀ ce soir !\n\nTransmets ce message à Léo.');
+    assert.equal(of(4),'Apportez de quoi grignoter « maison ».\nÀ ce soir !');
+    assert.equal(of(2),'Apportez de quoi grignoter « maison ».\nÀ ce soir !\n\nTransmets ce message à Paul et Zoé.');
+    assert.equal(of(3),'Apportez de quoi grignoter « maison ».\nÀ ce soir !\n\nTransmets ce message à Léo.');
+    // The writing account is kept with each message, out of the players' reach.
+    await h.root();assert.deepEqual((await h.call<{sender_id:string}>('select distinct sender_id from notifications where title=$1',['Message de Joueur 1'])).map(r=>r.sender_id),[uuid(1)]);
+    await h.login(2);await assert.rejects(h.call('select sender_id from notifications'),/permission denied/i);
+    assert.equal((await h.call('select title from notifications where title=$1',['Message de Joueur 1'])).length,1);
     // Someone who left is not written to.
     await h.root();assert.equal((await h.call('select 1 from notifications where user_id=$1 and title like $2',[uuid(5),'Message de %'])).length,0);
     await clear();
@@ -64,7 +68,10 @@ test('Message d’un organisateur aux inscrits d’une partie',async t=>{
     await clear();
   });
   await t.test('un message vide, trop long ou sans destinataire est refusé',async()=>{
-    for(const text of ['',' x ','\n\n','a'.repeat(2001)])await assert.rejects(send(1,text),/2 à 2000 caractères/);
+    for(const text of ['',' x ','\n\n','\u202Ex\u0007','a'.repeat(2001)])await assert.rejects(send(1,text),/2 à 2000 caractères/);
+    // Control characters and direction marks, which could disguise a link, are dropped; emoji and tabs stay.
+    assert.equal(await send(1,'Lien\u202E : moc.elpmaxe\u2066\u0007\tà ce soir 👋🏽\u0085'),5);
+    await h.root();assert.deepEqual((await h.call<{body:string}>('select distinct body from notifications where user_id=$1 and title=$2',[uuid(4),'Message de Joueur 1'])).map(r=>r.body),['Lien : moc.elpmaxe\tà ce soir 👋🏽']);
     assert.equal(await send(1,'é'.repeat(2000)),5);
     const lonely=uuid(101);await h.session(lonely);
     await assert.rejects(send(1,'Il y a quelqu’un ?',true,lonely),/Personne d’autre/);
@@ -83,11 +90,11 @@ test('Message d’un organisateur aux inscrits d’une partie',async t=>{
     await h.login(1);await h.call('select cancel_session($1)',[cancelled]);
     await assert.rejects(send(1,'Désolé',true,cancelled),/annulée/);
   });
-  await t.test('dix messages par heure au plus, les refus ne comptant pas',async()=>{
+  await t.test('dix messages par jour au plus, les refus ne comptant pas',async()=>{
     await clear();
     await assert.rejects(send(1,'x'),/2 à 2000/);
     for(let i=1;i<=10;i++)assert.equal(await send(1,`Message ${i}`),5);
-    await assert.rejects(send(1,'Un de trop'),/Trop de demandes/);
+    await assert.rejects(send(1,'Un de trop'),/déjà envoyé 10 messages aujourd’hui/);
     // Another organizer still writes.
     assert.equal(await send(7,'À ce soir'),5);
   });

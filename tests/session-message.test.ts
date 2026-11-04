@@ -31,7 +31,7 @@ test('destinataires d’un message aux inscrits', () => {
 });
 
 test('le message d’un organisateur par e-mail', () => {
-  const body = 'Sonnez à l’interphone « Tanguy ».\nÀ ce soir !\n\nTransmets ce message à Paul.';
+  const body = 'Apportez de quoi grignoter « maison ».\nÀ ce soir !\n\nTransmets ce message à Paul.';
   const mail = notificationMail({ id: 'n1', email: 'lea@exemple.fr', session_id: 's1', title: 'Message de Lévy', body, session_title: '', session_script: 'Trouble Brewing', session_starts_at: '2026-11-05T18:30:00Z', session_location: 'Le Grenier' }, 'https://bottt.fr');
   assert.equal(mail.subject, 'Message de Lévy · Trouble Brewing, jeudi 5 novembre');
   // The line breaks the organizer typed are kept, before the game's details and the link.

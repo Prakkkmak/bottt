@@ -1,6 +1,6 @@
 'use client';
 import { DateTile } from './date-tile';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { Plus, CalendarDays, UsersRound, Clock3, X, Pencil, BookOpen, Link2, Trash2, Repeat, Mail, Send } from 'lucide-react';
@@ -31,6 +31,10 @@ export function Admin({ data, bookings, profiles, addresses, venues, series = []
   const [removing, setRemoving] = useState<Booking | null>(null);
   const [stopping, setStopping] = useState<Series | null>(null);
   const [writing, setWriting] = useState<GameSession | null>(null);
+  // Counts the messages sent: the confirmation, at the top of the page, comes into view so that nobody sends twice.
+  const [sent, setSent] = useState(0);
+  const feedbackRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { if (sent) feedbackRef.current?.scrollIntoView({ block: 'nearest' }); }, [sent]);
   const a = useAction();
   // One action hook serves every dialog: each opens without the previous dialog's message.
   const open = <T,>(set: (value: T) => void, value: T) => { a.setResult(null); set(value); };
@@ -52,10 +56,10 @@ export function Admin({ data, bookings, profiles, addresses, venues, series = []
   const queue = waitlistPositions(participants);
   // A message reaches the people registered for a game that has not started yet, the writer aside (see send_session_message).
   const recipientsOf = (s: GameSession) => messageRecipients(bookings, s.id, data.profile?.id);
-  const writable = (s: GameSession) => { const r = recipientsOf(s); return s.status === 'published' && new Date(s.starts_at) > new Date() && r.registered + r.waiting > 0; };
+  const writable = (s: GameSession) => { if (s.status !== 'published' || new Date(s.starts_at) <= new Date()) return false; const r = recipientsOf(s); return r.registered + r.waiting > 0; };
   return <><div className="page-heading admin-heading"><h1>Organiser</h1><button className="button primary compact" onClick={() => setEditing('new')}><Plus size={17} />Créer une partie</button></div>
     <div className="admin-stats"><div><CalendarDays /><span><strong>{future.length}</strong>sessions à venir</span></div><div><UsersRound /><span><strong>{profiles.filter(p => p.membership !== 'suspended').length}</strong>personnes dans le cercle</span></div><div><Clock3 /><span><strong>{waitingCount}</strong>{waitingCount > 1 ? 'personnes' : 'personne'} en liste d’attente</span></div></div>
-    <div className="session-tabs admin-tabs" role="group" aria-label="Espace organisateur">{([['sessions', 'Les sessions'], ['members', 'Les membres'], ['venues', 'Les lieux']] as const).map(([value, label]) => <button key={value} aria-pressed={tab === value} className={tab === value ? 'selected' : ''} onClick={() => setTab(value)}>{label}</button>)}</div><Feedback result={a.result} />
+    <div className="session-tabs admin-tabs" role="group" aria-label="Espace organisateur">{([['sessions', 'Les sessions'], ['members', 'Les membres'], ['venues', 'Les lieux']] as const).map(([value, label]) => <button key={value} aria-pressed={tab === value} className={tab === value ? 'selected' : ''} onClick={() => setTab(value)}>{label}</button>)}</div><div ref={feedbackRef}><Feedback result={a.result} /></div>
     {tab === 'sessions' ? <>{series.length > 0 && <div className="panel venue-panel series-panel">
       <div className="panel-heading"><h2><Repeat size={20} />Parties récurrentes</h2></div>
       <p className="muted">Chaque série ouvre ses prochaines dates d’elle-même. Chaque date se modifie ou s’annule dans la liste ci-dessous, sans toucher aux autres.</p>
@@ -87,7 +91,7 @@ export function Admin({ data, bookings, profiles, addresses, venues, series = []
       <p>« {stopping && sessionName(stopping)} » n’ouvrira plus de nouvelle date.{stopPlan && stopPlan.removed > 0 && (stopPlan.removed > 1 ? ` Ses ${stopPlan.removed} dates à venir sans inscrit seront retirées.` : ' Sa date à venir sans inscrit sera retirée.')}{stopPlan && stopPlan.kept > 0 && (stopPlan.kept > 1 ? ` Ses ${stopPlan.kept} parties avec des inscrits restent prévues : tu pourras les annuler une par une pour prévenir chacun.` : ' Sa partie avec des inscrits reste prévue : tu pourras l’annuler pour prévenir chacun.')}</p>
       <div className="button-row"><button className="button secondary" onClick={() => setStopping(null)}>Garder la série</button><button className="button danger" disabled={a.pending} onClick={() => stopping && a.run(() => stopSeries(stopping.id), () => setStopping(null))}>Arrêter la série</button></div><Feedback result={a.result} />
     </div></Dialog>
-    <Dialog title={writing ? `Écrire aux inscrits · ${sessionName(writing)}` : 'Écrire aux inscrits'} open={!!writing} onClose={() => setWriting(null)} guard>{writing && <MessageForm key={writing.id} session={writing} recipients={recipientsOf(writing)} onSent={result => { setWriting(null); a.setResult(result); }} />}</Dialog>
+    <Dialog title="Écrire aux inscrits" open={!!writing} onClose={() => setWriting(null)} guard>{writing && <MessageForm key={writing.id} session={writing} recipients={recipientsOf(writing)} onSent={result => { setWriting(null); a.setResult(result); setSent(n => n + 1); }} />}</Dialog>
     <Dialog title={`Le compte de ${member?.display_name || ''}`} open={!!member} onClose={() => setMember(null)}>{member && <MemberAccount key={member.id} member={member} pending={a.pending} onChange={status => a.run(() => setMembership(member.id, status), () => setMember(null))} />}<Feedback result={a.result} /></Dialog>
   </>;
 }
@@ -103,8 +107,8 @@ function MessageForm({ session, recipients, onSent }: { session: GameSession; re
     const message = String(new FormData(e.currentTarget).get('message') ?? '');
     a.run(() => sendSessionMessage(session.id, message, waitlist), onSent);
   }}>
-    <p className="muted">Chaque personne le reçoit par e-mail, avec le nom de la partie, sa date et son lieu. Les personnes qui amènent des invité·es le reçoivent pour eux. Tu n’en reçois pas de copie.</p>
-    <label className="field">Ton message<textarea name="message" rows={6} required minLength={2} maxLength={2000} placeholder="Une précision sur l’accès, ce qu’il faut apporter, un mot d’accueil…" data-autofocus /></label>
+    <p className="muted">Pour « {sessionName(session)} ». Chaque personne le reçoit par e-mail, avec le nom de la partie, sa date et son lieu. Les personnes qui amènent des invité·es le reçoivent pour eux. Tu n’en reçois pas de copie.</p>
+    <label className="field">Ton message<span className="field-note">La liste d’attente et les voyageur·ses n’ont pas toujours l’adresse exacte : n’y mets ni l’adresse ni un code d’accès.</span><textarea name="message" rows={6} required minLength={2} maxLength={2000} placeholder="Ce qu’il faut apporter, l’heure d’accueil, un mot pour les débutant·es…" data-autofocus /></label>
     {recipients.waiting > 0 && <label className="check-field"><input type="checkbox" name="waitlist" checked={waitlist} onChange={e => setWaitlist(e.target.checked)} /><span>Aussi {recipients.waiting > 1 ? `les ${people(recipients.waiting)}` : 'la personne'} en liste d’attente</span></label>}
     <Feedback result={a.result} />
     <button className="button primary full" disabled={a.pending || count === 0}><Send size={16} />{a.pending ? 'Envoi…' : count ? `Envoyer à ${people(count)}` : 'Personne à prévenir'}</button>
