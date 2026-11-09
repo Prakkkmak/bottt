@@ -1,30 +1,32 @@
-import type { CSSProperties, ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { byTeam, displayName, type Character } from '@/lib/characters';
 import { iconPath } from '@/lib/role-art';
+import type { SheetLanguage } from './sheet-language';
 
 /**
- * Characters by team, laid out like an official script sheet: the icon, the name, the ability. Both languages are in the
- * page; the sheet around them (SheetLanguage) shows French or English, French by default. Each name leads to its wiki page.
+ * Characters by team, laid out like an official script sheet: the icon, the name, the ability, in French (the other
+ * name beside) or in English. Each name leads to the role's wiki page in that language.
  */
-export function CharacterList({ characters, headingLevel = 2 }: { characters: Character[]; headingLevel?: 2 | 3 }) {
+export function CharacterList({ characters, headingLevel = 2, language = 'fr' }: { characters: Character[]; headingLevel?: 2 | 3; language?: SheetLanguage }) {
   const Heading = headingLevel === 2 ? 'h2' : 'h3';
-  return <>{byTeam(characters).map(team => {
-    // In English, the sheet sorts by the English names: the grid moves each card, the page keeps one copy of each.
-    const english = [...team.characters].sort((x, y) => x.name_en.localeCompare(y.name_en, 'en')).map(c => c.id);
-    return <section key={team.id} className={`role-team role-team-${team.id}`} aria-label={team.label}>
-      <Heading className="role-team-heading"><span className="only-fr">{team.label}</span><span className="only-en" lang="en">{team.label_en}</span>
-        <small><span className="only-fr">{team.note && `${team.note} · `}</span><span className="only-en" lang="en">{team.note_en && `${team.note_en} · `}</span>{team.characters.length}</small></Heading>
+  const english = language === 'en';
+  return <>{byTeam(characters, language).map(team => {
+    const label = english ? team.label_en : team.label;
+    const note = english ? team.note_en : team.note;
+    return <section key={team.id} className={`role-team role-team-${team.id}`} aria-label={label} lang={english ? 'en' : undefined}>
+      <Heading className="role-team-heading"><span>{label}</span><small>{note && `${note} · `}{team.characters.length}</small></Heading>
       <ul className="role-list">{team.characters.map(c => {
         const fr = displayName(c);
-        return <li key={c.id} id={c.id} className="role-card" style={{ '--en-order': english.indexOf(c.id) } as CSSProperties}>
+        const name = english ? c.name_en : fr;
+        const other = english ? c.name_fr : c.name_en;
+        const icon = iconPath(c.id);
+        return <li key={c.id} id={c.id} className="role-card">
           {/* Decorative: the name beside says who it is. */}
-          <img className="role-icon" src={iconPath(c.id)} alt="" width={56} height={56} loading="lazy" decoding="async" />
+          {icon ? <img className="role-icon" src={icon} alt="" width={56} height={56} loading="lazy" decoding="async" /> : <span className="role-icon" aria-hidden="true" />}
           <div className="role-text">
-            {/* The name leads to the role's wiki page, in the language shown. */}
-            <p className="role-name"><a className="only-fr" href={c.wiki_fr ?? c.wiki_en} target="_blank" rel="noopener noreferrer">{fr}</a><a className="only-en" lang="en" href={c.wiki_en} target="_blank" rel="noopener noreferrer">{c.name_en}</a>
-              {fr !== c.name_en && <small><span className="only-fr" lang="en">{c.name_en}</span><span className="only-en">{fr}</span></small>}</p>
-            <p className="role-ability only-fr" lang={c.ability_fr ? undefined : 'en'}>{c.ability_fr ?? c.ability_en}</p>
-            <p className="role-ability only-en" lang="en">{c.ability_en}</p>
+            <p className="role-name"><a href={english ? c.wiki_en : c.wiki_fr ?? c.wiki_en} target="_blank" rel="noopener noreferrer">{name}</a>
+              {other && other !== name && <small lang={english ? 'fr' : 'en'}>{other}</small>}</p>
+            {english ? <p className="role-ability">{c.ability_en}</p> : <p className="role-ability" lang={c.ability_fr ? undefined : 'en'}>{c.ability_fr ?? c.ability_en}</p>}
           </div>
         </li>;
       })}</ul>
@@ -33,9 +35,9 @@ export function CharacterList({ characters, headingLevel = 2 }: { characters: Ch
 }
 
 /** A parchment sheet, as printed for the table: its title (a logo or a name), a line under it, then its roles. */
-export function Sheet({ title, byline, children, id, labelledBy }: { title: ReactNode; byline?: ReactNode; children: ReactNode; id?: string; labelledBy?: string }) {
+export function Sheet({ title, byline, aside, children, id, labelledBy }: { title: ReactNode; byline?: ReactNode; aside?: ReactNode; children: ReactNode; id?: string; labelledBy?: string }) {
   return <section className="role-sheet" id={id} aria-labelledby={labelledBy}>
-    <header className="sheet-head">{title}{byline && <p className="sheet-byline">{byline}</p>}</header>
+    <header className="sheet-head">{title}{byline && <p className="sheet-byline">{byline}</p>}{aside}</header>
     {children}
   </section>;
 }

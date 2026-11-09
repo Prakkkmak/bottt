@@ -1,26 +1,17 @@
-'use client';
-import { useEffect, useState, type ReactNode } from 'react';
+import Link from 'next/link';
 
-type Language = 'fr' | 'en';
-const key = 'bottt-sheet-language';
+/** The language of the role sheets: French by default, English as the official sheets are printed. */
+export type SheetLanguage = 'fr' | 'en';
+/** ?lang=en asks for English; anything else is French. */
+export const sheetLanguage = (value: string | string[] | undefined): SheetLanguage => value === 'en' ? 'en' : 'fr';
 
 /**
- * The sheets of a page in French or in English, as the official ones are printed in English: both texts are in the page,
- * and this only says which one shows. The choice stays on this device; without it, or without script, French shows.
+ * Two links to the same page in each language: the address says the language, so a link can be shared, the page is
+ * rendered in the right order from the start, and nothing is stored on the device.
  */
-export function SheetLanguage({ children }: { children: ReactNode }) {
-  const [language, setLanguage] = useState<Language>('fr');
-  useEffect(() => {
-    try { if (localStorage.getItem(key) === 'en') setLanguage('en'); } catch { /* storage refused: French */ }
-  }, []);
-  const choose = (value: Language) => {
-    setLanguage(value);
-    try { localStorage.setItem(key, value); } catch { /* the choice lasts for this page only */ }
-  };
-  return <div className="sheet-language" data-lang={language}>
-    <div className="session-tabs sheet-tabs" role="group" aria-label="Langue des fiches">
-      {(['fr', 'en'] as const).map(value => <button key={value} type="button" aria-pressed={language === value} className={language === value ? 'selected' : ''} lang={value === 'en' ? 'en' : undefined} onClick={() => choose(value)}>{value === 'fr' ? 'En français' : 'In English'}</button>)}
-    </div>
-    {children}
-  </div>;
+export function LanguageSwitch({ path, language }: { path: string; language: SheetLanguage }) {
+  return <nav className="language-switch" aria-label="Langue des fiches">
+    <Link href={path} scroll={false} prefetch={false} aria-current={language === 'fr' ? 'true' : undefined}>En français</Link>
+    <Link href={`${path}?lang=en`} scroll={false} prefetch={false} lang="en" hrefLang="en" aria-current={language === 'en' ? 'true' : undefined}>In English</Link>
+  </nav>;
 }

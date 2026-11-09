@@ -31,9 +31,10 @@ export const editions: { id: Edition; label: string }[] = [
 
 /** The name a French reader looks for: the translation, else the official English name. */
 export const displayName = (c: Character) => c.name_fr ?? c.name_en;
-/** Characters by team in sheet order, each team in alphabetical order of its French names. */
-export function byTeam(list: Character[]) {
-  return teams.map(team => ({ ...team, characters: list.filter(c => c.team === team.id).sort((x, y) => displayName(x).localeCompare(displayName(y), 'fr')) })).filter(t => t.characters.length);
+/** Characters by team in sheet order, each team in alphabetical order of its names in the language read. */
+export function byTeam(list: Character[], language: 'fr' | 'en' = 'fr') {
+  const name = language === 'en' ? (c: Character) => c.name_en : displayName;
+  return teams.map(team => ({ ...team, characters: list.filter(c => c.team === team.id).sort((x, y) => name(x).localeCompare(name(y), language)) })).filter(t => t.characters.length);
 }
 export const charactersOf = (ids: readonly unknown[]) => ids.filter((id): id is string => typeof id === 'string').map(characterById).filter((c): c is Character => !!c);
 /** The roles of a base script: every character of its edition, travellers included. */

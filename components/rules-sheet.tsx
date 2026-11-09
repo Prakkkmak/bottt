@@ -1,6 +1,7 @@
 /**
  * The rules sheet handed to players, front and back: the official « Rules Explanation » of The Pandemonium Institute in
- * BambiPotato's French translation (CC BY 4.0), lightly adapted: the Storyteller's signals said in words, repeats removed.
+ * BambiPotato's French translation (CC BY 4.0), lightly adapted: the Storyteller's signals said in words, the voting rule
+ * made precise, repeats removed.
  */
 export function RulesSheet() {
   return <div className="rules-sheet">
@@ -67,7 +68,8 @@ export function RulesSheet() {
         <ul>
           <li>Pour nommer, dites clairement : « Je nomme Ben. »</li>
           <li>Tout le monde vote. Le Conteur annonce : « Les votes pour Ben, c’est parti. » Il fait le tour dans le sens des aiguilles d’une montre : main levée, vous votez pour l’exécution ; main baissée, contre.</li>
-          <li>Le joueur nommé est exécuté s’il obtient les votes d’au moins la moitié des joueurs encore en vie. En cas d’égalité, personne n’est exécuté.</li>
+          <li>Si le joueur nommé obtient les votes d’au moins la moitié des joueurs encore en vie, il monte sur le billot. Si un autre joueur obtient ensuite plus de votes, il prend sa place ; en cas d’égalité, personne n’y reste.</li>
+          <li>À la fin du jour, le joueur sur le billot est exécuté : une exécution par jour au plus.</li>
           <li>Les morts restent essentiels : la partie se décide souvent grâce à leurs votes et à leurs avis.</li>
         </ul>
       </section>

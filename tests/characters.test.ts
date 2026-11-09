@@ -71,14 +71,22 @@ test('un script du cercle a un nom à lui et des personnages connus', () => {
   assert.equal(issue({ name: 'Mon script', author: 'x'.repeat(101) }), 'Le nom de l’auteur tient en 100 caractères au plus.');
 });
 
-test('chaque personnage a son icône et chaque module à logo a son fichier', async () => {
-  const { existsSync, statSync } = await import('node:fs');
-  const { iconPath, logoPath } = await import('../lib/role-art');
+test('chaque personnage a son icône, chaque module à logo ses fichiers, et le proxy les laisse passer', async () => {
+  const { existsSync, readFileSync, statSync } = await import('node:fs');
+  const { iconPath, logoOf, logoThumbOf } = await import('../lib/role-art');
   const file = (path: string) => new URL(`../public${path}`, import.meta.url);
-  const missing = characters.filter(c => !existsSync(file(iconPath(c.id)))).map(c => c.id);
-  assert.deepEqual(missing, []);
-  // Small enough to load a whole sheet at once.
-  assert.ok(characters.every(c => statSync(file(iconPath(c.id))).size < 25_000));
-  for (const e of editions) { const logo = logoPath(e.id); if (logo) assert.ok(existsSync(file(logo)), logo); }
-  assert.equal(logoPath('other'), null);
+  const icons = characters.map(c => iconPath(c.id));
+  assert.deepEqual(characters.filter((c, i) => !icons[i]).map(c => c.id), []);
+  for (const icon of icons as string[]) assert.ok(existsSync(file(icon)) && statSync(file(icon)).size < 25_000, icon);
+  // A WebP with transparency starts with its VP8X header, which holds its size: the page reserves the logo's real box.
+  const size = (path: string) => { const b = readFileSync(file(path)); assert.equal(b.toString('latin1', 12, 16), 'VP8X', path); return { width: 1 + b.readUIntLE(24, 3), height: 1 + b.readUIntLE(27, 3) }; };
+  const logos = editions.flatMap(e => [logoOf(e.id), logoThumbOf(e.id)]).filter(l => l !== null);
+  assert.equal(logos.length, 8);
+  for (const logo of logos) assert.deepEqual(size(logo.src), { width: logo.width, height: logo.height }, logo.src);
+  assert.equal(logoOf('other'), null);
+  // The matcher of proxy.ts, as Next.js reads it: these files skip the proxy, any other address under /roles/ does not.
+  const source = readFileSync(new URL('../proxy.ts', import.meta.url), 'utf8');
+  const matcher = new RegExp(`^${JSON.parse(`"${/matcher: \['(.*)'\]/.exec(source)![1]}"`)}$`);
+  for (const path of [...icons as string[], ...logos.map(l => l.src)]) assert.ok(!matcher.test(path), path);
+  for (const path of ['/roles/zzz.webp', '/roles/imp.webp.html', '/roles/', '/apprendre/roles', '/roles/editions/tb.png']) assert.ok(matcher.test(path), path);
 });
