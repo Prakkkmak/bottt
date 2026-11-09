@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { checkSessionForm, type SessionFormValues } from '../lib/session-form';
+import { checkSessionForm, isPastStart, type SessionFormValues } from '../lib/session-form';
 import { MIN_CAPACITY } from '../lib/session-rules';
 import { sessionSchema, seriesSchema } from '../lib/schemas';
 import { fromParisInput } from '../lib/utils';
@@ -34,7 +34,9 @@ test('les places, la date et le lien de carte sont expliqués selon l’erreur',
   const check = (changes: Partial<SessionFormValues>) => checkSessionForm({ ...values, ...changes }, {}).errors;
   assert.equal(check({ capacity: '7.5' }).capacity, 'Indique un nombre entier de places.');
   assert.equal(check({ capacity: '21' }).capacity, 'Une partie compte 20 places au plus, MJ compris.');
-  assert.equal(check({ starts_at: '2020-10-02T19:30' }).starts_at, 'Choisis une date à venir.');
+  // A single game may take a past date, which the form asks to confirm; a series starts ahead.
+  assert.equal(check({ starts_at: '2020-10-02T19:30' }).starts_at, undefined);
+  assert.equal(check({ starts_at: '2020-10-02T19:30', repeat: '1', weeks_ahead: '4' }).starts_at, 'Choisis une date à venir.');
   // 29 mars 2099 : à 2 h, Paris passe directement à 3 h.
   assert.equal(check({ starts_at: '2099-03-29T02:30' }).starts_at, 'Cette heure n’existe pas lors du changement d’heure. Choisis un autre horaire.');
   assert.equal(check({ maps_url: 'javascript:alert(1)' }).maps_url, 'Colle un lien complet, qui commence par https://.');
@@ -130,7 +132,7 @@ test('une partie récurrente donne son rythme, ses dates ouvertes et sa dernièr
 test('le formulaire et le serveur refusent les mêmes séries avec les mêmes mots', () => {
   const cases: Partial<SessionFormValues>[] = [{}, { repeat: '2' }, { repeat: '3' }, { repeat: '0' }, { weeks_ahead: '' }, { weeks_ahead: '0' }, { weeks_ahead: '1' }, { weeks_ahead: '12' }, { weeks_ahead: '13' }, { weeks_ahead: '2.5' },
     { ends_on: '2099-10-01' }, { ends_on: '2099-10-02' }, { ends_on: '2100-01-01' }, { ends_on: '2099-02-30' }, { ends_on: '2099-13-01' }, { ends_on: 'demain' },
-    { capacity: '2', weeks_ahead: '0' }, { script: '', repeat: '5', ends_on: 'x' }, { script: '' }, { script: 'a', repeat: '5' }];
+    { capacity: '2', weeks_ahead: '0' }, { script: '', repeat: '5', ends_on: 'x' }, { script: '' }, { script: 'a', repeat: '5' }, { starts_at: '2020-10-02T19:30' }, { starts_at: '2020-10-02T19:30', capacity: '2' }];
   for (const changes of cases) {
     const form = { ...values, ...weekly, ...changes };
     const { errors, message } = checkSessionForm(form, {});
@@ -151,4 +153,36 @@ test('ce que le formulaire laisse partir comme série, le serveur l’accepte', 
     assert.ok(payload, JSON.stringify([context, changes]));
     assert.equal(seriesSchema.safeParse(payload).success, true, JSON.stringify([context, changes]));
   }
+});
+
+test('une date passée part après confirmation, pour une partie seule ; le serveur l’accepte aussi', () => {
+  const session = { id: '10000000-0000-4000-8000-000000000001', starts_at: '2026-11-11T19:00:00Z', ends_at: '2026-11-11T23:00:00Z' };
+  for (const context of [{}, { session }]) {
+    const { errors, payload } = checkSessionForm({ ...values, starts_at: '2026-11-04T20:00' }, context);
+    assert.deepEqual(errors, {});
+    assert.equal(payload?.starts_at, '2026-11-04T19:00:00.000Z');
+    assert.equal(sessionSchema.safeParse(payload).success, true);
+  }
+  assert.equal(seriesSchema.safeParse({ ...checkSessionForm({ ...values, ...weekly }, {}).payload, starts_at: '2026-11-04T19:00:00.000Z' }).success, false);
+  const now = Date.parse('2026-11-09T15:00:00Z');
+  assert.equal(isPastStart('2026-11-04T20:00', now), true);
+  assert.equal(isPastStart('2026-11-09T16:00', now), true);
+  assert.equal(isPastStart('2026-11-09T16:01', now), false);
+  assert.equal(isPastStart('', now), false);
+  assert.equal(isPastStart('2099-03-29T02:30', now), false);
+});
+
+test('le mot aux inscrits ne part qu’avec une partie modifiée, et le serveur le borne comme le formulaire', () => {
+  const session = { id: '10000000-0000-4000-8000-000000000001', starts_at: '2026-10-02T17:00:00Z', ends_at: '2026-10-02T20:00:00Z' };
+  assert.equal(checkSessionForm({ ...values, note: '  La salle change.  ' }, { session }).payload?.note, 'La salle change.');
+  // A new game has nobody to write to; an empty note is not sent.
+  assert.equal('note' in (checkSessionForm({ ...values, note: 'Bonjour' }, {}).payload ?? {}), false);
+  assert.equal('note' in (checkSessionForm({ ...values, note: '   ' }, { session }).payload ?? {}), false);
+  for (const note of ['', 'x', 'x'.repeat(2000), ` ${'x'.repeat(2000)} `, 'x'.repeat(2001)]) {
+    const { errors, payload } = checkSessionForm({ ...values, note }, { session });
+    const parsed = sessionSchema.safeParse({ ...checkSessionForm(values, { session }).payload, note });
+    assert.equal(errors.note, parsed.success ? undefined : parsed.error.issues[0].message, JSON.stringify(note.length));
+    if (payload) assert.equal(sessionSchema.safeParse(payload).success, true);
+  }
+  assert.equal(checkSessionForm({ ...values, note: 'x'.repeat(2001) }, { session }).errors.note, 'Le message aux inscrits tient en 2000 caractères au plus.');
 });
