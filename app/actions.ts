@@ -4,9 +4,9 @@ import { after } from 'next/server';
 import { z } from 'zod';
 import { supabase, authenticatedClient } from '@/lib/supabase';
 import { isConfigured, isDemo } from '@/lib/config';
-import { profileSchema, nicknameSchema, sessionSchema, seriesSchema, venueSchema, guestNameSchema, invitationEmailSchema, sessionMessageSchema, notificationChoicesSchema } from '@/lib/schemas';
+import { profileSchema, nicknameSchema, sessionSchema, seriesSchema, seriesEditSchema, venueSchema, guestNameSchema, invitationEmailSchema, sessionMessageSchema, notificationChoicesSchema } from '@/lib/schemas';
 import { sessionMessageSent } from '@/lib/notification-choices';
-import { stoppedSeriesMessage } from '@/lib/series';
+import { editedSeriesMessage, stoppedSeriesMessage } from '@/lib/series';
 import { canSendMail, invitationMail, sendMail, siteUrl } from '@/lib/mail';
 import { flushEmails } from '@/lib/notifications';
 import type { ActionResult, Membership } from '@/lib/types';
@@ -115,7 +115,11 @@ export async function saveSession(input: unknown) {
   return rpc('save_session', { p_data: { ...game, ...(game.id && note ? { note } : {}), beginners_welcome: true } }, message);
 }
 export async function saveSeries(input: unknown) { const parsed = seriesSchema.safeParse(input); if (!parsed.success) return failure(parsed.error); return rpc('save_series', { p_data: parsed.data }, 'La série est publiée : ses prochaines dates sont ouvertes aux inscriptions.'); }
+/** Changes a series from its next date on, or resumes a stopped one; its upcoming dates take the new settings. */
+export async function editSeries(input: unknown) { const parsed = seriesEditSchema.safeParse(input); if (!parsed.success) return failure(parsed.error); return rpc('edit_series', { p_data: parsed.data }, data => editedSeriesMessage((data ?? {}) as Parameters<typeof editedSeriesMessage>[0])); }
 export async function stopSeries(id: string) { if (!isUuid(id)) return failure(new Error('Cette série est introuvable.')); return rpc('stop_series', { p_id: id }, data => stoppedSeriesMessage((data ?? {}) as { removed?: number; kept?: number })); }
+/** A stopped series leaves the list; its games stay. */
+export async function deleteSeries(id: string) { if (!isUuid(id)) return failure(new Error('Cette série est introuvable.')); return rpc('delete_series', { p_id: id }, 'La série est retirée de la liste.'); }
 export async function saveVenue(input: unknown) { const parsed = venueSchema.safeParse(input); if (!parsed.success) return failure(parsed.error); return rpc('save_venue', { p_data: parsed.data }, parsed.data.id ? 'Le lieu est enregistré.' : 'Le lieu est ajouté.'); }
 export async function deleteVenue(id: string) { if (!isUuid(id)) return failure(new Error('Lieu introuvable.')); return rpc('delete_venue', { p_id: id }, 'Le lieu est retiré de la liste.'); }
 export async function cancelSession(id: string) { if (!isUuid(id)) return failure(new Error('Session invalide.')); return rpc('cancel_session', { p_id: id }, 'La session est annulée. Les participants seront prévenus.'); }

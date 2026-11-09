@@ -19,15 +19,19 @@ const withEnd = <T extends { starts_at: string; ends_at?: string }>(s: T) => ({ 
 /** A game, new or edited. note: a few words for the people registered, sent with the message about an edited game. */
 export const sessionSchema = sessionFields.extend({ note: z.string(m.note).trim().max(2000, m.note).default('') })
   .transform(withEnd).refine(s => new Date(s.ends_at)>new Date(s.starts_at), m.end);
-/** A new recurring game: its first date as a game, then its rhythm, how far ahead its dates open and its last date, if any. */
-export const seriesSchema = sessionFields.omit({ id: true }).extend({
-  // Its dates open ahead of time: a series starts in the future.
+const seriesFields = sessionFields.omit({ id: true }).extend({
+  // Its dates open ahead of time: a series starts, or starts again, in the future.
   starts_at: startsAt.refine(s => new Date(s) > new Date(), m.past),
   every_weeks: z.literal([1, 2], m.repeat),
   weeks_ahead: z.number(m.weeksAhead).int(m.weeksAhead).min(1, m.weeksAhead).max(MAX_WEEKS_AHEAD, m.weeksAhead),
   ends_on: z.iso.date(m.lastDate).nullable().default(null),
-}).transform(withEnd).refine(s => new Date(s.ends_at)>new Date(s.starts_at), m.end)
+});
+/** A new recurring game: its first date as a game, then its rhythm, how far ahead its dates open and its last date, if any. */
+export const seriesSchema = seriesFields.transform(withEnd).refine(s => new Date(s.ends_at)>new Date(s.starts_at), m.end)
   .refine(s => !s.ends_on || s.ends_on >= parisDate(s.starts_at), { message: m.lastBefore, path: ['ends_on'] });
+/** A series changed from its next date on (starts_at, ends_at giving the length of each game), with every setting of the form. */
+export const seriesEditSchema = seriesFields.extend({ id: z.uuid('Cette série est introuvable.') }).transform(withEnd).refine(s => new Date(s.ends_at)>new Date(s.starts_at), m.end)
+  .refine(s => !s.ends_on || s.ends_on >= parisDate(s.starts_at), { message: m.lastBeforeNext, path: ['ends_on'] });
 export const venueSchema = z.object({
   id: z.uuid('Ce lieu est introuvable.').optional(), name: z.string().trim().min(2, 'Donne au lieu un nom de 2 à 150 caractères.').max(150, 'Donne au lieu un nom de 2 à 150 caractères.'),
   address: z.string().trim().max(500, 'L’adresse et le lien de carte doivent tenir en 500 caractères.')
