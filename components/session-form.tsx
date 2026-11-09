@@ -9,6 +9,7 @@ import { checkSessionForm, isPastStart, type SessionField, type SessionFieldErro
 import { nextSessionStart, sessionEnd, DEFAULT_SESSION_HOURS } from '@/lib/session-defaults';
 import { splitAddress } from '@/lib/locations';
 import { nextSeriesStart, rhythmLabel, seriesDuration, weeksAheadLabel } from '@/lib/series';
+import { baseScripts, type CustomScript } from '@/lib/scripts';
 import { editSeries, saveSeries, saveSession } from '@/app/actions';
 import { Feedback, useAction } from './action-feedback';
 import { AddressFields } from './address-fields';
@@ -19,12 +20,15 @@ import { FieldError, invalidField } from './ui';
  * Creates a game or a series, or changes a game, or a series from its next date on (a stopped one then resumes).
  * recipients: how many people a note about the edited game reaches (registered or waiting, its writer aside).
  */
-export function SessionForm({ session, series, address = '', template, venues = [], recipients = 0, onSaved }: { session?: GameSession; series?: Series; address?: string; template?: GameSession; venues?: Venue[]; recipients?: number; onSaved: (result: ActionResult) => void }) {
+export function SessionForm({ session, series, address = '', template, venues = [], scripts = [], recipients = 0, onSaved }: { session?: GameSession; series?: Series; address?: string; template?: GameSession; venues?: Venue[]; scripts?: CustomScript[]; recipients?: number; onSaved: (result: ActionResult) => void }) {
   const a = useAction();
   const defaults = session || series || template;
   const [start, setStart] = useState(() => session ? parisInput(session.starts_at) : series ? nextSeriesStart(series) : nextSessionStart());
   // The script of the game or series edited, or of the last game, even none; a first game suggests the most accessible one.
   const [script, setScript] = useState(defaults ? defaults.script : 'Trouble Brewing');
+  // The base box's scripts, then the circle's own; a game keeps a script that has since left the list.
+  const options = [...baseScripts.map(s => s.name), ...scripts.map(s => s.name).sort((x, y) => x.localeCompare(y, 'fr'))];
+  if (defaults?.script && !options.includes(defaults.script)) options.push(defaults.script);
   const [location, setLocation] = useState(defaults?.location || 'Brest');
   // A game opens on its venue, a new one on the last game's; '' is a place typed in for this game only.
   const [venueId, setVenueId] = useState(() => { const id = defaults ? defaults.venue_id : venues[0]?.id; return venues.some(v => v.id === id) ? id! : ''; });
@@ -94,8 +98,8 @@ export function SessionForm({ session, series, address = '', template, venues = 
       : !session && template ? 'Le lieu, le script et les réglages de la dernière partie sont repris. Choisis la date et ajuste ce dont tu as besoin.' : 'Choisis le début de la soirée, vérifie le lieu et publie.'}</p>
     <fieldset className="form-section"><legend><CalendarDays size={18} />La soirée</legend>
       <label className="field">Nom de la partie <span className="field-note">Facultatif · sans nom, la partie prend celui du script</span><input name="title" maxLength={100} defaultValue={(session ?? series)?.title || ''} placeholder={sessionName({ title: '', script })} autoFocus={!session && !series} data-autofocus={(!session && !series) || undefined} {...invalidField(error('title'))} /><FieldError {...error('title')} /></label>
-      <div className="form-grid"><label className="field">{series ? 'Prochaine date · heure de Paris' : 'Début · heure de Paris'}<input name="starts_at" required type="datetime-local" value={start} onChange={e => setStart(e.target.value)} {...invalidField(error('starts_at'))} /><FieldError {...error('starts_at')} /></label><label className="field">Script · facultatif<input name="script" list="session-scripts" minLength={2} maxLength={100} value={script} onChange={e => setScript(e.target.value)} {...invalidField(error('script'))} /><FieldError {...error('script')} /><datalist id="session-scripts"><option>Trouble Brewing</option><option>Bad Moon Rising</option><option>Sects &amp; Violets</option></datalist></label></div>
-      <p className="field-note">{series ? 'La durée des parties est conservée.' : session ? 'La durée de la partie est conservée.' : `Durée estimée de ${DEFAULT_SESSION_HOURS} h pour l’agenda.`}{endLabel && ` Fin prévue : ${endLabel}.`}</p>
+      <div className="form-grid"><label className="field">{series ? 'Prochaine date · heure de Paris' : 'Début · heure de Paris'}<input name="starts_at" required type="datetime-local" value={start} onChange={e => setStart(e.target.value)} {...invalidField(error('starts_at'))} /><FieldError {...error('starts_at')} /></label><label className="field">Script<select name="script" value={script} onChange={e => setScript(e.target.value)} {...invalidField(error('script'))}><option value="">Pas encore choisi</option>{options.map(name => <option key={name} value={name}>{name}</option>)}</select><FieldError {...error('script')} /></label></div>
+      <p className="field-note">{series ? 'La durée des parties est conservée.' : session ? 'La durée de la partie est conservée.' : `Durée estimée de ${DEFAULT_SESSION_HOURS} h pour l’agenda.`}{endLabel && ` Fin prévue : ${endLabel}.`} Un script maison s’ajoute dans l’onglet « Les scripts ».</p>
       {!session && <>
         <div className="form-grid">
           <label className="field">Répétition<select name="repeat" value={repeat} onChange={e => setRepeat(e.target.value)} {...invalidField(error('repeat'))}>{!series && <option value="">Une seule fois</option>}<option value="1">{rhythmLabel(1, start.slice(0, 10))}</option><option value="2">{rhythmLabel(2, start.slice(0, 10))}</option></select><FieldError {...error('repeat')} /></label>

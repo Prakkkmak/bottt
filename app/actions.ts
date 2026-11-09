@@ -4,7 +4,7 @@ import { after } from 'next/server';
 import { z } from 'zod';
 import { supabase, authenticatedClient } from '@/lib/supabase';
 import { isConfigured, isDemo } from '@/lib/config';
-import { profileSchema, nicknameSchema, sessionSchema, seriesSchema, seriesEditSchema, venueSchema, guestNameSchema, invitationEmailSchema, sessionMessageSchema, notificationChoicesSchema } from '@/lib/schemas';
+import { profileSchema, nicknameSchema, sessionSchema, seriesSchema, seriesEditSchema, venueSchema, scriptSchema, guestNameSchema, invitationEmailSchema, sessionMessageSchema, notificationChoicesSchema } from '@/lib/schemas';
 import { sessionMessageSent } from '@/lib/notification-choices';
 import { editedSeriesMessage, stoppedSeriesMessage } from '@/lib/series';
 import { canSendMail, invitationMail, sendMail, siteUrl } from '@/lib/mail';
@@ -122,6 +122,8 @@ export async function stopSeries(id: string) { if (!isUuid(id)) return failure(n
 export async function deleteSeries(id: string) { if (!isUuid(id)) return failure(new Error('Cette série est introuvable.')); return rpc('delete_series', { p_id: id }, 'La série est retirée de la liste.'); }
 export async function saveVenue(input: unknown) { const parsed = venueSchema.safeParse(input); if (!parsed.success) return failure(parsed.error); return rpc('save_venue', { p_data: parsed.data }, parsed.data.id ? 'Le lieu est enregistré.' : 'Le lieu est ajouté.'); }
 export async function deleteVenue(id: string) { if (!isUuid(id)) return failure(new Error('Lieu introuvable.')); return rpc('delete_venue', { p_id: id }, 'Le lieu est retiré de la liste.'); }
+export async function saveScript(input: unknown) { const parsed = scriptSchema.safeParse(input); if (!parsed.success) return failure(parsed.error); return rpc('save_script', { p_data: parsed.data }, parsed.data.id ? 'Le script est enregistré.' : 'Le script est ajouté : tu peux le choisir pour une partie.'); }
+export async function deleteScript(id: string) { if (!isUuid(id)) return failure(new Error('Script introuvable.')); return rpc('delete_script', { p_id: id }, 'Le script est retiré de la liste. Les parties qui l’ont joué gardent son nom.'); }
 export async function cancelSession(id: string) { if (!isUuid(id)) return failure(new Error('Session invalide.')); return rpc('cancel_session', { p_id: id }, 'La session est annulée. Les participants seront prévenus.'); }
 /** An organizer writes to everyone registered for an upcoming game, the waiting list included unless left out. */
 export async function sendSessionMessage(id: string, message: string, waitlist = true) {

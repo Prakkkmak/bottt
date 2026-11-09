@@ -2,6 +2,8 @@ import { z } from 'zod';
 import { MIN_CAPACITY, DEFAULT_CAPACITY, MAX_CAPACITY, MAX_WEEKS_AHEAD } from './session-rules';
 import { sessionEnd } from './session-defaults';
 import { sessionMessages as m, parisDate } from './session-form';
+import { isBaseScript, scriptSlug } from './scripts';
+import { knownCharacterIds } from './characters';
 // « Nouveau joueur » is the placeholder of an account that has not chosen yet (see the nickname migration).
 export const nicknameSchema = z.string().trim().min(2,'Choisis un pseudo d’au moins 2 caractères.').max(40).refine(name => name !== 'Nouveau joueur', 'Choisis un pseudo à toi.');
 export const profileSchema = z.object({ display_name: nicknameSchema, bio: z.string().trim().max(300), avatar_color: z.enum(['rose','blue','sage','ochre','lilac']), experience: z.enum(['beginner','some','experienced'], 'Choisis ton niveau.'), can_storytell: z.boolean().optional() });
@@ -32,6 +34,14 @@ export const seriesSchema = seriesFields.transform(withEnd).refine(s => new Date
 /** A series changed from its next date on (starts_at, ends_at giving the length of each game), with every setting of the form. */
 export const seriesEditSchema = seriesFields.extend({ id: z.uuid('Cette série est introuvable.') }).transform(withEnd).refine(s => new Date(s.ends_at)>new Date(s.starts_at), m.end)
   .refine(s => !s.ends_on || s.ends_on >= parisDate(s.starts_at), { message: m.lastBeforeNext, path: ['ends_on'] });
+/** A script of the circle: its name gives the address of its page, its characters are ids that lib/characters.ts knows. */
+export const scriptSchema = z.object({
+  id: z.uuid('Ce script est introuvable.').optional(),
+  name: z.string().trim().transform(s => s.replace(/\s+/g, ' ')).pipe(z.string().min(2, 'Donne au script un nom de 2 à 100 caractères.').max(100, 'Donne au script un nom de 2 à 100 caractères.'))
+    .refine(s => !isBaseScript(s), 'Ce nom est celui d’un script de base.').refine(s => scriptSlug(s) !== '', 'Donne au script un nom avec des lettres latines ou des chiffres.'),
+  author: z.string().trim().max(100, 'Le nom de l’auteur tient en 100 caractères au plus.').default(''),
+  characters: z.array(z.string().refine(id => knownCharacterIds.has(id), 'Un des personnages choisis est inconnu. Recharge la page et réessaie.')).max(200, 'Un script compte 200 personnages au plus.').default([]).transform(ids => [...new Set(ids)]),
+}, 'Le script envoyé est incomplet. Recharge la page et réessaie.').transform(s => ({ ...s, slug: scriptSlug(s.name) }));
 export const venueSchema = z.object({
   id: z.uuid('Ce lieu est introuvable.').optional(), name: z.string().trim().min(2, 'Donne au lieu un nom de 2 à 150 caractères.').max(150, 'Donne au lieu un nom de 2 à 150 caractères.'),
   address: z.string().trim().max(500, 'L’adresse et le lien de carte doivent tenir en 500 caractères.')
