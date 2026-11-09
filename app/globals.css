@@ -483,6 +483,8 @@ a.practical-link, .calendar-link > span { text-decoration: underline; text-under
   .admin-session-row .row-actions { width: 100%; justify-content: flex-end; }
   .session-tabs { gap: 20px; }
   .session-tabs button { font-size: 12px; }
+  /* Five tabs in Organiser: on the narrowest phones the last ones go to a second line rather than out of the screen. */
+  .admin-tabs { flex-wrap: wrap; column-gap: 16px; }
   .member-row .badge { margin-left: auto; }
   .page-heading h1 { overflow-wrap: anywhere; }
 }
