@@ -18,7 +18,7 @@ test('Couleur de joueur tirée au hasard à la création du compte',async t=>{
     assert.equal(await color(2),'blue');
   });
   await t.test('chaque nouveau compte reçoit une des cinq couleurs, et toutes finissent par sortir',async()=>{
-    // 200 draws: the odds of one colour never coming out are about 1 in 10^19.
+    // 200 draws, 40 of each colour expected: the odds of one coming out fewer than 10 times are about 1 in 10^9.
     const drawn=new Map<string,number>();
     for(let n=10;n<210;n++){await h.user(n,'newcomer',{});const c=await color(n);drawn.set(c,(drawn.get(c)??0)+1);}
     assert.deepEqual([...drawn.keys()].sort(),[...colors].sort());
@@ -29,4 +29,5 @@ test('Couleur de joueur tirée au hasard à la création du compte',async t=>{
     assert.equal(await color(10),'lilac');
     await h.login(10);await assert.rejects(h.call(`update profiles set avatar_color='vert' where id=$1`,[uuid(10)]),/avatar_color_check/);
   });
+  await h.db.close();
 });
