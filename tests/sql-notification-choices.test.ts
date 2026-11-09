@@ -79,6 +79,19 @@ test('Choix des notifications',async t=>{
     await clear();
   });
 
+  await t.test('un mot joint à une modification part comme le changement, même à qui a coupé les messages',async()=>{
+    const id=uuid(107);await h.session(id);
+    assert.equal(await book(2,id),'confirmed');
+    await choose(2,{message:false});
+    await clear();
+    await h.login(1);await h.call('select save_session($1)',[{...game({starts_at:new Date(Date.now()+10*86400000).toISOString()}),id,location:'Brest',address:'',note:'La porte est sur le côté.'}]);
+    const [n]=await notices();
+    assert.deepEqual([n.user_id,n.kind],[uuid(2),'change']);
+    assert.match(n.body,/La porte est sur le côté/);
+    await reset(2);
+    await clear();
+  });
+
   await t.test('le rappel suit le choix de chacun',async()=>{
     const id=uuid(101);await h.session(id,{startsIn:'20 hours'});
     for(const n of [2,3])assert.equal(await book(n,id),'confirmed');
