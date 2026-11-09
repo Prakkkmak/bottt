@@ -4,8 +4,9 @@ import { after } from 'next/server';
 import { z } from 'zod';
 import { supabase, authenticatedClient } from '@/lib/supabase';
 import { isConfigured, isDemo } from '@/lib/config';
-import { profileSchema, nicknameSchema, sessionSchema, seriesSchema, venueSchema, scriptSchema, guestNameSchema, invitationEmailSchema, sessionMessageSchema } from '@/lib/schemas';
-import { stoppedSeriesMessage } from '@/lib/series';
+import { profileSchema, nicknameSchema, sessionSchema, seriesSchema, seriesEditSchema, venueSchema, scriptSchema, guestNameSchema, invitationEmailSchema, sessionMessageSchema, notificationChoicesSchema } from '@/lib/schemas';
+import { sessionMessageSent } from '@/lib/notification-choices';
+import { editedSeriesMessage, stoppedSeriesMessage } from '@/lib/series';
 import { canSendMail, invitationMail, sendMail, siteUrl } from '@/lib/mail';
 import { flushEmails } from '@/lib/notifications';
 import type { ActionResult, Membership } from '@/lib/types';
@@ -114,7 +115,11 @@ export async function saveSession(input: unknown) {
   return rpc('save_session', { p_data: { ...game, ...(game.id && note ? { note } : {}), beginners_welcome: true } }, message);
 }
 export async function saveSeries(input: unknown) { const parsed = seriesSchema.safeParse(input); if (!parsed.success) return failure(parsed.error); return rpc('save_series', { p_data: parsed.data }, 'La série est publiée : ses prochaines dates sont ouvertes aux inscriptions.'); }
+/** Changes a series from its next date on, or resumes a stopped one; its upcoming dates take the new settings. */
+export async function editSeries(input: unknown) { const parsed = seriesEditSchema.safeParse(input); if (!parsed.success) return failure(parsed.error); return rpc('edit_series', { p_data: parsed.data }, data => editedSeriesMessage((data ?? {}) as Parameters<typeof editedSeriesMessage>[0])); }
 export async function stopSeries(id: string) { if (!isUuid(id)) return failure(new Error('Cette série est introuvable.')); return rpc('stop_series', { p_id: id }, data => stoppedSeriesMessage((data ?? {}) as { removed?: number; kept?: number })); }
+/** A stopped series leaves the list; its games stay. */
+export async function deleteSeries(id: string) { if (!isUuid(id)) return failure(new Error('Cette série est introuvable.')); return rpc('delete_series', { p_id: id }, 'La série est retirée de la liste.'); }
 export async function saveVenue(input: unknown) { const parsed = venueSchema.safeParse(input); if (!parsed.success) return failure(parsed.error); return rpc('save_venue', { p_data: parsed.data }, parsed.data.id ? 'Le lieu est enregistré.' : 'Le lieu est ajouté.'); }
 export async function deleteVenue(id: string) { if (!isUuid(id)) return failure(new Error('Lieu introuvable.')); return rpc('delete_venue', { p_id: id }, 'Le lieu est retiré de la liste.'); }
 export async function saveScript(input: unknown) { const parsed = scriptSchema.safeParse(input); if (!parsed.success) return failure(parsed.error); return rpc('save_script', { p_data: parsed.data }, parsed.data.id ? 'Le script est enregistré.' : 'Le script est ajouté : tu peux le choisir pour une partie.'); }
@@ -125,7 +130,7 @@ export async function sendSessionMessage(id: string, message: string, waitlist =
   if (!isUuid(id)) return failure(new Error('Session invalide.'));
   const parsed = sessionMessageSchema.safeParse(message);
   if (!parsed.success) return failure(parsed.error);
-  return rpc('send_session_message', { p_session: id, p_message: parsed.data, p_waitlist: waitlist === true }, data => { const n = Number(data) || 0; return `Ton message part à ${n} personne${n > 1 ? 's' : ''}.`; });
+  return rpc('send_session_message_counts', { p_session: id, p_message: parsed.data, p_waitlist: waitlist === true }, sessionMessageSent);
 }
 export async function deleteSession(id: string) { if (!isUuid(id)) return failure(new Error('Session invalide.')); return rpc('delete_session', { p_id: id }, 'La partie est supprimée.'); }
 const rankMessages: Record<Membership, string> = { newcomer: 'Le compte est passé voyageur·se.', member: 'Le compte est passé membre.', organizer: 'Le compte rejoint l’organisation.', suspended: 'Le compte est suspendu.' };
@@ -136,4 +141,10 @@ export async function saveNickname(input: string): Promise<ActionResult> {
 }
 export async function saveProfile(input: unknown): Promise<ActionResult> {
   try { const parsed = profileSchema.parse(input); const { db, user } = await authenticatedClient(); const { error } = await db.from('profiles').update(parsed).eq('id', user.id); if (error) throw new Error('Le profil n’a pas pu être enregistré.'); invalidate(); return { ok: true, message: 'Ton profil a été mis à jour.' }; } catch(e) { return failure(e); }
+}
+/** Which e-mails the player receives, among those that may be switched off. */
+export async function saveNotificationChoices(input: unknown): Promise<ActionResult> {
+  const parsed = notificationChoicesSchema.safeParse(input);
+  if (!parsed.success) return failure(parsed.error);
+  return rpc('save_notification_choices', { p_choices: parsed.data }, 'Tes choix de notifications sont enregistrés.');
 }

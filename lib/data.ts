@@ -5,22 +5,25 @@ import type { CustomScript } from './scripts';
 import type { AppData } from './types';
 import type { Booking, Profile, GameSession, Series, Venue } from './types';
 import { supabase, authenticatedClient, currentUserId } from './supabase';
-import { extendSeries, serviceClient } from './notifications';
+import { extendSeries, flushEmails, runMaintenance, serviceClient } from './notifications';
+import type { NotificationChoices } from './notification-choices';
+import { withDefaults } from './notification-choices';
 import { cache } from 'react';
 import { unstable_rethrow } from 'next/navigation';
 import { after, connection } from 'next/server';
 
 let seriesCheckedAt = 0;
 /**
- * The scheduled job opens the next dates of the recurring games; the site does too, after a page is sent and at most every
- * 10 minutes per server, so that they still open on time when the job runs rarely or not at all.
+ * The scheduled job opens the next dates of the recurring games and queues the reminders; the site does too, after a page is
+ * sent and at most every 10 minutes per server, so that dates open and reminders leave on time when the job runs rarely or
+ * not at all. The messages then leave one batch after another, like after an action.
  */
-function openSeriesDates() {
+function catchUpScheduledJob() {
   if (Date.now() - seriesCheckedAt < 10 * 60000) return;
   const db = serviceClient();
   if (!db) return;
   seriesCheckedAt = Date.now();
-  after(() => extendSeries(db));
+  after(async () => { await extendSeries(db); if (await runMaintenance(db)) await flushEmails(); });
 }
 export const getData = cache(async (): Promise<AppData> => {
   // Every page carries the nonce of its request's CSP (proxy.ts): none may be prerendered, even before the database is configured.
@@ -28,7 +31,7 @@ export const getData = cache(async (): Promise<AppData> => {
   if (isDemo()) return initialDemo();
   const empty: AppData = { profile: null, sessions: [], invitations: [], demo: false, configured: isConfigured(), local: process.env.LOCAL_PREVIEW==='true'&&!process.env.VERCEL };
   if (!isConfigured()) return empty;
-  openSeriesDates();
+  catchUpScheduledJob();
   try {
     const db = await supabase();
     // The sessions and the profile load side by side: the profile only waits for the token check, not for the sessions.
@@ -92,7 +95,7 @@ export async function getAdminData(): Promise<{ bookings: Booking[]; profiles: P
     db.from('profiles').select('*').order('display_name'),
     db.from('session_addresses').select('*'),
     db.from('venues').select('id,name,address').order('name'),
-    db.from('session_series').select('id,title,script,location,venue_id,capacity,visibility,first_date,starts_local,every_weeks,weeks_ahead,ends_on').order('created_at')
+    db.from('session_series').select('id,title,script,location,address,venue_id,capacity,visibility,first_date,starts_local,duration,every_weeks,weeks_ahead,ends_on,stopped_at').order('created_at')
   ]);
   if (!organizer) throw new Error('Accès organisateur requis.');
   if (bookings.error || profiles.error || addresses.error) throw new Error('Impossible de charger les participants.');
@@ -100,4 +103,17 @@ export async function getAdminData(): Promise<{ bookings: Booking[]; profiles: P
   if (venues.error) console.error('Venues unavailable', venues.error.message);
   if (series.error) console.error('Series unavailable', series.error.message);
   return { bookings: (bookings.data || []).reverse(), profiles: profiles.data || [], addresses: Object.fromEntries((addresses.data || []).map(a => [a.session_id, a.address])), venues: venues.data || [], series: series.data || [] };
+}
+/** The viewer's e-mail choices, the defaults filled in. ready is false when they cannot be read, such as before their migration. */
+export async function getNotificationChoices(): Promise<{ choices: NotificationChoices; ready: boolean }> {
+  const defaults = { choices: withDefaults(), ready: false };
+  if (isDemo()) return { ...defaults, ready: true };
+  if (!isConfigured()) return defaults;
+  try {
+    if (!(await currentUserId())) return defaults;
+    const db = await supabase();
+    const { data, error } = await db.from('notification_choices').select('kind,enabled');
+    if (error) { console.error('Notification choices unavailable', error.message); return defaults; }
+    return { choices: withDefaults(Object.fromEntries((data || []).map(row => [row.kind, row.enabled]))), ready: true };
+  } catch (err) { unstable_rethrow(err); return defaults; }
 }

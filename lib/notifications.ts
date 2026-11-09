@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { canSendMail, localMail, notificationMail, sendMail, type QueuedEmail } from './mail';
+import { canSendMail, localMail, MailRateLimited, notificationMail, sendMail, type QueuedEmail } from './mail';
 
 /** The outbox is read with the service key: a player never sees another player's address. */
 export function serviceClient() {
@@ -8,21 +8,35 @@ export function serviceClient() {
   return createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false}});
 }
 
-/** Sends the queued messages. A message that fails stays queued and is tried again later, five times at most. */
-export async function sendQueuedEmails(db=serviceClient()){
+/** Sends the queued messages. A message that fails stays queued and is tried again later, five times at most.
+ * When the provider asks to slow down, or the deadline passes, the messages not tried yet go back to the outbox untouched. */
+export async function sendQueuedEmails(db=serviceClient(),deadline=Infinity){
   if(!db)throw new Error('Base de données non configurée.');
-  if(!canSendMail())return {sent:0,failed:0,pending:true};
+  if(!canSendMail())return {sent:0,failed:0,pending:true,stopped:false};
   const {data:messages,error}=await db.rpc('claim_emails');if(error)throw new Error(error.message);
-  let sent=0,failed=0;
-  for(const m of (messages||[]) as QueuedEmail[]){
+  const list=(messages||[]) as QueuedEmail[];
+  // rest: where the messages not tried start, once the sender stops early.
+  let sent=0,failed=0,rest=-1;
+  for(const [i,m] of list.entries()){
+    if(Date.now()>deadline){rest=i;break;}
     try {
       // Resend accepts a few messages per second: a cancelled game writing to everyone is paced.
       if(sent+failed>0&&!localMail())await new Promise(resolve=>setTimeout(resolve,500));
       await sendMail({to:m.email,...notificationMail(m),idempotencyKey:m.id});
       const {error:saveError}=await db.from('notifications').update({emailed_at:new Date().toISOString(),claimed_until:null}).eq('id',m.id);if(saveError)throw saveError;sent++;
-    }catch{failed++;}
+    }catch(e){
+      if(e instanceof MailRateLimited){rest=i;break;}
+      failed++;
+    }
   }
-  return {sent,failed,pending:false};
+  if(rest>=0)await releaseEmails(db,list.slice(rest));
+  return {sent,failed,pending:false,stopped:rest>=0};
+}
+/** Puts back messages claimed but not tried. Never throws: unreleased, they come back by themselves after five minutes. */
+async function releaseEmails(db:NonNullable<ReturnType<typeof serviceClient>>,messages:QueuedEmail[]){
+  if(!messages.length)return;
+  const {error}=await db.rpc('release_emails',{p_ids:messages.map(m=>m.id)});
+  if(error)console.error('E-mails non remis en file',error.message);
 }
 
 /** Opens the next dates of the recurring games. Never throws: before the series migration, the rest of the job still runs. */
@@ -31,6 +45,14 @@ export async function extendSeries(db=serviceClient()){
   const {data,error}=await db.rpc('extend_series');
   if(error){console.error('Séries indisponibles',error.message);return 0;}
   return Number(data)||0;
+}
+
+/** Reminders, waiting lists moved on and housekeeping. Never throws, like extendSeries. */
+export async function runMaintenance(db=serviceClient()){
+  if(!db)return false;
+  const {error}=await db.rpc('maintenance');
+  if(error){console.error('Maintenance indisponible',error.message);return false;}
+  return true;
 }
 
 /** The scheduled job: the next dates of the recurring games, reminders and housekeeping, then the messages. */
@@ -58,8 +80,8 @@ export function flushEmails():Promise<void> {
       do{
         again=false;
         try{
-          const r=await sendQueuedEmails();if(r.failed)console.error(`E-mails : ${r.failed} en échec, nouvel essai plus tard.`);
-          if(!r.failed&&r.sent>=CLAIM_BATCH&&Date.now()<deadline)again=true;
+          const r=await sendQueuedEmails(undefined,deadline);if(r.failed)console.error(`E-mails : ${r.failed} en échec, nouvel essai plus tard.`);
+          if(!r.failed&&!r.stopped&&r.sent>=CLAIM_BATCH&&Date.now()<deadline)again=true;
         }
         catch(e){console.error('E-mails indisponibles',e instanceof Error?e.message:'erreur');}
       }while(again);

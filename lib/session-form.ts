@@ -14,7 +14,7 @@ export const sessionMessages = {
   fewSeats: `Prévois au moins ${MIN_CAPACITY} places, MJ compris : c’est le minimum pour lancer une partie.`, manySeats: `Une partie compte ${MAX_CAPACITY} places au plus, MJ compris.`,
   visibility: 'Choisis qui peut voir la partie.',
   repeat: 'Choisis le rythme de la série.', weeksAhead: 'Choisis jusqu’à quand les dates sont ouvertes.',
-  lastDate: 'Choisis une dernière date valide, ou laisse le champ vide.', lastBefore: 'La dernière date doit suivre la première partie.',
+  lastDate: 'Choisis une dernière date valide, ou laisse le champ vide.', lastBefore: 'La dernière date doit suivre la première partie.', lastBeforeNext: 'La dernière date doit suivre la prochaine partie.',
   note: 'Le message aux inscrits tient en 2000 caractères au plus.',
 };
 
@@ -22,6 +22,7 @@ export const sessionMessages = {
  * What the game form holds, as the browser gives it: the start in Paris time, the number of seats still as typed.
  * A new game may repeat: repeat is '' for one date, '1' every week or '2' every other week, with how many weeks ahead
  * its dates open and its last date (YYYY-MM-DD), if any. A game being edited may carry a note for the people registered.
+ * A series being changed always repeats, from its next date.
  */
 export type SessionFormValues = { title: string; starts_at: string; script: string; location: string; address: string; maps_url: string; capacity: string; visibility: string; repeat?: string; weeks_ahead?: string; ends_on?: string; note?: string };
 export type SessionField = keyof SessionFormValues;
@@ -37,21 +38,23 @@ export const parisDate = (iso: string) => parisInput(iso).slice(0, 10);
 
 /**
  * Checks the game form field by field before it leaves, with sessionSchema's rules (tests/session-form.test.ts keeps them in step), so the
- * browser can say what is wrong without loading zod. `payload` is what saveSession receives, or saveSeries when it has every_weeks, only when
- * nothing is wrong; `message` is a problem no field on screen can fix. The server checks everything again.
+ * browser can say what is wrong without loading zod. `payload` is what saveSession receives, or saveSeries when it has every_weeks, or
+ * editSeries for a series being changed, only when nothing is wrong; `message` is a problem no field on screen can fix. The server checks
+ * everything again. A game or a series being changed keeps the length of its games, given as one start and end.
  */
-export function checkSessionForm(values: SessionFormValues, { session, venue }: { session?: Pick<GameSession, 'id' | 'starts_at' | 'ends_at'>; venue?: Venue }) {
+export function checkSessionForm(values: SessionFormValues, { session, series, venue }: { session?: Pick<GameSession, 'id' | 'starts_at' | 'ends_at'>; series?: Pick<GameSession, 'id' | 'starts_at' | 'ends_at'>; venue?: Venue }) {
   const errors: SessionFieldErrors = {};
   let message: string | undefined;
   const set = (field: SessionField, error?: string) => { if (error) errors[field] = error; };
   let startsAt = '';
   if (!values.starts_at) set('starts_at', sessionMessages.start);
   else try { startsAt = fromParisInput(values.starts_at); } catch (e) { set('starts_at', e instanceof Error ? e.message : sessionMessages.start); }
-  // A game being edited is one date: its series, if any, is not changed from here.
+  // A game being edited is one date: its series, if any, is not changed from here. A series being changed always repeats.
   const repeat = session ? '' : values.repeat ?? '';
   // A single game may take a date already past, once the organizer confirms it (see isPastStart); a series starts ahead.
-  if (startsAt && repeat && !(new Date(startsAt) > new Date())) set('starts_at', sessionMessages.past);
-  const endsAt = session && startsAt ? sessionEnd(startsAt, session) : undefined;
+  if (startsAt && (repeat || series) && !(new Date(startsAt) > new Date())) set('starts_at', sessionMessages.past);
+  const kept = session ?? series;
+  const endsAt = kept && startsAt ? sessionEnd(startsAt, kept) : undefined;
   if (endsAt && !(Date.parse(endsAt) > Date.parse(startsAt))) message = sessionMessages.end;
   set('title', values.title.trim().length > 100 ? sessionMessages.title : undefined);
   // The script may wait: left empty, the game goes by its name, or by the game itself.
@@ -68,20 +71,20 @@ export function checkSessionForm(values: SessionFormValues, { session, venue }: 
   set('visibility', values.visibility === 'public' || values.visibility === 'members' ? undefined : sessionMessages.visibility);
   const note = session ? values.note?.trim() ?? '' : '';
   set('note', note.length > 2000 ? sessionMessages.note : undefined);
-  let series: { every_weeks: number; weeks_ahead: number; ends_on: string | null } | undefined;
-  if (repeat) {
+  let rhythm: { every_weeks: number; weeks_ahead: number; ends_on: string | null } | undefined;
+  if (repeat || series) {
     const weeks = Number(values.weeks_ahead ?? '');
     const last = values.ends_on ?? '';
     set('repeat', repeat === '1' || repeat === '2' ? undefined : sessionMessages.repeat);
     set('weeks_ahead', Number.isInteger(weeks) && weeks >= 1 && weeks <= MAX_WEEKS_AHEAD ? undefined : sessionMessages.weeksAhead);
-    set('ends_on', !last ? undefined : !isDate(last) ? sessionMessages.lastDate : startsAt && last < parisDate(startsAt) ? sessionMessages.lastBefore : undefined);
-    series = { every_weeks: Number(repeat), weeks_ahead: weeks, ends_on: last || null };
+    set('ends_on', !last ? undefined : !isDate(last) ? sessionMessages.lastDate : startsAt && last < parisDate(startsAt) ? (series ? sessionMessages.lastBeforeNext : sessionMessages.lastBefore) : undefined);
+    rhythm = { every_weeks: Number(repeat), weeks_ahead: weeks, ends_on: last || null };
   }
   const payload = {
-    ...(session ? { id: session.id } : {}),
+    ...(kept ? { id: kept.id } : {}),
     title: values.title, script: values.script, starts_at: startsAt, ...(endsAt ? { ends_at: endsAt } : {}),
     location: venue ? venue.name : values.location, address: venue ? venue.address : values.address, venue_id: venue?.id ?? null,
-    capacity, visibility: values.visibility, ...series, ...(note ? { note } : {}),
+    capacity, visibility: values.visibility, ...rhythm, ...(note ? { note } : {}),
   };
   const valid = !Object.keys(errors).length && !message;
   return { errors, message, payload: valid ? payload : undefined };

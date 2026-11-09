@@ -137,10 +137,11 @@ test('Parties récurrentes',async t=>{
     await h.login(1);
     assert.deepEqual((await h.call<{stop_series:unknown}>('select stop_series($1)',[weekly]))[0].stop_series,{removed:before.length-1,kept:1});
     await assert.rejects(h.call('select stop_series($1)',[weekly]),/déjà arrêtée/);
+    // The series stays, stopped, to be resumed or deleted (tests/sql-series-edit.test.ts).
     await h.root();
-    assert.equal((await h.call('select 1 from session_series where id=$1',[weekly])).length,0);
-    // The game someone booked stays, on its own, with its registration.
+    assert.equal((await h.call('select 1 from session_series where id=$1 and stopped_at is not null',[weekly])).length,1);
+    // The game someone booked stays, with its registration.
     const kept=await h.call<{series_id:string|null;status:string}>(`select s.series_id,b.status from sessions s join bookings b on b.session_id=s.id where b.user_id=$1`,[uuid(3)]);
-    assert.deepEqual(kept,[{series_id:null,status:'confirmed'}]);
+    assert.deepEqual(kept,[{series_id:weekly,status:'confirmed'}]);
   });
 });

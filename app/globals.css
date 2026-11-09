@@ -82,6 +82,18 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .home-intro .text-link { color: var(--gold); font-size: 14px; text-decoration: underline; text-underline-offset: 3px; }
 .profile-editor { max-width: 650px; margin: 0 auto; }
 .profile-editor > .button { margin-top: 18px; }
+.profile-editor > .panel + .panel { margin-top: 18px; scroll-margin-top: 18px; }
+.notification-intro { display: flex; flex-direction: column; gap: 6px; }
+.notification-intro h2 { display: flex; align-items: center; gap: 10px; }
+.notification-options { margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 6px; }
+.notification-option { display: flex; align-items: flex-start; gap: 12px; padding: 8px 0; cursor: pointer; }
+.notification-option input { accent-color: var(--wine); width: 18px; height: 18px; margin: 4px 0 0; flex: none; }
+.notification-option span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.notification-option strong { font-weight: 600; }
+.notification-option small { color: var(--muted); font-size: 14px; line-height: 1.6; }
+.notification-always { display: flex; gap: 10px; color: var(--muted); font-size: 14px; line-height: 1.7; }
+.notification-always svg { flex: none; margin-top: 5px; color: var(--gold); }
+.notification-always strong { color: var(--ink); font-weight: 600; }
 .site-error { margin: 0 0 24px; }
 .page-heading { display: flex; justify-content: space-between; align-items: center; gap: 20px; margin-bottom: 28px; }
 .page-heading p { color: var(--muted); margin-top: 8px; max-width: 65ch; }
@@ -316,6 +328,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .admin-session-row.is-past .date-tile, .admin-session-row.is-cancelled .date-tile { background: #d9ccc0; box-shadow: none; }
 .admin-session-row .session-state { color: var(--gold); font-weight: 600; }
 .admin-session-row.is-cancelled .session-state { color: #ffd7e0; }
+/* The next game stands out in gold from the dates of a series that all look alike; its label says it without the colour. */
+.admin-session-row.is-next { border-color: var(--gold); background: linear-gradient(100deg, #f3c67526, #f3c6750a 45%, var(--paper) 80%); box-shadow: inset 4px 0 0 var(--gold); }
+.admin-session-row.is-next .date-tile { background: var(--gold); border-color: #ffe2a8; }
+.admin-session-row.is-next .date-tile span { color: #392338; }
 .row-actions { display: flex; gap: 7px; align-items: center; }
 .request-row, .member-row { display: flex; align-items: center; gap: 14px; padding: 17px 0; border-bottom: 1px solid var(--border); }
 .request-row:last-child, .member-row:last-child { border-bottom: 0; }
@@ -670,6 +686,7 @@ a.practical-link, .calendar-link > span { text-decoration: underline; text-under
 .venue-other[hidden] { display: none; }
 .venue-panel .panel-heading { flex-wrap: wrap; }
 .series-panel { margin-bottom: 18px; }
+.series-panel .is-stopped .venue-icon { color: var(--muted); background: transparent; }
 @media (max-width: 540px) {
   /* Name and address take the first line; the count and the actions go under them. */
   .venue-row > div:nth-child(2) { flex-basis: calc(100% - 52px); }

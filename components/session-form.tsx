@@ -3,25 +3,28 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { CalendarDays, MapPin, Settings2 } from 'lucide-react';
 import { MIN_CAPACITY, DEFAULT_CAPACITY, MAX_CAPACITY, SERIES_WEEKS_AHEAD, DEFAULT_WEEKS_AHEAD } from '@/lib/session-rules';
-import type { GameSession, Venue } from '@/lib/types';
+import type { ActionResult, GameSession, Series, Venue } from '@/lib/types';
 import { parisInput, fromParisInput, dateLong, time, sessionName } from '@/lib/utils';
 import { checkSessionForm, isPastStart, type SessionField, type SessionFieldErrors } from '@/lib/session-form';
 import { nextSessionStart, sessionEnd, DEFAULT_SESSION_HOURS } from '@/lib/session-defaults';
 import { splitAddress } from '@/lib/locations';
-import { rhythmLabel, weeksAheadLabel } from '@/lib/series';
+import { nextSeriesStart, rhythmLabel, seriesDuration, weeksAheadLabel } from '@/lib/series';
 import { baseScripts, type CustomScript } from '@/lib/scripts';
-import { saveSeries, saveSession } from '@/app/actions';
+import { editSeries, saveSeries, saveSession } from '@/app/actions';
 import { Feedback, useAction } from './action-feedback';
 import { AddressFields } from './address-fields';
 import { MapLinks } from './map-links';
 import { FieldError, invalidField } from './ui';
 
-/** recipients: how many people a note about the edited game reaches (registered or waiting, its writer aside). */
-export function SessionForm({ session, address = '', template, venues = [], scripts = [], recipients = 0, onSaved }: { session?: GameSession; address?: string; template?: GameSession; venues?: Venue[]; scripts?: CustomScript[]; recipients?: number; onSaved: () => void }) {
+/**
+ * Creates a game or a series, or changes a game, or a series from its next date on (a stopped one then resumes).
+ * recipients: how many people a note about the edited game reaches (registered or waiting, its writer aside).
+ */
+export function SessionForm({ session, series, address = '', template, venues = [], scripts = [], recipients = 0, onSaved }: { session?: GameSession; series?: Series; address?: string; template?: GameSession; venues?: Venue[]; scripts?: CustomScript[]; recipients?: number; onSaved: (result: ActionResult) => void }) {
   const a = useAction();
-  const defaults = session || template;
-  const [start, setStart] = useState(() => session ? parisInput(session.starts_at) : nextSessionStart());
-  // The script of the game edited, or of the last one, even none; a first game suggests the most accessible one.
+  const defaults = session || series || template;
+  const [start, setStart] = useState(() => session ? parisInput(session.starts_at) : series ? nextSeriesStart(series) : nextSessionStart());
+  // The script of the game or series edited, or of the last game, even none; a first game suggests the most accessible one.
   const [script, setScript] = useState(defaults ? defaults.script : 'Trouble Brewing');
   // The base box's scripts, then the circle's own; a game keeps a script that has since left the list.
   const options = [...baseScripts.map(s => s.name), ...scripts.map(s => s.name).sort((x, y) => x.localeCompare(y, 'fr'))];
@@ -30,9 +33,9 @@ export function SessionForm({ session, address = '', template, venues = [], scri
   // A game opens on its venue, a new one on the last game's; '' is a place typed in for this game only.
   const [venueId, setVenueId] = useState(() => { const id = defaults ? defaults.venue_id : venues[0]?.id; return venues.some(v => v.id === id) ? id! : ''; });
   const venue = venues.find(v => v.id === venueId);
-  // A new game may come back every week or every other week ('1', '2'); '' is one date. A game being edited stays one date.
-  const [repeat, setRepeat] = useState('');
-  const [weeksAhead, setWeeksAhead] = useState(String(DEFAULT_WEEKS_AHEAD));
+  // A new game may come back every week or every other week ('1', '2'); '' is one date. A game being edited stays one date, a series a series.
+  const [repeat, setRepeat] = useState(series ? String(series.every_weeks) : '');
+  const [weeksAhead, setWeeksAhead] = useState(String(series?.weeks_ahead ?? DEFAULT_WEEKS_AHEAD));
   const repeating = !session && repeat !== '';
   // A single game may be given a date already past: the first try warns, the second saves. A new date asks again.
   const inPast = !repeating && isPastStart(start);
@@ -43,12 +46,14 @@ export function SessionForm({ session, address = '', template, venues = [], scri
   // A note goes with the message about the change; a game whose date has passed writes to nobody (see save_session).
   const [note, setNote] = useState('');
   const noting = !!session && recipients > 0 && !inPast;
+  // A series keeps the length of its games, given to the checks as one start and end.
+  const span = series && { id: series.id, starts_at: new Date(0).toISOString(), ends_at: new Date(seriesDuration(series.duration)).toISOString() };
   const id = useId(); const form = useRef<HTMLFormElement>(null);
   const [errors, setErrors] = useState<SessionFieldErrors>({}); const [edits, setEdits] = useState(0);
   const check = (f: HTMLFormElement) => {
     const d = new FormData(f); const value = (name: string) => String(d.get(name) ?? '');
     return checkSessionForm({ title: value('title'), starts_at: start, script, location, address: value('address'), maps_url: value('maps_url'), capacity: value('capacity'), visibility: value('visibility'), note: noting ? note : '',
-      ...(repeating ? { repeat, weeks_ahead: weeksAhead, ends_on: value('ends_on') } : {}) }, { session, venue });
+      ...(repeating ? { repeat, weeks_ahead: weeksAhead, ends_on: value('ends_on') } : {}) }, { session, series: span, venue });
   };
   // Once a try is refused, a flagged field's message follows what is typed and leaves as soon as it is right; anything new waits for the next try.
   // Checked after the render, when the form shows what was just changed (a venue picked hides the fields it fills).
@@ -66,7 +71,7 @@ export function SessionForm({ session, address = '', template, venues = [], scri
   // A map link pasted into the address fills both fields without a change event.
   const recheck = () => { if (wrong) setEdits(n => n + 1); };
   let endLabel = '';
-  try { const end = sessionEnd(fromParisInput(start), session); endLabel = `${dateLong(end)} à ${time(end)}`; } catch { /* Validation explains an invalid Paris time on submit. */ }
+  try { const end = sessionEnd(fromParisInput(start), session ?? span); endLabel = `${dateLong(end)} à ${time(end)}`; } catch { /* Validation explains an invalid Paris time on submit. */ }
   // The browser's own checks stay off: they cannot point at a field inside the closed settings, and then say nothing at all.
   return <form ref={form} className="stack session-form" noValidate onChange={recheck} onPaste={recheck} onSubmit={e => {
     e.preventDefault();
@@ -87,21 +92,23 @@ export function SessionForm({ session, address = '', template, venues = [], scri
       warning.current?.scrollIntoView({ block: 'center' });
       return;
     }
-    a.run(() => 'every_weeks' in payload ? saveSeries(payload) : saveSession(payload), onSaved);
+    a.run(() => series ? editSeries(payload) : 'every_weeks' in payload ? saveSeries(payload) : saveSession(payload), onSaved);
   }}>
-    <p className="muted">{!session && template ? 'Le lieu, le script et les réglages de la dernière partie sont repris. Choisis la date et ajuste ce dont tu as besoin.' : 'Choisis le début de la soirée, vérifie le lieu et publie.'}</p>
+    <p className="muted">{series ? (series.stopped_at ? 'La série reprend à la prochaine date, avec ces réglages : ses dates s’ouvrent de nouveau aux inscriptions.' : 'Ce que tu changes ici vaut pour les dates déjà ouvertes, à partir de la prochaine : chacune garde son jour, et ce que tu as réglé à la main pour une date reste tant que tu ne le changes pas ici. Les inscrits sont prévenus si l’heure ou le lieu change.')
+      : !session && template ? 'Le lieu, le script et les réglages de la dernière partie sont repris. Choisis la date et ajuste ce dont tu as besoin.' : 'Choisis le début de la soirée, vérifie le lieu et publie.'}</p>
     <fieldset className="form-section"><legend><CalendarDays size={18} />La soirée</legend>
-      <label className="field">Nom de la partie <span className="field-note">Facultatif · sans nom, la partie prend celui du script</span><input name="title" maxLength={100} defaultValue={session?.title || ''} placeholder={sessionName({ title: '', script })} autoFocus={!session} data-autofocus={!session || undefined} {...invalidField(error('title'))} /><FieldError {...error('title')} /></label>
-      <div className="form-grid"><label className="field">Début · heure de Paris<input name="starts_at" required type="datetime-local" value={start} onChange={e => setStart(e.target.value)} {...invalidField(error('starts_at'))} /><FieldError {...error('starts_at')} /></label><label className="field">Script<select name="script" value={script} onChange={e => setScript(e.target.value)} {...invalidField(error('script'))}><option value="">Pas encore choisi</option>{options.map(name => <option key={name} value={name}>{name}</option>)}</select><FieldError {...error('script')} /></label></div>
-      <p className="field-note">{session ? 'La durée de la partie est conservée.' : `Durée estimée de ${DEFAULT_SESSION_HOURS} h pour l’agenda.`}{endLabel && ` Fin prévue : ${endLabel}.`} Un script maison s’ajoute dans l’onglet « Les scripts ».</p>
+      <label className="field">Nom de la partie <span className="field-note">Facultatif · sans nom, la partie prend celui du script</span><input name="title" maxLength={100} defaultValue={(session ?? series)?.title || ''} placeholder={sessionName({ title: '', script })} autoFocus={!session && !series} data-autofocus={(!session && !series) || undefined} {...invalidField(error('title'))} /><FieldError {...error('title')} /></label>
+      <div className="form-grid"><label className="field">{series ? 'Prochaine date · heure de Paris' : 'Début · heure de Paris'}<input name="starts_at" required type="datetime-local" value={start} onChange={e => setStart(e.target.value)} {...invalidField(error('starts_at'))} /><FieldError {...error('starts_at')} /></label><label className="field">Script<select name="script" value={script} onChange={e => setScript(e.target.value)} {...invalidField(error('script'))}><option value="">Pas encore choisi</option>{options.map(name => <option key={name} value={name}>{name}</option>)}</select><FieldError {...error('script')} /></label></div>
+      <p className="field-note">{series ? 'La durée des parties est conservée.' : session ? 'La durée de la partie est conservée.' : `Durée estimée de ${DEFAULT_SESSION_HOURS} h pour l’agenda.`}{endLabel && ` Fin prévue : ${endLabel}.`} Un script maison s’ajoute dans l’onglet « Les scripts ».</p>
       {!session && <>
         <div className="form-grid">
-          <label className="field">Répétition<select name="repeat" value={repeat} onChange={e => setRepeat(e.target.value)} {...invalidField(error('repeat'))}><option value="">Une seule fois</option><option value="1">{rhythmLabel(1, start.slice(0, 10))}</option><option value="2">{rhythmLabel(2, start.slice(0, 10))}</option></select><FieldError {...error('repeat')} /></label>
+          <label className="field">Répétition<select name="repeat" value={repeat} onChange={e => setRepeat(e.target.value)} {...invalidField(error('repeat'))}>{!series && <option value="">Une seule fois</option>}<option value="1">{rhythmLabel(1, start.slice(0, 10))}</option><option value="2">{rhythmLabel(2, start.slice(0, 10))}</option></select><FieldError {...error('repeat')} /></label>
           {repeating && <label className="field">Dates ouvertes<select name="weeks_ahead" value={weeksAhead} onChange={e => setWeeksAhead(e.target.value)} {...invalidField(error('weeks_ahead'))}>{SERIES_WEEKS_AHEAD.map(n => <option key={n} value={n}>{weeksAheadLabel(n)}</option>)}</select><FieldError {...error('weeks_ahead')} /></label>}
         </div>
         {repeating && <>
-          <label className="field">Dernière date <span className="field-note">Facultatif · sans date, la série continue jusqu’à ce que tu l’arrêtes</span><input name="ends_on" type="date" min={start.slice(0, 10)} {...invalidField(error('ends_on'))} /><FieldError {...error('ends_on')} /></label>
-          <p className="field-note">Chaque date devient une partie à part, avec ses propres inscrits : tu peux la modifier ou l’annuler sans toucher aux autres. Les dates s’ouvrent au fur et à mesure, {weeksAheadLabel(Number(weeksAhead))}, pour que chacun puisse s’inscrire à l’avance.</p>
+          <label className="field">Dernière date <span className="field-note">Facultatif · sans date, la série continue jusqu’à ce que tu l’arrêtes</span><input name="ends_on" type="date" min={start.slice(0, 10)} defaultValue={series?.ends_on ?? ''} {...invalidField(error('ends_on'))} /><FieldError {...error('ends_on')} /></label>
+          <p className="field-note">{series ? 'Pour décaler la série, choisis une autre prochaine date ou un autre rythme. Les dates déjà ouvertes qui n’y tombent plus sont retirées si personne n’y est inscrit ; sinon elles restent à leur date et tu peux les annuler une par une.'
+            : `Chaque date devient une partie à part, avec ses propres inscrits : tu peux la modifier ou l’annuler sans toucher aux autres. Les dates s’ouvrent au fur et à mesure, ${weeksAheadLabel(Number(weeksAhead))}, pour que chacun puisse s’inscrire à l’avance.`}</p>
         </>}
       </>}
     </fieldset>
@@ -127,7 +134,7 @@ export function SessionForm({ session, address = '', template, venues = [], scri
     </div></details>
     {noting && <label className="field">Un mot aux inscrits <span className="field-note">Facultatif · envoyé par e-mail {recipients > 1 ? `aux ${recipients} personnes inscrites ou en attente` : 'à la personne inscrite ou en attente'}, avec ce qui change. Tous n’ont pas l’adresse exacte : n’y mets ni l’adresse ni un code d’accès.</span><textarea name="note" rows={3} maxLength={2000} value={note} onChange={e => setNote(e.target.value)} placeholder="Pourquoi la partie change, ce qu’il faut savoir…" {...invalidField(error('note'))} /><FieldError {...error('note')} /></label>}
     {confirming && <p ref={warning} className="alert warning" role="alert">Attention, tu mets une date passée : la partie sera close aux inscriptions et rangée avec les sessions passées{session ? ', sans message aux inscrits' : ''}. Confirme si c’est bien la bonne date.{session && recipients > 0 && !isPastStart(parisInput(session.starts_at)) && ' Si elle n’a pas eu lieu, annule-la plutôt : ses inscrits seront prévenus.'}</p>}
-    {wrong > 0 && <p className="alert error" role="alert">{wrong > 1 ? `${wrong} champs sont à corriger` : 'Un champ est à corriger'} {session ? 'avant d’enregistrer les modifications' : repeating ? 'avant de publier la série' : 'avant de publier la partie'}.</p>}
-    <Feedback result={a.result} /><button className="button primary full" disabled={a.pending}>{a.pending ? 'Enregistrement…' : confirming ? 'Confirmer la date passée' : session ? 'Enregistrer les modifications' : repeating ? 'Publier la série' : 'Publier la partie'}</button>
+    {wrong > 0 && <p className="alert error" role="alert">{wrong > 1 ? `${wrong} champs sont à corriger` : 'Un champ est à corriger'} {session ? 'avant d’enregistrer les modifications' : series ? 'avant d’enregistrer la série' : repeating ? 'avant de publier la série' : 'avant de publier la partie'}.</p>}
+    <Feedback result={a.result} /><button className="button primary full" disabled={a.pending}>{a.pending ? 'Enregistrement…' : confirming ? 'Confirmer la date passée' : session ? 'Enregistrer les modifications' : series ? (series.stopped_at ? 'Reprendre la série' : 'Enregistrer la série') : repeating ? 'Publier la série' : 'Publier la partie'}</button>
   </form>;
 }

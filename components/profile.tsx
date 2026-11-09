@@ -8,8 +8,10 @@ import { useAction, Feedback } from './action-feedback';
 import { saveProfile, signOut } from '@/app/actions';
 import { experienceLabels, experienceOf } from '@/lib/guests';
 import type { Experience } from '@/lib/types';
+import type { NotificationChoices } from '@/lib/notification-choices';
+import { NotificationSettings } from './notification-settings';
 
-export function ProfileView({ data }: { data: AppData }) {
+export function ProfileView({ data, notifications }: { data: AppData; notifications: { choices: NotificationChoices; ready: boolean } }) {
   const p = data.profile;
   const a = useAction();
   const [color, setColor] = useState(p?.avatar_color || 'rose');
@@ -38,6 +40,7 @@ export function ProfileView({ data }: { data: AppData }) {
         <button className="button primary" disabled={a.pending}><Save size={17} />Enregistrer mon profil</button>
         <Feedback result={a.result} />
       </form>
+      <NotificationSettings {...notifications} organizer={p.membership === 'organizer'} />
       <button className="button ghost" disabled={a.pending} onClick={() => a.run(signOut)}><LogOut size={16} />Me déconnecter</button>
     </div>}
   </>;

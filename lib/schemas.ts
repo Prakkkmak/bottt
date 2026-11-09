@@ -21,15 +21,19 @@ const withEnd = <T extends { starts_at: string; ends_at?: string }>(s: T) => ({ 
 /** A game, new or edited. note: a few words for the people registered, sent with the message about an edited game. */
 export const sessionSchema = sessionFields.extend({ note: z.string(m.note).trim().max(2000, m.note).default('') })
   .transform(withEnd).refine(s => new Date(s.ends_at)>new Date(s.starts_at), m.end);
-/** A new recurring game: its first date as a game, then its rhythm, how far ahead its dates open and its last date, if any. */
-export const seriesSchema = sessionFields.omit({ id: true }).extend({
-  // Its dates open ahead of time: a series starts in the future.
+const seriesFields = sessionFields.omit({ id: true }).extend({
+  // Its dates open ahead of time: a series starts, or starts again, in the future.
   starts_at: startsAt.refine(s => new Date(s) > new Date(), m.past),
   every_weeks: z.literal([1, 2], m.repeat),
   weeks_ahead: z.number(m.weeksAhead).int(m.weeksAhead).min(1, m.weeksAhead).max(MAX_WEEKS_AHEAD, m.weeksAhead),
   ends_on: z.iso.date(m.lastDate).nullable().default(null),
-}).transform(withEnd).refine(s => new Date(s.ends_at)>new Date(s.starts_at), m.end)
+});
+/** A new recurring game: its first date as a game, then its rhythm, how far ahead its dates open and its last date, if any. */
+export const seriesSchema = seriesFields.transform(withEnd).refine(s => new Date(s.ends_at)>new Date(s.starts_at), m.end)
   .refine(s => !s.ends_on || s.ends_on >= parisDate(s.starts_at), { message: m.lastBefore, path: ['ends_on'] });
+/** A series changed from its next date on (starts_at, ends_at giving the length of each game), with every setting of the form. */
+export const seriesEditSchema = seriesFields.extend({ id: z.uuid('Cette série est introuvable.') }).transform(withEnd).refine(s => new Date(s.ends_at)>new Date(s.starts_at), m.end)
+  .refine(s => !s.ends_on || s.ends_on >= parisDate(s.starts_at), { message: m.lastBeforeNext, path: ['ends_on'] });
 /** A script of the circle: its name gives the address of its page, its characters are ids that lib/characters.ts knows. */
 export const scriptSchema = z.object({
   id: z.uuid('Ce script est introuvable.').optional(),
@@ -46,3 +50,7 @@ export const guestNameSchema = z.string().trim().min(2, 'Indique un prénom ou u
 export const invitationEmailSchema = z.string().trim().toLowerCase().pipe(z.email('Cette adresse e-mail est invalide.').max(254, 'Cette adresse e-mail est invalide.'));
 /** What an organizer writes to the people registered for a game, sent as a plain-text e-mail. */
 export const sessionMessageSchema = z.string('Écris un message de 2 à 2000 caractères.').trim().min(2, 'Écris un message de 2 à 2000 caractères.').max(2000, 'Écris un message de 2 à 2000 caractères.');
+/** The switches of the profile page, every optional kind of public.notification_kinds and nothing else. */
+const choiceMessage = 'Ces choix de notifications sont invalides. Recharge la page et réessaie.';
+const choice = z.boolean(choiceMessage);
+export const notificationChoicesSchema = z.strictObject({ booking: choice, reminder: choice, message: choice, announcement: choice, new_game: choice, activity: choice }, choiceMessage);
