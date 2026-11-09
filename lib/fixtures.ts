@@ -1,4 +1,5 @@
 import type { AppData, GameSession, Participant, Profile, Venue } from './types';
+import type { CustomScript } from './scripts';
 export const demoProfile: Profile = { id: 'demo-camille', display_name: 'Camille', bio: 'Toujours partante pour une bonne histoire.', avatar_color: 'rose', beginner: false, experience: 'experienced', can_storytell: false, membership: 'organizer', sponsored_by: null, nickname_chosen: true };
 const people = [ ['Léa', 'rose'], ['Thomas', 'blue'], ['Manon', 'sage'], ['Hugo', 'ochre'], ['Sarah', 'lilac'] ].map(([display_name, avatar_color]) => ({ display_name, avatar_color }));
 /** The four statuses around one table: members, a member's guests, a traveller and the friend they bring. */
@@ -35,4 +36,5 @@ export function demoSessions(): GameSession[] {
     { id: 'les-murmures-du-cercle', title: 'Les murmures du cercle', description: 'Des informations contradictoires, des conversations à voix basse et beaucoup de bonnes raisons de douter. Une soirée Sects & Violets pour les joueurs qui connaissent déjà les bases.', script: 'Sects & Violets', starts_at: date(21), ends_at: date(21, 4), ...atVenue(1), capacity: 12, newcomer_seats: 2, release_hours: 72, beginners_welcome: true, visibility: 'public', status: 'published', confirmed_count: 6, waitlist_count: 0, my_status: null, participants: people.slice(1) }
   ];
 }
+export const demoScripts: CustomScript[] = [{ id: '30000000-0000-4000-8000-000000000001', name: 'Les nuits de Brest', slug: 'les-nuits-de-brest', author: 'Camille', characters: ['washerwoman', 'imp'] }];
 export function initialDemo(): AppData { return { profile: demoProfile, sessions: demoSessions(), invitations: [], demo: true, configured: false }; }

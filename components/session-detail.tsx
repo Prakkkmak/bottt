@@ -2,9 +2,10 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import { CalendarDays, Clock3, MapPin, ChevronLeft, LockKeyhole, BookOpen } from 'lucide-react';
+import { CalendarDays, Clock3, MapPin, ChevronLeft, LockKeyhole, BookOpen, ScrollText } from 'lucide-react';
 import type { ActionResult, AppData, GameSession, MyGuest } from '@/lib/types';
 import { dateLong, time, activeBooking, sessionName } from '@/lib/utils';
+import { scriptPath } from '@/lib/scripts';
 import { activeGuests, canSeeAddress, hasSeat, participantLabel, recentGuestNames, seatPlan, waitingLabel, waitlistHint } from '@/lib/guests';
 import { MAX_TRAVELLER_GUESTS, MAX_WAITING_GUESTS, TRAVELLER_ADDRESS_HOURS } from '@/lib/session-rules';
 import { CalendarLink } from './calendar-link';
@@ -74,14 +75,17 @@ export function SessionDetail({ data, session: s, address, embedded = false }: {
   const addressLater = data.profile?.membership === 'newcomer' && hasSeat(s) && !privateAddress;
   const practical = <div className={`detail-when ${embedded ? 'session-practical' : ''}`}>
     {s.status === 'published' ? <CalendarLink session={s} address={privateAddress} /> : <span><CalendarDays size={16} />{dateLong(s.starts_at)}</span>}
-    <span><Clock3 size={16} />{time(s.starts_at)}</span><span className="detail-place"><MapPin size={16} />{s.location}<span className="map-links"><MapLinks value={privateAddress || s.location} fallback={s.location} className="practical-link" /></span></span>
+    <span><Clock3 size={16} />{time(s.starts_at)}</span>
+    {/* The script's sheet, to read its roles before coming. */}
+    {s.script && <Link href={scriptPath(s.script)} className="detail-script" title="Voir les rôles du script"><ScrollText size={16} aria-hidden="true" />{s.script}<span className="sr-only"> : voir les rôles du script</span></Link>}
+    <span className="detail-place"><MapPin size={16} />{s.location}<span className="map-links"><MapLinks value={privateAddress || s.location} fallback={s.location} className="practical-link" /></span></span>
     {addressLater && <span className="address-later">Adresse exacte {TRAVELLER_ADDRESS_HOURS} h avant la partie</span>}
   </div>;
   return <>
     {!embedded && <Link className="back-link" href="/"><ChevronLeft size={16} />Les parties</Link>}
     {!embedded && <div className="detail-heading">
       <h1>{sessionName(s)}</h1>
-      <div className="detail-badges">{s.script && <span className="script-tag">{s.script}</span>}{s.visibility === 'members' && <span className="badge"><LockKeyhole size={14} />Membres et invités</span>}</div>
+      <div className="detail-badges">{s.script && <Link href={scriptPath(s.script)} className="script-tag"><ScrollText size={14} aria-hidden="true" />{s.script}</Link>}{s.visibility === 'members' && <span className="badge"><LockKeyhole size={14} />Membres et invités</span>}</div>
       {practical}
     </div>}
     {embedded && practical}

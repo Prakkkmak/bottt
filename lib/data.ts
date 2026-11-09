@@ -1,6 +1,7 @@
 import 'server-only';
 import { isConfigured, isDemo } from './config';
-import { initialDemo, demoVenues } from './fixtures';
+import { initialDemo, demoVenues, demoScripts } from './fixtures';
+import type { CustomScript } from './scripts';
 import type { AppData } from './types';
 import type { Booking, Profile, GameSession, Series, Venue } from './types';
 import { supabase, authenticatedClient, currentUserId } from './supabase';
@@ -68,6 +69,16 @@ export async function getAddress(id: string): Promise<string | null> {
   const { data } = await db.from('session_addresses').select('address').eq('session_id', id).maybeSingle();
   return data?.address || null;
 }
+/** The circle's own scripts, which everyone reads; the base box's three are known to the site itself. */
+export const getScripts = cache(async (): Promise<CustomScript[]> => {
+  if (isDemo()) return demoScripts;
+  if (!isConfigured()) return [];
+  const db = await supabase();
+  const { data, error } = await db.from('scripts').select('id,name,slug,author,characters').order('name');
+  // The pages still open, with the base scripts only, while the migration has not reached the database.
+  if (error) { console.error('Scripts unavailable', error.message); return []; }
+  return data ?? [];
+});
 export async function getAdminData(): Promise<{ bookings: Booking[]; profiles: Profile[]; addresses: Record<string, string>; venues: Venue[]; series: Series[] }> {
   if (isDemo()) return { bookings: [], profiles: [], addresses: {}, venues: demoVenues, series: [] };
   const { db } = await authenticatedClient();

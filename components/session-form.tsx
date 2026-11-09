@@ -9,18 +9,22 @@ import { checkSessionForm, type SessionField, type SessionFieldErrors } from '@/
 import { nextSessionStart, sessionEnd, DEFAULT_SESSION_HOURS } from '@/lib/session-defaults';
 import { splitAddress } from '@/lib/locations';
 import { rhythmLabel, weeksAheadLabel } from '@/lib/series';
+import { baseScripts, type CustomScript } from '@/lib/scripts';
 import { saveSeries, saveSession } from '@/app/actions';
 import { Feedback, useAction } from './action-feedback';
 import { AddressFields } from './address-fields';
 import { MapLinks } from './map-links';
 import { FieldError, invalidField } from './ui';
 
-export function SessionForm({ session, address = '', template, venues = [], onSaved }: { session?: GameSession; address?: string; template?: GameSession; venues?: Venue[]; onSaved: () => void }) {
+export function SessionForm({ session, address = '', template, venues = [], scripts = [], onSaved }: { session?: GameSession; address?: string; template?: GameSession; venues?: Venue[]; scripts?: CustomScript[]; onSaved: () => void }) {
   const a = useAction();
   const defaults = session || template;
   const [start, setStart] = useState(() => session ? parisInput(session.starts_at) : nextSessionStart());
   // The script of the game edited, or of the last one, even none; a first game suggests the most accessible one.
   const [script, setScript] = useState(defaults ? defaults.script : 'Trouble Brewing');
+  // The base box's scripts, then the circle's own; a game keeps a script that has since left the list.
+  const options = [...baseScripts.map(s => s.name), ...scripts.map(s => s.name).sort((x, y) => x.localeCompare(y, 'fr'))];
+  if (script && !options.includes(script)) options.push(script);
   const [location, setLocation] = useState(defaults?.location || 'Brest');
   // A game opens on its venue, a new one on the last game's; '' is a place typed in for this game only.
   const [venueId, setVenueId] = useState(() => { const id = defaults ? defaults.venue_id : venues[0]?.id; return venues.some(v => v.id === id) ? id! : ''; });
@@ -73,8 +77,8 @@ export function SessionForm({ session, address = '', template, venues = [], onSa
     <p className="muted">{!session && template ? 'Le lieu, le script et les réglages de la dernière partie sont repris. Choisis la date et ajuste ce dont tu as besoin.' : 'Choisis le début de la soirée, vérifie le lieu et publie.'}</p>
     <fieldset className="form-section"><legend><CalendarDays size={18} />La soirée</legend>
       <label className="field">Nom de la partie <span className="field-note">Facultatif · sans nom, la partie prend celui du script</span><input name="title" maxLength={100} defaultValue={session?.title || ''} placeholder={sessionName({ title: '', script })} autoFocus={!session} data-autofocus={!session || undefined} {...invalidField(error('title'))} /><FieldError {...error('title')} /></label>
-      <div className="form-grid"><label className="field">Début · heure de Paris<input name="starts_at" required type="datetime-local" value={start} onChange={e => setStart(e.target.value)} {...invalidField(error('starts_at'))} /><FieldError {...error('starts_at')} /></label><label className="field">Script · facultatif<input name="script" list="session-scripts" minLength={2} maxLength={100} value={script} onChange={e => setScript(e.target.value)} {...invalidField(error('script'))} /><FieldError {...error('script')} /><datalist id="session-scripts"><option>Trouble Brewing</option><option>Bad Moon Rising</option><option>Sects &amp; Violets</option></datalist></label></div>
-      <p className="field-note">{session ? 'La durée de la partie est conservée.' : `Durée estimée de ${DEFAULT_SESSION_HOURS} h pour l’agenda.`}{endLabel && ` Fin prévue : ${endLabel}.`}</p>
+      <div className="form-grid"><label className="field">Début · heure de Paris<input name="starts_at" required type="datetime-local" value={start} onChange={e => setStart(e.target.value)} {...invalidField(error('starts_at'))} /><FieldError {...error('starts_at')} /></label><label className="field">Script<select name="script" value={script} onChange={e => setScript(e.target.value)} {...invalidField(error('script'))}><option value="">Pas encore choisi</option>{options.map(name => <option key={name} value={name}>{name}</option>)}</select><FieldError {...error('script')} /></label></div>
+      <p className="field-note">{session ? 'La durée de la partie est conservée.' : `Durée estimée de ${DEFAULT_SESSION_HOURS} h pour l’agenda.`}{endLabel && ` Fin prévue : ${endLabel}.`} Un script maison s’ajoute dans l’onglet « Les scripts ».</p>
       {!session && <>
         <div className="form-grid">
           <label className="field">Répétition<select name="repeat" value={repeat} onChange={e => setRepeat(e.target.value)} {...invalidField(error('repeat'))}><option value="">Une seule fois</option><option value="1">{rhythmLabel(1, start.slice(0, 10))}</option><option value="2">{rhythmLabel(2, start.slice(0, 10))}</option></select><FieldError {...error('repeat')} /></label>
