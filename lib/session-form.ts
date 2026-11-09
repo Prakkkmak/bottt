@@ -15,14 +15,15 @@ export const sessionMessages = {
   visibility: 'Choisis qui peut voir la partie.',
   repeat: 'Choisis le rythme de la série.', weeksAhead: 'Choisis jusqu’à quand les dates sont ouvertes.',
   lastDate: 'Choisis une dernière date valide, ou laisse le champ vide.', lastBefore: 'La dernière date doit suivre la première partie.',
+  note: 'Le message aux inscrits tient en 2000 caractères au plus.',
 };
 
 /**
  * What the game form holds, as the browser gives it: the start in Paris time, the number of seats still as typed.
  * A new game may repeat: repeat is '' for one date, '1' every week or '2' every other week, with how many weeks ahead
- * its dates open and its last date (YYYY-MM-DD), if any.
+ * its dates open and its last date (YYYY-MM-DD), if any. A game being edited may carry a note for the people registered.
  */
-export type SessionFormValues = { title: string; starts_at: string; script: string; location: string; address: string; maps_url: string; capacity: string; visibility: string; repeat?: string; weeks_ahead?: string; ends_on?: string };
+export type SessionFormValues = { title: string; starts_at: string; script: string; location: string; address: string; maps_url: string; capacity: string; visibility: string; repeat?: string; weeks_ahead?: string; ends_on?: string; note?: string };
 export type SessionField = keyof SessionFormValues;
 export type SessionFieldErrors = Partial<Record<SessionField, string>>;
 
@@ -46,7 +47,10 @@ export function checkSessionForm(values: SessionFormValues, { session, venue }: 
   let startsAt = '';
   if (!values.starts_at) set('starts_at', sessionMessages.start);
   else try { startsAt = fromParisInput(values.starts_at); } catch (e) { set('starts_at', e instanceof Error ? e.message : sessionMessages.start); }
-  if (startsAt && !(new Date(startsAt) > new Date())) set('starts_at', sessionMessages.past);
+  // A game being edited is one date: its series, if any, is not changed from here.
+  const repeat = session ? '' : values.repeat ?? '';
+  // A single game may take a date already past, once the organizer confirms it (see isPastStart); a series starts ahead.
+  if (startsAt && repeat && !(new Date(startsAt) > new Date())) set('starts_at', sessionMessages.past);
   const endsAt = session && startsAt ? sessionEnd(startsAt, session) : undefined;
   if (endsAt && !(Date.parse(endsAt) > Date.parse(startsAt))) message = sessionMessages.end;
   set('title', values.title.trim().length > 100 ? sessionMessages.title : undefined);
@@ -61,8 +65,8 @@ export function checkSessionForm(values: SessionFormValues, { session, venue }: 
   const capacity = values.capacity.trim() ? Number(values.capacity) : NaN;
   set('capacity', !Number.isFinite(capacity) ? sessionMessages.seats : !Number.isInteger(capacity) ? sessionMessages.wholeSeats : capacity < MIN_CAPACITY ? sessionMessages.fewSeats : capacity > MAX_CAPACITY ? sessionMessages.manySeats : undefined);
   set('visibility', values.visibility === 'public' || values.visibility === 'members' ? undefined : sessionMessages.visibility);
-  // A game being edited is one date: its series, if any, is not changed from here.
-  const repeat = session ? '' : values.repeat ?? '';
+  const note = session ? values.note?.trim() ?? '' : '';
+  set('note', note.length > 2000 ? sessionMessages.note : undefined);
   let series: { every_weeks: number; weeks_ahead: number; ends_on: string | null } | undefined;
   if (repeat) {
     const weeks = Number(values.weeks_ahead ?? '');
@@ -76,8 +80,13 @@ export function checkSessionForm(values: SessionFormValues, { session, venue }: 
     ...(session ? { id: session.id } : {}),
     title: values.title, script: values.script, starts_at: startsAt, ...(endsAt ? { ends_at: endsAt } : {}),
     location: venue ? venue.name : values.location, address: venue ? venue.address : values.address, venue_id: venue?.id ?? null,
-    capacity, visibility: values.visibility, ...series,
+    capacity, visibility: values.visibility, ...series, ...(note ? { note } : {}),
   };
   const valid = !Object.keys(errors).length && !message;
   return { errors, message, payload: valid ? payload : undefined };
+}
+
+/** Whether a start typed in Paris time has passed: the form then asks the organizer to confirm it. False when it cannot be read. */
+export function isPastStart(value: string, now = Date.now()) {
+  try { return Date.parse(fromParisInput(value)) <= now; } catch { return false; }
 }
