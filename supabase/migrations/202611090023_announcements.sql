@@ -54,26 +54,64 @@ begin
   if char_length(clean) not between 2 and 4000 then raise exception 'Écris une annonce de 2 à 4000 caractères.'; end if;
   heading=btrim(regexp_replace(regexp_replace(coalesce(p_subject,''),'[\x01-\x1F\x7F-\x9F‎‏‪-‮⁦-⁩]',' ','g'),'\s+',' ','g'));
   if char_length(heading)>100 then raise exception 'L’objet tient en 100 caractères au plus.'; end if;
-  select count(*) into targeted from public.announcement_audience(p_audience);
-  if targeted=0 then raise exception 'Personne d’autre n’a encore de compte dans le cercle.'; end if;
-  -- Three a day per organizer: an announcement writes to everyone. A refused one, here or below, rolls the count back with
-  -- the rest of the call.
+  -- Five a day for the whole circle, three of them at most from one organizer: an announcement writes to everyone, and
+  -- naming other organizers does not raise the circle's cap. The lock makes two sends at once count each other. A refused
+  -- announcement, here or below, rolls the counts back with the rest of the call.
+  perform pg_advisory_xact_lock(hashtext('public.send_announcement'));
+  if (select count(*) from public.announcements where created_at>now()-interval '1 day')>=5 then
+    raise exception 'Le cercle a déjà reçu 5 annonces en 24 heures. Réessaie demain.';
+  end if;
   begin
     perform public.rate_guard('announcement',3,86400);
   exception when raise_exception then
     raise exception 'Tu as déjà envoyé 3 annonces aujourd’hui. Réessaie demain.';
   end;
   select display_name into sender from public.profiles where id=auth.uid();
-  delete from public.announcements where created_at<now()-interval '1 year';
   insert into public.announcements(sender_id,audience,subject,body) values(auth.uid(),p_audience,heading,clean) returning id into announcement;
-  -- The kind is given: the notification choices trigger keeps no row for someone who switched announcements off.
-  insert into public.notifications(user_id,session_id,title,body,sender_id,kind)
-    select r.user_id,null,coalesce(nullif(heading,''),'Annonce de '||sender),clean||E'\n\n— '||sender,auth.uid(),'announcement'
-    from public.announcement_audience(p_audience) r;
-  get diagnostics reached=row_count;
+  -- One statement reads the audience and writes to it, so that the counts agree. The kind is given: the notification
+  -- choices trigger keeps no row for someone who switched announcements off, and the rows returned are those kept.
+  -- The subject always starts with « Annonce » so that it never passes for a login e-mail.
+  with audience as materialized (select r.user_id from public.announcement_audience(p_audience) r),
+    written as (insert into public.notifications(user_id,session_id,title,body,sender_id,kind)
+      select a.user_id,null,case when heading='' then 'Annonce de '||sender else 'Annonce · '||heading end,clean||E'\n\n— '||sender,auth.uid(),'announcement'
+      from audience a returning 1)
+  select (select count(*) from audience),(select count(*) from written) into targeted,reached;
+  if targeted=0 then raise exception 'Personne d’autre n’a encore de compte dans le cercle.'; end if;
   if reached=0 then raise exception 'Tout le monde a coupé les annonces : la tienne ne partirait à personne.'; end if;
   update public.announcements set sent=reached,muted=targeted-reached where id=announcement;
   return jsonb_build_object('sent',reached,'muted',targeted-reached);
+end; $$;
+
+-- maintenance() as in 202610210006, plus the year after which an announcement leaves the history.
+create or replace function public.maintenance() returns void language plpgsql security definer set search_path = '' as $$
+declare sid uuid;
+begin
+  for sid in select id from public.sessions where status='published' and starts_at>now() order by id loop perform public.rebalance(sid); end loop;
+  -- One reminder per person, naming the people they bring.
+  insert into public.notifications(user_id,session_id,title,body,dedupe_key)
+    select recipient,session_id,'Ta session approche',
+      case when guests is null then 'Un imprévu ? Pense à libérer ta place depuis le site. À très vite !'
+        when attending then guests||case when guest_count>1 then ' viennent' else ' vient' end||' avec toi. Un imprévu ? Pense à libérer vos places depuis le site.'
+        else guests||case when guest_count>1 then ' sont attendu·es. Transmets-leur' else ' est attendu·e. Transmets-lui' end||' l’heure et le lieu.' end,
+      'reminder:'||session_id||':'||recipient
+    from (select coalesce(b.user_id,b.sponsor_id) as recipient,b.session_id,bool_or(b.user_id is not null) as attending,
+        count(*) filter(where b.user_id is null) as guest_count,
+        string_agg(b.guest_name,' et ' order by b.guest_name) filter(where b.user_id is null) as guests
+      from public.bookings b join public.sessions s on s.id=b.session_id
+      where b.status='confirmed' and s.status='published' and s.starts_at between now() and now()+interval '24 hours'
+      group by 1,2) reminders
+    on conflict(dedupe_key) do nothing;
+  -- Guests never created an account: keep their first name only while the evening is recent.
+  update public.bookings b set guest_name='Invité·e' from public.sessions s
+    where s.id=b.session_id and b.guest_name is not null and b.guest_name<>'Invité·e' and s.ends_at<now()-interval '30 days';
+  -- Notifications are only an e-mail outbox; drop them with the guest names they carry once the evening is long past.
+  delete from public.notifications n using public.sessions s where n.session_id=s.id and s.ends_at<now()-interval '30 days';
+  -- Messages about a deleted game, or about no game at all, follow the same 30 days.
+  delete from public.notifications where session_id is null and created_at<now()-interval '30 days';
+  update public.invitations set sent_to=null where sent_to is not null and expires_at<now()-interval '30 days';
+  delete from public.action_limits where window_start<now()-interval '2 days';
+  -- The organizers' history of announcements keeps one year, as the privacy page says.
+  delete from public.announcements where created_at<now()-interval '1 year';
 end; $$;
 
 revoke execute on function public.announcement_audience(text),public.announcement_counts(),public.send_announcement(text,text,text) from public,anon,authenticated;

@@ -27,8 +27,11 @@ export type GameSession = {
   member_seats_free?: number; traveller_seats_free?: number; my_guests?: MyGuest[];
   participants: Participant[];
 };
-/** A recurring game, as organizers read it: dates in Paris time, starts_local as 'HH:MM:SS', ends_on the last date allowed, if any. */
-export type Series = { id: string; title: string; script: string; location: string; venue_id: string | null; capacity: number; visibility: 'public' | 'members'; first_date: string; starts_local: string; every_weeks: number; weeks_ahead: number; ends_on: string | null; };
+/**
+ * A recurring game, as organizers read it: dates in Paris time, starts_local as 'HH:MM:SS', duration as PostgreSQL writes an interval
+ * ('04:00:00'), ends_on the last date allowed, if any. address is private, like a game's; stopped_at is set while the series is stopped.
+ */
+export type Series = { id: string; title: string; script: string; location: string; address: string; venue_id: string | null; capacity: number; visibility: 'public' | 'members'; first_date: string; starts_local: string; duration: string; every_weeks: number; weeks_ahead: number; ends_on: string | null; stopped_at: string | null; };
 /** A usual place, managed by organizers. The address is private, like a game's, and may end with a map link. */
 export type Venue = { id: string; name: string; address: string; };
 /** Who an announcement goes to: everyone with an account (travellers too), or members and organizers only. */
@@ -40,6 +43,8 @@ export type AnnouncementCounts = Record<AnnouncementAudience, { sent: number; mu
 export type Booking = { id: string; session_id: string; user_id: string | null; guest_name: string | null; sponsor_id: string | null; status: BookingStatus; pool: 'circle' | 'newcomer'; created_at: string; offer_expires_at: string | null; profile?: Profile | null; };
 /** sent_to: the address the link was e-mailed to, erased 30 days after the link expires. */
 export type Invitation = { id: string; sponsor_id: string; expires_at: string; used_by: string | null; created_at: string; sent_to?: string | null; };
-export type AppData = { profile: Profile | null; sessions: GameSession[]; invitations: Invitation[]; demo: boolean; configured: boolean; local?: boolean; error?: string; accountNotice?: string; };
+/** A script of the circle as a game's link needs it: its name and the address of its page. */
+export type ScriptLink = { name: string; slug: string };
+export type AppData = { profile: Profile | null; sessions: GameSession[]; invitations: Invitation[]; demo: boolean; configured: boolean; local?: boolean; error?: string; accountNotice?: string; scripts?: ScriptLink[]; };
 export type ActionResult = { ok: boolean; message: string; value?: string; };
 export type SessionInput = Omit<GameSession, 'id' | 'status' | 'confirmed_count' | 'waitlist_count' | 'my_status' | 'my_offer_expires_at' | 'my_waitlist_position' | 'occupied_seats' | 'my_seat' | 'participants' | 'member_seats_free' | 'traveller_seats_free' | 'my_guests'> & { address: string; id?: string; };

@@ -42,7 +42,8 @@ test('Annonces à tout le cercle',async t=>{
     assert.deepEqual(await send(7,'Assemblée des membres jeudi.','members','  Assemblée\r\ndu cercle  '),{sent:4,muted:0});
     const sent=await notices();
     assert.deepEqual(sent.map(m=>m.user_id),[1,2,3,4].map(uuid));
-    assert.ok(sent.every(m=>m.title==='Assemblée du cercle'));
+    // A subject always starts with « Annonce », so that it never passes for a login e-mail.
+    assert.ok(sent.every(m=>m.title==='Annonce · Assemblée du cercle'));
     await clear();
   });
   await t.test('qui a coupé les annonces ne les reçoit pas, et l’organisateur le sait',async()=>{
@@ -67,11 +68,12 @@ test('Annonces à tout le cercle',async t=>{
     await h.login(2);await assert.rejects(h.call(`insert into announcements(audience,body) values('everyone','Fausse')`),/permission denied/i);
     await h.login(7);assert.equal((await h.call('select id from announcements')).length,1);
     await assert.rejects(h.call(`update announcements set body='Changée'`),/permission denied/i);
-    // Older than a year: hidden, then dropped at the next announcement.
+    // Older than a year: hidden, then dropped by the maintenance, which leaves the recent ones.
     await h.root();await h.call(`update announcements set created_at=now()-interval '13 months'`);
     await h.login(7);assert.equal((await h.call('select id from announcements')).length,0);
     await send(7,'La suivante');
-    await h.root();assert.deepEqual((await h.call<{body:string}>('select body from announcements')).map(r=>r.body),['La suivante']);
+    await h.root();await h.call('select maintenance()');
+    assert.deepEqual((await h.call<{body:string}>('select body from announcements')).map(r=>r.body),['La suivante']);
     await clear();
   });
   await t.test('le texte est nettoyé et sa longueur bornée',async()=>{
@@ -82,15 +84,21 @@ test('Annonces à tout le cercle',async t=>{
     assert.deepEqual(await send(1,'Lien‮ : moc.elpmaxe⁦\u0007\tà bientôt 👋🏽','everyone','Objet\u0007‮piégé'),{sent:6,muted:0});
     const [first]=await notices();
     assert.equal(first.body,'Lien : moc.elpmaxe\tà bientôt 👋🏽\n\n— Joueur 1');
-    assert.equal(first.title,'Objet piégé');
+    assert.equal(first.title,'Annonce · Objet piégé');
     await clear();
   });
   await t.test('trois annonces par jour au plus, les refus ne comptant pas',async()=>{
     await assert.rejects(send(1,'x'),/2 à 4000/);
     for(let i=1;i<=3;i++)assert.equal((await send(1,`Annonce ${i}`)).sent,6);
     await assert.rejects(send(1,'Une de trop'),/déjà envoyé 3 annonces aujourd’hui/);
-    // Another organizer still writes.
+    // Another organizer still writes, up to five announcements a day for the whole circle.
     assert.equal((await send(7,'À samedi')).sent,6);
+    assert.equal((await send(7,'À dimanche')).sent,6);
+    await assert.rejects(send(7,'Encore une'),/5 annonces en 24 heures/);
+    await h.root();assert.equal((await h.call('select 1 from announcements')).length,5);
+    // A day later, the circle writes again.
+    await h.call(`update announcements set created_at=now()-interval '25 hours'`);await h.call('delete from action_limits');
+    assert.equal((await send(1,'Le lendemain')).sent,6);
     await clear();
   });
   await t.test('l’annonce part par e-mail, après les messages essentiels',async()=>{

@@ -8,7 +8,7 @@ import { sendAnnouncement } from '@/app/actions';
 import { Dialog } from './dialog';
 import { Feedback, useAction } from './action-feedback';
 
-/** The organizers' messages: announcements to the whole circle or to its members, and the ones sent this past year. */
+/** The organizers' messages: announcements to the whole circle or to its members, and the latest ones sent this past year. */
 export function Announcements({ announcements, counts, profiles, writer }: { announcements: Announcement[]; counts: AnnouncementCounts | null; profiles: Profile[]; writer: string }) {
   const [writing, setWriting] = useState(false);
   const [result, setResult] = useState<ActionResult | null>(null);
@@ -25,7 +25,7 @@ export function Announcements({ announcements, counts, profiles, writer }: { ann
       <p className="muted">Une annonce part par e-mail à tout le cercle, ou aux seuls membres. Chacun peut couper les annonces dans son profil. Pour écrire aux inscrits d’une partie, utilise l’enveloppe de la partie dans « Les sessions ».</p>
       {!counts && <p className="alert warning" role="status">Les annonces seront disponibles une fois la base de données mise à jour.</p>}
       {announcements.length ? announcements.map(n => <AnnouncementRow key={n.id} announcement={n} sender={nameOf(n.sender_id)} />)
-        : <div className="empty-state borderless"><Megaphone size={35} /><h2>Aucune annonce envoyée.</h2><p>Les annonces de l’année passée s’affichent ici, avec le nombre de personnes qu’elles ont touchées.</p></div>}
+        : <div className="empty-state borderless"><Megaphone size={35} /><h2>Aucune annonce envoyée.</h2><p>Les dernières annonces de l’année s’affichent ici, avec le nombre de personnes qu’elles ont touchées.</p></div>}
     </div>
     <Dialog title="Écrire une annonce" open={writing} onClose={() => setWriting(false)} wide guard>
       {writing && counts && <AnnouncementForm counts={counts} writer={writer} onSent={r => { setWriting(false); setResult(r); setSent(n => n + 1); }} />}
@@ -61,9 +61,9 @@ function AnnouncementForm({ counts, writer, onSent }: { counts: AnnouncementCoun
       <input type="radio" name="audience" value={value} checked={audience === value} onChange={() => setAudience(value)} />
       <span><strong>{audienceLabels[value].label} · {reachLabel(counts[value])}</strong><small>{audienceLabels[value].note}</small></span>
     </label>)}</fieldset>
-    <label className="field">Objet <span className="field-note">Facultatif. Sans objet, l’e-mail s’intitule « Annonce de {writer} ».</span><input name="subject" maxLength={100} placeholder={`Annonce de ${writer}`} /></label>
+    <label className="field">Objet <span className="field-note">Facultatif. L’e-mail s’intitule « Annonce · ton objet », ou « Annonce de {writer} » sans objet.</span><input name="subject" maxLength={100} placeholder="Soirée spéciale samedi" /></label>
     <label className="field">Ton annonce<span className="field-note">Signée de ton pseudo. N’y mets ni l’adresse d’un lieu ni un code d’accès : tout le monde ne les voit pas.</span><textarea name="message" rows={8} required minLength={2} maxLength={4000} placeholder="Une soirée spéciale, un nouveau lieu, les nouvelles du cercle…" data-autofocus /></label>
-    <p className="muted">Tu n’en reçois pas de copie. Trois annonces par jour au plus.</p>
+    <p className="muted">Tu n’en reçois pas de copie. Trois annonces par jour au plus, cinq pour tout le cercle.</p>
     <Feedback result={a.result} />
     <button className="button primary full" disabled={a.pending || reach === 0}><Send size={16} />{a.pending ? 'Envoi…' : reach ? `Envoyer à ${reach} personne${reach > 1 ? 's' : ''}` : 'Personne à prévenir'}</button>
   </form>;
