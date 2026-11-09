@@ -4,7 +4,8 @@ import { after } from 'next/server';
 import { z } from 'zod';
 import { supabase, authenticatedClient } from '@/lib/supabase';
 import { isConfigured, isDemo } from '@/lib/config';
-import { profileSchema, nicknameSchema, sessionSchema, seriesSchema, venueSchema, guestNameSchema, invitationEmailSchema, sessionMessageSchema } from '@/lib/schemas';
+import { profileSchema, nicknameSchema, sessionSchema, seriesSchema, venueSchema, guestNameSchema, invitationEmailSchema, sessionMessageSchema, notificationChoicesSchema } from '@/lib/schemas';
+import { sessionMessageSent } from '@/lib/notification-choices';
 import { stoppedSeriesMessage } from '@/lib/series';
 import { canSendMail, invitationMail, sendMail, siteUrl } from '@/lib/mail';
 import { flushEmails } from '@/lib/notifications';
@@ -123,7 +124,7 @@ export async function sendSessionMessage(id: string, message: string, waitlist =
   if (!isUuid(id)) return failure(new Error('Session invalide.'));
   const parsed = sessionMessageSchema.safeParse(message);
   if (!parsed.success) return failure(parsed.error);
-  return rpc('send_session_message', { p_session: id, p_message: parsed.data, p_waitlist: waitlist === true }, data => { const n = Number(data) || 0; return `Ton message part à ${n} personne${n > 1 ? 's' : ''}.`; });
+  return rpc('send_session_message_counts', { p_session: id, p_message: parsed.data, p_waitlist: waitlist === true }, sessionMessageSent);
 }
 export async function deleteSession(id: string) { if (!isUuid(id)) return failure(new Error('Session invalide.')); return rpc('delete_session', { p_id: id }, 'La partie est supprimée.'); }
 const rankMessages: Record<Membership, string> = { newcomer: 'Le compte est passé voyageur·se.', member: 'Le compte est passé membre.', organizer: 'Le compte rejoint l’organisation.', suspended: 'Le compte est suspendu.' };
@@ -134,4 +135,10 @@ export async function saveNickname(input: string): Promise<ActionResult> {
 }
 export async function saveProfile(input: unknown): Promise<ActionResult> {
   try { const parsed = profileSchema.parse(input); const { db, user } = await authenticatedClient(); const { error } = await db.from('profiles').update(parsed).eq('id', user.id); if (error) throw new Error('Le profil n’a pas pu être enregistré.'); invalidate(); return { ok: true, message: 'Ton profil a été mis à jour.' }; } catch(e) { return failure(e); }
+}
+/** Which e-mails the player receives, among those that may be switched off. */
+export async function saveNotificationChoices(input: unknown): Promise<ActionResult> {
+  const parsed = notificationChoicesSchema.safeParse(input);
+  if (!parsed.success) return failure(parsed.error);
+  return rpc('save_notification_choices', { p_choices: parsed.data }, 'Tes choix de notifications sont enregistrés.');
 }

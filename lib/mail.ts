@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer';
 import { dateLong, parisInput, sessionName, time } from './utils';
+import { choiceOf } from './notification-choices';
 
 export type Mail = { to: string; subject: string; text: string; idempotencyKey?: string };
 
@@ -11,6 +12,9 @@ export function localMail() {
 export function canSendMail() { return localMail() || Boolean(process.env.RESEND_API_KEY); }
 /** Absolute links for e-mails, which are read outside the site. */
 export function siteUrl(fallback = 'http://127.0.0.1:3000') { return (process.env.NEXT_PUBLIC_SITE_URL || fallback).replace(/\/+$/, ''); }
+
+/** The provider refused for now because too many messages left at once: the message is fine and goes back to the outbox. */
+export class MailRateLimited extends Error {}
 
 let smtp: ReturnType<typeof nodemailer.createTransport> | null = null;
 export async function sendMail({ to, subject, text, idempotencyKey }: Mail) {
@@ -27,8 +31,12 @@ export async function sendMail({ to, subject, text, idempotencyKey }: Mail) {
     signal: AbortSignal.timeout(15000),
   });
   let result = await post();
-  // Resend allows a few requests per second: a burst, such as a cancelled game, waits its turn once.
-  if (result.status === 429) { await new Promise(resolve => setTimeout(resolve, 1000)); result = await post(); }
+  // Resend allows a few requests per second: a burst, such as a cancelled game, waits its turn once, as long as it asks (5 s at most).
+  if (result.status === 429) {
+    const wait = Math.min(Math.max(Number(result.headers.get('retry-after')) || 1, 1), 5);
+    await new Promise(resolve => setTimeout(resolve, wait * 1000)); result = await post();
+    if (result.status === 429) throw new MailRateLimited('Email provider rate limit');
+  }
   if (!result.ok) throw new Error('Email provider unavailable');
 }
 
@@ -36,11 +44,12 @@ export async function sendMail({ to, subject, text, idempotencyKey }: Mail) {
  * An address the person could not read before comes without its former value. */
 export type Change = { field: 'starts_at' | 'location' | 'address'; before?: string; after: string };
 
-/** A queued notification as public.claim_emails returns it, with the game it is about when there is one. */
+/** A queued notification as public.claim_emails returns it, with the game it is about when there is one.
+ * The seats come with a new game and with an organizer's activity message only. */
 export type QueuedEmail = {
-  id: string; email: string; title: string; body: string; session_id: string | null;
+  id: string; email: string; title: string; body: string; kind?: string | null; session_id: string | null;
   session_title?: string | null; session_script?: string | null; session_starts_at?: string | null; session_location?: string | null;
-  changes?: unknown;
+  changes?: unknown; session_capacity?: number | null; session_taken?: number | null; session_waiting?: number | null;
 };
 
 const changedFields: readonly Change['field'][] = ['starts_at', 'location', 'address'];
@@ -60,9 +69,22 @@ function readChanges(value: unknown) {
 const moment = (date: string) => `${dateLong(date)} à ${time(date)}`;
 /** A place or an address on one line, its lines joined, or a word when there is none. */
 const oneLine = (value: string, none: string) => value.split(/\r\n|[\r\n\u2028\u2029]/).map(line => line.trim()).filter(Boolean).join(', ') || none;
+const count = (value: unknown) => Number.isInteger(value) && (value as number) >= 0 ? value as number : null;
+/** How full the game is, when the message comes with its seats. */
+function seatsLine(m: QueuedEmail) {
+  const capacity = count(m.session_capacity), taken = count(m.session_taken), waiting = count(m.session_waiting);
+  if (!capacity || taken === null) return '';
+  return `Places prises : ${taken} sur ${capacity}${waiting ? `, ${waiting} en liste d’attente` : ''}`;
+}
+/** The last words of a message whose kind is known: where to choose one's e-mails, naming the choice that let this one through. */
+function choicesLine(m: QueuedEmail, site: string) {
+  if (!m.kind) return '';
+  const choice = choiceOf(m.kind), page = `${site}/profil#notifications`;
+  return choice ? `Tu reçois cet e-mail car « ${choice.label} » est activé dans tes notifications. Pour le changer : ${page}` : `Choisis les e-mails que tu reçois : ${page}`;
+}
 
-/** A notification as an e-mail: the subject names the game and its date, the text adds when and where, and a link back to it.
- * When the game changed, each changed line reads as before → now, a time alone after the arrow when the day stays the same. */
+/** A notification as an e-mail: the subject names the game and its date, the text adds when and where, a link back to it and
+ * where to choose one's e-mails. When the game changed, each changed line reads as before → now, a time alone after the arrow when the day stays the same. */
 export function notificationMail(m: QueuedEmail, site = siteUrl()) {
   // Every game has a date, not always a script: the date says the message is about a game still on the site.
   const game = m.session_starts_at ? sessionName({ title: m.session_title ?? '', script: m.session_script ?? '' }) : '';
@@ -72,11 +94,11 @@ export function notificationMail(m: QueuedEmail, site = siteUrl()) {
   const when = moved ? `Quand : ${moment(moved.before!)} → ${sameDay ? time(moved.after) : moment(moved.after)}` : day && `Quand : ${day} à ${time(m.session_starts_at!)}`;
   const where = place ? `Où : ${oneLine(place.before!, 'non précisé')} → ${oneLine(place.after, 'non précisé')}` : m.session_location && `Où : ${m.session_location}`;
   const exact = address && (address.before === undefined ? `Adresse : ${oneLine(address.after, 'aucune')}` : `Adresse : ${oneLine(address.before, 'aucune')} → ${oneLine(address.after, 'aucune')}`);
-  const details = game ? [`Partie : ${game}`, when, where, exact].filter(Boolean).join('\n') : '';
+  const details = game ? [`Partie : ${game}`, when, where, exact, seatsLine(m)].filter(Boolean).join('\n') : '';
   const link = `${site}${m.session_id ? `/sessions/${m.session_id}` : '/'}`;
   // Guest names reach the title: a line break must not end the subject header.
   const subject = [m.title, game && [game, day].filter(Boolean).join(', ')].filter(Boolean).join(' · ').replace(/\s+/g, ' ').trim();
-  return { subject, text: [m.body, details, link, 'Blood on the Tanguy Tower'].filter(Boolean).join('\n\n') };
+  return { subject, text: [m.body, details, link, choicesLine(m, site), 'Blood on the Tanguy Tower'].filter(Boolean).join('\n\n') };
 }
 
 /** The sponsorship e-mail: fixed text, so a member cannot use it to send arbitrary content. */
