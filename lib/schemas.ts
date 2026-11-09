@@ -54,3 +54,9 @@ export const sessionMessageSchema = z.string('Écris un message de 2 à 2000 car
 const choiceMessage = 'Ces choix de notifications sont invalides. Recharge la page et réessaie.';
 const choice = z.boolean(choiceMessage);
 export const notificationChoicesSchema = z.strictObject({ booking: choice, reminder: choice, message: choice, announcement: choice, new_game: choice, activity: choice }, choiceMessage);
+/** An announcement to the circle: an optional subject on one line, the text, and who it goes to. */
+export const announcementSchema = z.object({
+  subject: z.string('L’objet tient en 100 caractères au plus.').trim().max(100, 'L’objet tient en 100 caractères au plus.').default(''),
+  message: z.string('Écris une annonce de 2 à 4000 caractères.').trim().min(2, 'Écris une annonce de 2 à 4000 caractères.').max(4000, 'Écris une annonce de 2 à 4000 caractères.'),
+  audience: z.enum(['everyone', 'members'], 'Choisis à qui envoyer l’annonce.'),
+}, 'L’annonce envoyée est incomplète. Recharge la page et réessaie.');

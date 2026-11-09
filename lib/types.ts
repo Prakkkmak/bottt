@@ -34,6 +34,12 @@ export type GameSession = {
 export type Series = { id: string; title: string; script: string; location: string; address: string; venue_id: string | null; capacity: number; visibility: 'public' | 'members'; first_date: string; starts_local: string; duration: string; every_weeks: number; weeks_ahead: number; ends_on: string | null; stopped_at: string | null; };
 /** A usual place, managed by organizers. The address is private, like a game's, and may end with a map link. */
 export type Venue = { id: string; name: string; address: string; };
+/** Who an announcement goes to: everyone with an account (travellers too), or members and organizers only. */
+export type AnnouncementAudience = 'everyone' | 'members';
+/** An announcement sent to the circle, as organizers read it for a year. subject is empty when the e-mail was titled by its writer. */
+export type Announcement = { id: string; sender_id: string | null; audience: AnnouncementAudience; subject: string; body: string; sent: number; muted: number; created_at: string; };
+/** For each audience, how many people an announcement would reach, and how many switched announcements off. */
+export type AnnouncementCounts = Record<AnnouncementAudience, { sent: number; muted: number }>;
 export type Booking = { id: string; session_id: string; user_id: string | null; guest_name: string | null; sponsor_id: string | null; status: BookingStatus; pool: 'circle' | 'newcomer'; created_at: string; offer_expires_at: string | null; profile?: Profile | null; };
 /** sent_to: the address the link was e-mailed to, erased 30 days after the link expires. */
 export type Invitation = { id: string; sponsor_id: string; expires_at: string; used_by: string | null; created_at: string; sent_to?: string | null; };

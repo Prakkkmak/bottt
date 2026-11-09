@@ -4,8 +4,9 @@ import { after } from 'next/server';
 import { z } from 'zod';
 import { supabase, authenticatedClient } from '@/lib/supabase';
 import { isConfigured, isDemo } from '@/lib/config';
-import { profileSchema, nicknameSchema, sessionSchema, seriesSchema, seriesEditSchema, venueSchema, scriptSchema, guestNameSchema, invitationEmailSchema, sessionMessageSchema, notificationChoicesSchema } from '@/lib/schemas';
+import { profileSchema, nicknameSchema, sessionSchema, seriesSchema, seriesEditSchema, venueSchema, scriptSchema, guestNameSchema, invitationEmailSchema, sessionMessageSchema, notificationChoicesSchema, announcementSchema } from '@/lib/schemas';
 import { sessionMessageSent } from '@/lib/notification-choices';
+import { announcementSent } from '@/lib/announcements';
 import { editedSeriesMessage, stoppedSeriesMessage } from '@/lib/series';
 import { canSendMail, invitationMail, sendMail, siteUrl } from '@/lib/mail';
 import { flushEmails } from '@/lib/notifications';
@@ -131,6 +132,12 @@ export async function sendSessionMessage(id: string, message: string, waitlist =
   const parsed = sessionMessageSchema.safeParse(message);
   if (!parsed.success) return failure(parsed.error);
   return rpc('send_session_message_counts', { p_session: id, p_message: parsed.data, p_waitlist: waitlist === true }, sessionMessageSent);
+}
+/** An organizer writes to the whole circle, or to its members only, by e-mail. */
+export async function sendAnnouncement(input: unknown) {
+  const parsed = announcementSchema.safeParse(input);
+  if (!parsed.success) return failure(parsed.error);
+  return rpc('send_announcement', { p_subject: parsed.data.subject, p_message: parsed.data.message, p_audience: parsed.data.audience }, announcementSent);
 }
 export async function deleteSession(id: string) { if (!isUuid(id)) return failure(new Error('Session invalide.')); return rpc('delete_session', { p_id: id }, 'La partie est supprimée.'); }
 const rankMessages: Record<Membership, string> = { newcomer: 'Le compte est passé voyageur·se.', member: 'Le compte est passé membre.', organizer: 'Le compte rejoint l’organisation.', suspended: 'Le compte est suspendu.' };
