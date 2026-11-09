@@ -70,3 +70,15 @@ test('un script du cercle a un nom à lui et des personnages connus', () => {
   assert.equal(issue({ name: 'Mon script', characters: ['imp', 'personne'] }), 'Un des personnages choisis est inconnu. Recharge la page et réessaie.');
   assert.equal(issue({ name: 'Mon script', author: 'x'.repeat(101) }), 'Le nom de l’auteur tient en 100 caractères au plus.');
 });
+
+test('chaque personnage a son icône et chaque module à logo a son fichier', async () => {
+  const { existsSync, statSync } = await import('node:fs');
+  const { iconPath, logoPath } = await import('../lib/role-art');
+  const file = (path: string) => new URL(`../public${path}`, import.meta.url);
+  const missing = characters.filter(c => !existsSync(file(iconPath(c.id)))).map(c => c.id);
+  assert.deepEqual(missing, []);
+  // Small enough to load a whole sheet at once.
+  assert.ok(characters.every(c => statSync(file(iconPath(c.id))).size < 25_000));
+  for (const e of editions) { const logo = logoPath(e.id); if (logo) assert.ok(existsSync(file(logo)), logo); }
+  assert.equal(logoPath('other'), null);
+});

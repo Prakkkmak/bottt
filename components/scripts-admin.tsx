@@ -5,6 +5,7 @@ import { Pencil, Plus, ScrollText, Trash2, Upload } from 'lucide-react';
 import type { GameSession } from '@/lib/types';
 import { baseScripts, readScriptTool, scriptPagePath, type CustomScript } from '@/lib/scripts';
 import type { CharacterChoice, Edition, Team } from '@/lib/characters';
+import { iconPath } from '@/lib/role-art';
 import { deleteScript, saveScript } from '@/app/actions';
 import { Dialog } from './dialog';
 import { Feedback, useAction } from './action-feedback';
@@ -91,7 +92,7 @@ function ScriptForm({ script, characters, games, onSaved }: { script?: CustomScr
       </div>
       <label className="check-field"><input type="checkbox" checked={onlyPicked} onChange={e => setOnlyPicked(e.target.checked)} />Seulement les rôles choisis</label>
       {groups.length ? groups.map(g => <fieldset key={g.team} className="role-group"><legend>{teamLabels[g.team]}</legend><div className="role-options">
-        {g.list.map(c => <label key={c.id} className="check-field"><input type="checkbox" checked={picked.includes(c.id)} onChange={() => toggle(c.id)} /><span>{c.name}{c.name !== c.name_en && <small lang="en"> · {c.name_en}</small>}</span></label>)}
+        {g.list.map(c => <label key={c.id} className="check-field"><input type="checkbox" checked={picked.includes(c.id)} onChange={() => toggle(c.id)} /><img className="role-option-icon" src={iconPath(c.id)} alt="" width={28} height={28} loading="lazy" decoding="async" /><span>{c.name}{c.name !== c.name_en && <small lang="en"> · {c.name_en}</small>}</span></label>)}
       </div></fieldset>) : <p className="muted">{onlyPicked && !picked.length ? 'Aucun rôle choisi pour l’instant.' : 'Aucun rôle ne correspond à cette recherche.'}</p>}
     </fieldset>
     <Feedback result={a.result} /><button className="button primary full" disabled={a.pending}>{a.pending ? 'Enregistrement…' : script ? 'Enregistrer le script' : 'Ajouter le script'}</button>
