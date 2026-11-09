@@ -33,6 +33,14 @@ export async function extendSeries(db=serviceClient()){
   return Number(data)||0;
 }
 
+/** Reminders, waiting lists moved on and housekeeping. Never throws, like extendSeries. */
+export async function runMaintenance(db=serviceClient()){
+  if(!db)return false;
+  const {error}=await db.rpc('maintenance');
+  if(error){console.error('Maintenance indisponible',error.message);return false;}
+  return true;
+}
+
 /** The scheduled job: the next dates of the recurring games, reminders and housekeeping, then the messages. */
 export async function deliverNotifications() {
   const db=serviceClient();

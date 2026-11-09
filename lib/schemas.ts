@@ -36,3 +36,7 @@ export const guestNameSchema = z.string().trim().min(2, 'Indique un prénom ou u
 export const invitationEmailSchema = z.string().trim().toLowerCase().pipe(z.email('Cette adresse e-mail est invalide.').max(254, 'Cette adresse e-mail est invalide.'));
 /** What an organizer writes to the people registered for a game, sent as a plain-text e-mail. */
 export const sessionMessageSchema = z.string('Écris un message de 2 à 2000 caractères.').trim().min(2, 'Écris un message de 2 à 2000 caractères.').max(2000, 'Écris un message de 2 à 2000 caractères.');
+/** The switches of the profile page, every optional kind of public.notification_kinds and nothing else. */
+const choiceMessage = 'Ces choix de notifications sont invalides. Recharge la page et réessaie.';
+const choice = z.boolean(choiceMessage);
+export const notificationChoicesSchema = z.strictObject({ booking: choice, reminder: choice, message: choice, announcement: choice, new_game: choice, activity: choice }, choiceMessage);
