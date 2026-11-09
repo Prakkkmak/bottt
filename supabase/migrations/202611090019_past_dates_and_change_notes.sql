@@ -15,11 +15,13 @@ alter table public.notifications add column note text;
 
 -- Same as the change details migration, with the organizer's note (p_note, already signed, or null). It goes to everyone
 -- registered but its writer, along with the changes each one may read. A message replaced before it leaves passes its
--- notes on to the new one, in the order written, so a note is never lost to a later edit.
+-- notes on to the new one, in the order written, so a note is never lost to a later edit; a note that could not leave
+-- within a day is out of date, as claim_emails has it, and is dropped. The message keeps the account that wrote its
+-- latest note (sender_id, as for send_session_message), since a signature only gives a pseudo.
 drop function public.notify_session_change(uuid,text,text,jsonb,jsonb,timestamptz);
 create function public.notify_session_change(p_session uuid,p_title text,p_body text,p_changes jsonb,p_address jsonb,p_previous_start timestamptz,p_note text default null)
 returns void language plpgsql security definer set search_path = '' as $$
-declare r record; fresh jsonb; earlier jsonb; kinds text[]; notes text; note text; merged jsonb; heading text; message text; f text; newest jsonb; oldest jsonb; latest jsonb; former jsonb; latter jsonb;
+declare r record; fresh jsonb; earlier jsonb; kinds text[]; notes text; note text; sender uuid; writer uuid; merged jsonb; heading text; message text; f text; newest jsonb; oldest jsonb; latest jsonb; former jsonb; latter jsonb;
 begin
   for r in select b.recipient,b.guests,
       coalesce(x.may_read and (p.membership in ('member','organizer') or s.starts_at<=now()+interval '48 hours'),false) as reads_now,
@@ -35,16 +37,18 @@ begin
     fresh=p_changes||case when p_address is not null and r.reads_now then jsonb_build_array(case when r.read_before then p_address else p_address-'before' end) else '[]'::jsonb end;
     -- Its writer gets no copy of a note: they have just written it.
     note=case when r.recipient is distinct from auth.uid() then nullif(p_note,'') end;
+    writer=case when note is not null then auth.uid() end;
     continue when jsonb_array_length(fresh)=0 and note is null;
     -- One being sent right now may still leave: the new one then repeats its former values, which stay true.
     with replaced as (update public.notifications n set email_attempts=5
         where n.user_id=r.recipient and n.session_id=p_session and (n.changes<>'[]'::jsonb or n.note is not null) and n.emailed_at is null and n.email_attempts<5
-        returning n.id,n.created_at,n.title,n.changes,n.note)
+        returning n.id,n.created_at,n.title,n.changes,n.note,n.sender_id)
     select (select coalesce(jsonb_agg(e.change order by q.created_at,q.id,e.idx),'[]'::jsonb)
           from replaced q cross join lateral jsonb_array_elements(q.changes) with ordinality e(change,idx)),
         (select array_agg(distinct q.title) from replaced q),
-        (select string_agg(q.note,E'\n\n' order by q.created_at,q.id) from replaced q)
-      into earlier,kinds,notes;
+        (select string_agg(q.note,E'\n\n' order by q.created_at,q.id) from replaced q where q.created_at>now()-interval '24 hours'),
+        (select q.sender_id from replaced q where q.note is not null and q.created_at>now()-interval '24 hours' order by q.created_at desc,q.id desc limit 1)
+      into earlier,kinds,notes,sender;
     note=nullif(concat_ws(E'\n\n',notes,note),'');
     merged='[]';
     foreach f in array array['starts_at','location','address'] loop
@@ -61,11 +65,11 @@ begin
     -- A venue's message merged with a game's own takes the general wording.
     heading=p_title;message=p_body;
     if kinds<>array[p_title] then heading='Les informations de ta session ont changé';message='Vérifie ce qui change avant de venir.'; end if;
-    insert into public.notifications(user_id,session_id,title,body,changes,note)
+    insert into public.notifications(user_id,session_id,title,body,changes,note,sender_id)
       values(r.recipient,p_session,heading,concat_ws(E'\n\n',
         -- Nothing this person reads changed: the note is the message, passed on to the people they bring.
         case when jsonb_array_length(merged)=0 then 'Transmets ce message à '||r.guests||'.' else message||coalesce(' Préviens '||r.guests||'.','') end,
-        note),merged,note);
+        note),merged,note,case when note is not null then coalesce(writer,sender) end);
   end loop;
 end; $$;
 

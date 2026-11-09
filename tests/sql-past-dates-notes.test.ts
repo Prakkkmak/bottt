@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {createDatabase,uuid} from './sql-harness';
 
 type Change={field:string;before?:string;after:string};
-type Notice={user_id:string;title:string;body:string;changes:Change[];note:string|null};
+type Notice={user_id:string;title:string;body:string;changes:Change[];note:string|null;sender_id:string|null};
 const title='Les informations de ta session ont changé';
 
 test('Une partie peut prendre une date passée, et l’organisateur peut joindre un mot à ses changements',async t=>{
@@ -18,7 +18,7 @@ test('Une partie peut prendre une date passée, et l’organisateur peut joindre
       location:s.location,address:'1 rue du Port, Brest',capacity:s.capacity,beginners_welcome:true,visibility:'public',...changes})]);
   };
   const at=(days:number)=>{const starts=new Date(Date.now()+days*86400000);return {starts_at:starts.toISOString(),ends_at:new Date(starts.getTime()+4*3600000).toISOString()};};
-  const notices=async(id:string)=>{await h.root();return h.call<Notice>('select user_id,title,body,changes,note from notifications where session_id=$1 and emailed_at is null and email_attempts<5 order by user_id,created_at',[id]);};
+  const notices=async(id:string)=>{await h.root();return h.call<Notice>('select user_id,title,body,changes,note,sender_id from notifications where session_id=$1 and emailed_at is null and email_attempts<5 order by user_id,created_at',[id]);};
   const clear=async(id:string)=>{await h.root();await h.call('delete from notifications where session_id=$1',[id]);};
 
   await t.test('une partie à venir passe à une date passée : close, rangée avec les passées, sans message à personne',async()=>{
@@ -69,6 +69,9 @@ test('Une partie peut prendre une date passée, et l’organisateur peut joindre
     assert.deepEqual([sent[0].body,sent[0].note],['Vérifie ce qui change avant de venir.',null]);
     assert.deepEqual([sent[1].body,sent[1].note],[`Vérifie ce qui change avant de venir. Préviens Paul.\n\n${note}`,note]);
     assert.equal(sent[2].body,`Vérifie ce qui change avant de venir.\n\n${note}`);
+    // The message keeps the account that wrote its note.
+    await h.root();
+    assert.deepEqual((await h.call<{user_id:string;sender_id:string|null}>('select user_id,sender_id from notifications where session_id=$1 order by user_id',[game])).map(n=>n.sender_id),[null,uuid(1),uuid(1)]);
     // The outbox gives the note within the text.
     await h.root();
     assert.ok((await h.call<{body:string}>('select body from claim_emails() where session_id=$1',[game])).every(m=>m.body.startsWith('Vérifie ce qui change')));
@@ -108,6 +111,16 @@ test('Une partie peut prendre une date passée, et l’organisateur peut joindre
     // A change undone keeps the note, which the organizer still wants read.
     await edit(game,{starts_at:first.starts_at.toISOString(),ends_at:first.ends_at.toISOString(),address:'1 rue du Port, Brest'});
     assert.deepEqual((await notices(game)).map(n=>[n.user_id,n.changes.length,n.body.endsWith(second)]),[[uuid(2),0,true],[uuid(3),0,true],[uuid(4),0,true]]);
+    await clear(game);
+    // A note that could not leave within a day is out of date: the next message leaves it out.
+    await edit(game,{note:'Vieux mot.'});
+    await h.root();await h.call(`update notifications set created_at=now()-interval '2 days',email_attempts=1 where session_id=$1`,[game]);
+    await edit(game,{...at(13),note:'Nouveau mot.'},6);
+    assert.deepEqual((await notices(game)).map(n=>[n.note,n.sender_id]),[
+      ['Message de Joueur 6 :\nNouveau mot.',uuid(6)],['Message de Joueur 6 :\nNouveau mot.',uuid(6)],['Message de Joueur 6 :\nNouveau mot.',uuid(6)]]);
+    // A later edit without a note keeps the account of the one it carries.
+    await edit(game,at(14));
+    assert.deepEqual((await notices(game)).map(n=>n.sender_id),[uuid(6),uuid(6),uuid(6)]);
     await clear(game);
     // A message to the people registered is never merged with a note.
     await h.login(1);await h.call('select send_session_message($1,$2)',[game,'Pensez aux gâteaux.']);
