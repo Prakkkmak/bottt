@@ -748,8 +748,9 @@ button[aria-busy="true"]:disabled { opacity: .85; cursor: progress; }
 .learn-page .role-card .role-ability-en { margin-top: 6px; font-size: 12.5px; font-style: italic; }
 .learn-page .role-card .role-links { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: auto; padding-top: 10px; font-size: 12.5px; }
 .learn-page .role-sources { margin-top: 40px; font-size: 13px; }
-.detail-when > .detail-script { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; text-decoration: underline; text-underline-offset: 4px; }
-.detail-when > .detail-script:hover { color: var(--gold); }
+.detail-when > .detail-script { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; }
+.detail-when > a.detail-script { text-decoration: underline; text-underline-offset: 4px; }
+.detail-when > a.detail-script:hover { color: var(--gold); }
 a.script-tag:hover { color: var(--gold); text-decoration: underline; }
 .role-picker .role-group { border: 0; padding: 0; margin: 14px 0 0; min-width: 0; }
 .role-picker .role-group legend { color: var(--parchment); font-weight: 600; font-size: 14px; padding: 0; }

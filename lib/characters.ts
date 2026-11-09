@@ -35,7 +35,7 @@ export const displayName = (c: Character) => c.name_fr ?? c.name_en;
 export function byTeam(list: Character[]) {
   return teams.map(team => ({ ...team, characters: list.filter(c => c.team === team.id).sort((x, y) => displayName(x).localeCompare(displayName(y), 'fr')) })).filter(t => t.characters.length);
 }
-export const charactersOf = (ids: string[]) => ids.map(characterById).filter((c): c is Character => !!c);
+export const charactersOf = (ids: readonly unknown[]) => ids.filter((id): id is string => typeof id === 'string').map(characterById).filter((c): c is Character => !!c);
 /** The roles of a base script: every character of its edition, travellers included. */
 export const baseScriptCharacters = (edition: (typeof baseScripts)[number]['edition']) => characters.filter(c => c.edition === edition);
 /** What the role picker of « Organiser » needs, without the abilities, so that the page stays light. */

@@ -28,8 +28,16 @@ test('Scripts du cercle',async t=>{
     await assert.rejects(save({name:'Autre',slug:'sects-violets'}),/script de base/);
     await assert.rejects(save({name:'LES NUITS DE BREST',slug:'les-nuits-de-brest-bis'}),/porte déjà ce nom/);
     await assert.rejects(save({name:'Les nuits, de Brest',slug:'les-nuits-de-brest'}),/porte déjà ce nom/);
-    await assert.rejects(save({name:'!!',slug:''}),/lettres ou des chiffres/);
-    await assert.rejects(save({name:'Bad ids',slug:'bad-ids',characters:['Imp']}),/scripts_characters_check/);
+    await assert.rejects(save({name:'!!',slug:''}),/lettres latines ou des chiffres/);
+    for(const characters of [['Imp'],['imp',null],['imp,washerwoman'],['']])
+      await assert.rejects(save({name:'Bad ids',slug:'bad-ids',characters}),/script envoyé est incomplet/);
+    // The table holds the same line, whoever writes to it.
+    await h.root();
+    for(const characters of ['{imp,NULL}','{"imp,washerwoman"}','{"imp washerwoman"}','{""}'])
+      await assert.rejects(h.call(`insert into scripts(name,slug,characters) values('Bad','bad',$1)`,[characters]),/scripts_characters_check/);
+    await h.call(`insert into scripts(name,slug,characters) values('Good','good','{imp,washerwoman}'),('Empty','empty','{}')`);
+    await h.call(`delete from scripts where slug in ('good','empty')`);
+    await h.login(1);
   });
   await t.test('un script renommé emmène ses parties et ses séries',async()=>{
     await h.session(uuid(50));await h.session(uuid(51));

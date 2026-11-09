@@ -8,8 +8,9 @@ create table public.scripts (
   slug text not null unique check (slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$' and char_length(slug) <= 100
     and slug not in ('trouble-brewing','bad-moon-rising','sects-violets')),
   author text not null default '' check (char_length(author) <= 100),
-  -- Character ids as lib/characters.ts knows them: lower case letters and digits.
-  characters text[] not null default '{}' check (cardinality(characters) <= 200 and array_to_string(characters,',') ~ '^([a-z0-9]{1,40}(,[a-z0-9]{1,40})*)?$'),
+  -- Character ids as lib/characters.ts knows them: lower case letters and digits. Read on the array's text form, where a
+  -- missing id shows as NULL and an id with a comma or a space between quotes, so that neither gets through.
+  characters text[] not null default '{}' check (cardinality(characters) <= 200 and characters::text ~ '^\{([a-z0-9]{1,40}(,[a-z0-9]{1,40})*)?\}$'),
   created_by uuid references public.profiles(id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -36,9 +37,12 @@ begin
   if not public.is_organizer() then raise exception 'Accès organisateur requis.'; end if;
   if char_length(clean_name) not between 2 and 100 then raise exception 'Donne au script un nom de 2 à 100 caractères.'; end if;
   if lower(clean_name) in ('trouble brewing','bad moon rising','sects & violets','sects and violets') then raise exception 'Ce nom est celui d’un script de base.'; end if;
-  if coalesce(p_data->>'slug','') !~ '^[a-z0-9]+(-[a-z0-9]+)*$' or char_length(p_data->>'slug')>100 then raise exception 'Donne au script un nom avec des lettres ou des chiffres.'; end if;
+  if coalesce(p_data->>'slug','') !~ '^[a-z0-9]+(-[a-z0-9]+)*$' or char_length(p_data->>'slug')>100 then raise exception 'Donne au script un nom avec des lettres latines ou des chiffres.'; end if;
   if p_data->>'slug' in ('trouble-brewing','bad-moon-rising','sects-violets') then raise exception 'Ce nom est celui d’un script de base.'; end if;
   if char_length(clean_author)>100 then raise exception 'Le nom de l’auteur tient en 100 caractères au plus.'; end if;
+  if exists(select 1 from unnest(picked) c where c is null or c !~ '^[a-z0-9]{1,40}$') or cardinality(picked)>200 then
+    raise exception 'Le script envoyé est incomplet. Recharge la page et réessaie.';
+  end if;
   if sid is not null then
     select * into previous from public.scripts where id=sid for update;
     if previous.id is null then raise exception 'Ce script est introuvable.'; end if;

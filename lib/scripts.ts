@@ -8,16 +8,30 @@ export const baseScripts = [
 /** A script of the circle, added by an organizer: its name, who wrote it and its characters, by id (see lib/characters.ts). */
 export type CustomScript = { id: string; name: string; slug: string; author: string; characters: string[] };
 
-/** The address of a script's name: lower case letters and digits joined by dashes, accents dropped. */
+/** The address of a script's name: lower case letters and digits joined by dashes, accents dropped (« Cœur » gives coeur). */
 export function scriptSlug(name: string) {
-  return name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 100).replace(/-+$/, '');
+  return name.replace(/[œŒ]/g, 'oe').replace(/[æÆ]/g, 'ae').replace(/ß/g, 'ss').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 100).replace(/-+$/, '');
 }
-/** The page that lists a script's roles. A game names its script, which leads there. */
-export const scriptPath = (name: string) => `/apprendre/scripts/${scriptSlug(name)}`;
+/** The page that lists a script's roles, by the address it keeps. */
+export const scriptPagePath = (slug: string) => `/apprendre/scripts/${slug}`;
 // « Sects & Violets » is also written « Sects and Violets ».
 const plain = (name: string) => scriptSlug(name.replace(/&/g, ' and '));
-/** A name the base box's scripts keep for themselves, however it is written. */
-export const isBaseScript = (name: string) => baseScripts.some(s => plain(s.name) === plain(name) || s.slug === scriptSlug(name));
+/** The base box's script a name stands for, however it is written. */
+export const baseScriptOf = (name: string) => baseScripts.find(s => plain(s.name) === plain(name) || s.slug === scriptSlug(name));
+/** A name the base box's scripts keep for themselves. */
+export const isBaseScript = (name: string) => !!baseScriptOf(name);
+/**
+ * Where a game's script leads: the page of a base script, however its name is written, or of one of the circle's, by its
+ * exact name. A name the site has no page for (a deleted script, a name typed before the list existed) leads nowhere.
+ */
+export function scriptHref(name: string, scripts: readonly Pick<CustomScript, 'name' | 'slug'>[]) {
+  const base = baseScriptOf(name);
+  if (base) return scriptPagePath(base.slug);
+  const key = name.trim().toLowerCase();
+  const own = key && scripts.find(s => s.name.toLowerCase() === key);
+  return own ? scriptPagePath(own.slug) : null;
+}
 
 /** A character id as the official Script Tool writes it or not: lower case letters and digits only (« Fortune Teller », fortune_teller → fortuneteller). */
 export const characterId = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');

@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { ScrollText, BookOpenText } from 'lucide-react';
 import { getScripts } from '@/lib/data';
-import { baseScripts, scriptPath } from '@/lib/scripts';
+import { baseScripts, scriptPagePath } from '@/lib/scripts';
 import { baseScriptCharacters, charactersOf } from '@/lib/characters';
 import { guidePath, pageMetadata } from '@/lib/seo';
 
@@ -28,8 +28,8 @@ const rules = [
 export default async function Page() {
   const custom = await getScripts();
   const scripts = [
-    ...baseScripts.map(s => ({ key: s.slug, name: s.name, note: 'Boîte de base', roles: baseScriptCharacters(s.edition).length })),
-    ...custom.map(s => ({ key: s.id, name: s.name, note: s.author ? `Script maison · par ${s.author}` : 'Script maison', roles: charactersOf(s.characters).length })),
+    ...baseScripts.map(s => ({ key: s.slug, slug: s.slug, name: s.name, note: 'Boîte de base', roles: baseScriptCharacters(s.edition).length })),
+    ...custom.map(s => ({ key: s.id, slug: s.slug, name: s.name, note: s.author ? `Script maison · par ${s.author}` : 'Script maison', roles: charactersOf(s.characters).length })),
   ];
   return <article className="legal-page guide-page learn-page">
     <h1>Apprendre</h1>
@@ -42,7 +42,7 @@ export default async function Page() {
     <section aria-labelledby="scripts">
       <h2 id="scripts">Les scripts du cercle</h2>
       <p>Un script, c’est la liste des personnages en jeu. Chaque partie annonce le sien : ouvre sa fiche pour découvrir ses rôles avant de venir.</p>
-      <ul className="script-cards">{scripts.map(s => <li key={s.key}><Link href={scriptPath(s.name)} className="script-card"><ScrollText size={20} aria-hidden="true" /><span><strong>{s.name}</strong><small>{s.note} · {rolesLabel(s.roles)}</small></span></Link></li>)}</ul>
+      <ul className="script-cards">{scripts.map(s => <li key={s.key}><Link href={scriptPagePath(s.slug)} className="script-card"><ScrollText size={20} aria-hidden="true" /><span><strong>{s.name}</strong><small>{s.note} · {rolesLabel(s.roles)}</small></span></Link></li>)}</ul>
     </section>
     <section aria-labelledby="roles">
       <h2 id="roles">Tous les rôles</h2>

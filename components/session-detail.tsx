@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { CalendarDays, Clock3, MapPin, ChevronLeft, LockKeyhole, BookOpen, ScrollText } from 'lucide-react';
 import type { ActionResult, AppData, GameSession, MyGuest } from '@/lib/types';
 import { dateLong, time, activeBooking, sessionName } from '@/lib/utils';
-import { scriptPath } from '@/lib/scripts';
+import { scriptHref } from '@/lib/scripts';
 import { activeGuests, canSeeAddress, hasSeat, participantLabel, recentGuestNames, seatPlan, waitingLabel, waitlistHint } from '@/lib/guests';
 import { MAX_TRAVELLER_GUESTS, MAX_WAITING_GUESTS, TRAVELLER_ADDRESS_HOURS } from '@/lib/session-rules';
 import { CalendarLink } from './calendar-link';
@@ -65,6 +65,8 @@ export function SessionDetail({ data, session: s, address, embedded = false }: {
   };
   const ownGuest = (guest: MyGuest) => { a.setResult(null); setRemoving(guest); };
   const guestAdded = (result: ActionResult) => { setGuestRequest(null); setFeedbackSpot('guests'); a.setResult(result); setGuestChanges(n => n + 1); };
+  // Only a script the site has a page for is a link: a deleted one, or a name typed before the list, stays plain text.
+  const scriptPage = s.script ? scriptHref(s.script, data.scripts ?? []) : null;
   const heading = s.status === 'cancelled' ? 'Partie annulée' : ended ? 'Partie terminée' : s.my_status === 'confirmed' ? 'Tu es inscrit·e.' : closed ? 'Inscriptions closes' : waiting ? `Tu es ${waitingLabel(s.my_waitlist_position)}.` : s.my_status === 'declined' ? 'Participation non retenue' : 'Inscris-toi';
   const hint = s.status === 'cancelled' ? 'On se retrouve à une prochaine soirée.' : ended ? 'Rendez-vous à la prochaine partie.' : s.my_status === 'confirmed' ? '' : closed ? 'Rendez-vous à la prochaine partie.' : waiting ? 'Si une place se libère jusqu’à 30 minutes avant le début, elle est à toi automatiquement : tu recevras un e-mail de confirmation.' : s.my_status === 'declined' ? 'Contacte un organisateur pour en discuter.' : plan.waitlist === 'self' ? waitlistHint(s) : data.profile ? 'Clique sur un + pour choisir ta place.' : 'Clique sur un + pour choisir ta place. Il te faudra juste ton e-mail.';
   const guestHint = plan.limitReached ? traveller ? `Tu amènes déjà ${MAX_TRAVELLER_GUESTS} personnes, le maximum pour un·e voyageur·se.` : `La partie est complète et ${MAX_WAITING_GUESTS} de tes invité·es attendent déjà une place.` : plan.canBringOther ? 'Tu peux inscrire quelqu’un même sans venir toi-même.' : plan.onFreeSeat === 'guest' ? traveller ? 'Clique sur un + libre pour placer un·e ami·e.' : 'Clique sur un + libre pour placer quelqu’un.' : plan.waitlist === 'guest' ? waitlistHint(s) : '';
@@ -77,7 +79,7 @@ export function SessionDetail({ data, session: s, address, embedded = false }: {
     {s.status === 'published' ? <CalendarLink session={s} address={privateAddress} /> : <span><CalendarDays size={16} />{dateLong(s.starts_at)}</span>}
     <span><Clock3 size={16} />{time(s.starts_at)}</span>
     {/* The script's sheet, to read its roles before coming. */}
-    {s.script && <Link href={scriptPath(s.script)} className="detail-script" title="Voir les rôles du script"><ScrollText size={16} aria-hidden="true" />{s.script}<span className="sr-only"> : voir les rôles du script</span></Link>}
+    {s.script && (scriptPage ? <Link href={scriptPage} className="detail-script" title="Voir les rôles du script"><ScrollText size={16} aria-hidden="true" />{s.script}<span className="sr-only"> : voir les rôles du script</span></Link> : <span className="detail-script"><ScrollText size={16} aria-hidden="true" />{s.script}</span>)}
     <span className="detail-place"><MapPin size={16} />{s.location}<span className="map-links"><MapLinks value={privateAddress || s.location} fallback={s.location} className="practical-link" /></span></span>
     {addressLater && <span className="address-later">Adresse exacte {TRAVELLER_ADDRESS_HOURS} h avant la partie</span>}
   </div>;
@@ -85,7 +87,7 @@ export function SessionDetail({ data, session: s, address, embedded = false }: {
     {!embedded && <Link className="back-link" href="/"><ChevronLeft size={16} />Les parties</Link>}
     {!embedded && <div className="detail-heading">
       <h1>{sessionName(s)}</h1>
-      <div className="detail-badges">{s.script && <Link href={scriptPath(s.script)} className="script-tag"><ScrollText size={14} aria-hidden="true" />{s.script}</Link>}{s.visibility === 'members' && <span className="badge"><LockKeyhole size={14} />Membres et invités</span>}</div>
+      <div className="detail-badges">{s.script && (scriptPage ? <Link href={scriptPage} className="script-tag"><ScrollText size={14} aria-hidden="true" />{s.script}</Link> : <span className="script-tag"><ScrollText size={14} aria-hidden="true" />{s.script}</span>)}{s.visibility === 'members' && <span className="badge"><LockKeyhole size={14} />Membres et invités</span>}</div>
       {practical}
     </div>}
     {embedded && practical}

@@ -37,4 +37,4 @@ export function demoSessions(): GameSession[] {
   ];
 }
 export const demoScripts: CustomScript[] = [{ id: '30000000-0000-4000-8000-000000000001', name: 'Les nuits de Brest', slug: 'les-nuits-de-brest', author: 'Camille', characters: ['washerwoman', 'imp'] }];
-export function initialDemo(): AppData { return { profile: demoProfile, sessions: demoSessions(), invitations: [], demo: true, configured: false }; }
+export function initialDemo(): AppData { return { profile: demoProfile, sessions: demoSessions(), invitations: [], demo: true, configured: false, scripts: demoScripts.map(({ name, slug }) => ({ name, slug })) }; }

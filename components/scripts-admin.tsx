@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Pencil, Plus, ScrollText, Trash2, Upload } from 'lucide-react';
 import type { GameSession } from '@/lib/types';
-import { baseScripts, readScriptTool, scriptPath, type CustomScript } from '@/lib/scripts';
+import { baseScripts, readScriptTool, scriptPagePath, type CustomScript } from '@/lib/scripts';
 import type { CharacterChoice, Edition, Team } from '@/lib/characters';
 import { deleteScript, saveScript } from '@/app/actions';
 import { Dialog } from './dialog';
@@ -28,19 +28,19 @@ export function ScriptsAdmin({ scripts, characters, sessions }: { scripts: Custo
       <p className="muted">Une partie choisit son script dans cette liste. Chaque script a sa page dans « Apprendre », avec ses rôles, pour que chacun puisse lire la fiche avant de venir.</p>
       {baseScripts.map(s => <div className="member-row venue-row" key={s.slug}>
         <span className="venue-icon" aria-hidden="true"><ScrollText size={18} /></span>
-        <div><h3><Link href={scriptPath(s.name)}>{s.name}</Link></h3><p>Script de la boîte de base</p></div>
+        <div><h3><Link href={scriptPagePath(s.slug)}>{s.name}</Link></h3><p>Script de la boîte de base</p></div>
         <span className="badge">{gamesLabel(upcoming(s.name))}</span>
       </div>)}
       {scripts.map(s => <div className="member-row venue-row" key={s.id}>
         <span className="venue-icon" aria-hidden="true"><ScrollText size={18} /></span>
-        <div><h3><Link href={scriptPath(s.name)}>{s.name}</Link></h3><p>{[s.author && `par ${s.author}`, rolesLabel(s.characters.length)].filter(Boolean).join(' · ')}</p></div>
+        <div><h3><Link href={scriptPagePath(s.slug)}>{s.name}</Link></h3><p>{[s.author && `par ${s.author}`, rolesLabel(s.characters.length)].filter(Boolean).join(' · ')}</p></div>
         <span className="badge">{gamesLabel(upcoming(s.name))}</span>
         <div className="row-actions"><button aria-label={`Modifier ${s.name}`} className="icon-btn" onClick={() => open(setEditing, s)}><Pencil size={17} /></button><button aria-label={`Supprimer ${s.name}`} className="icon-btn" onClick={() => open(setRemoval, s)}><Trash2 size={17} /></button></div>
       </div>)}
     </div>
     <Dialog title={editing === 'new' ? 'Ajouter un script' : 'Modifier le script'} open={editing !== null} onClose={() => setEditing(null)} wide guard>{editing && <ScriptForm script={editing === 'new' ? undefined : editing} characters={characters} games={editing === 'new' ? 0 : upcoming(editing.name)} onSaved={() => setEditing(null)} />}</Dialog>
     <Dialog title="Supprimer ce script ?" open={!!removal} onClose={() => setRemoval(null)}><div className="stack">
-      <p>« {removal?.name} » disparaîtra de la liste des scripts et sa page ne sera plus disponible. Les parties qui le jouent gardent son nom.</p>
+      <p>« {removal?.name} » disparaîtra de la liste des scripts et sa page ne sera plus disponible. Les parties qui le jouent gardent son nom{removal && upcoming(removal.name) > 0 && ` (${gamesLabel(upcoming(removal.name)).toLowerCase()})`}, sans lien vers ses rôles.</p>
       <div className="button-row"><button className="button secondary" onClick={() => setRemoval(null)}>Garder le script</button><button className="button danger" disabled={a.pending} onClick={() => removal && a.run(() => deleteScript(removal.id), () => setRemoval(null))}><Trash2 size={16} />Supprimer le script</button></div>
       <Feedback result={a.result} />
     </div></Dialog>
@@ -51,12 +51,13 @@ function ScriptForm({ script, characters, games, onSaved }: { script?: CustomScr
   const a = useAction();
   const [name, setName] = useState(script?.name ?? '');
   const [author, setAuthor] = useState(script?.author ?? '');
-  const [picked, setPicked] = useState<string[]>(script?.characters ?? []);
+  const known = useMemo(() => new Set(characters.map(c => c.id)), [characters]);
+  // A role the site no longer knows (renamed in the wiki since) has no box to untick: it is left out, so the script still saves.
+  const [picked, setPicked] = useState<string[]>(() => (script?.characters ?? []).filter(id => known.has(id)));
   const [filter, setFilter] = useState('');
   const [edition, setEdition] = useState<Edition | ''>('');
   const [onlyPicked, setOnlyPicked] = useState(false);
   const [imported, setImported] = useState<{ ok: boolean; message: string } | null>(null);
-  const known = useMemo(() => new Set(characters.map(c => c.id)), [characters]);
   const query = filter.trim().toLocaleLowerCase('fr');
   const shown = characters.filter(c => (!onlyPicked || picked.includes(c.id)) && (!edition || c.edition === edition) && (!query || c.name.toLocaleLowerCase('fr').includes(query) || c.name_en.toLowerCase().includes(query)));
   const groups = (Object.keys(teamLabels) as Team[]).map(team => ({ team, list: shown.filter(c => c.team === team).sort((x, y) => x.name.localeCompare(y.name, 'fr')) })).filter(g => g.list.length);
@@ -85,7 +86,7 @@ function ScriptForm({ script, characters, games, onSaved }: { script?: CustomScr
     <input type="hidden" name="characters" value={picked.join(',')} />
     <fieldset className="form-section role-picker"><legend>Les rôles · {picked.length} choisi{picked.length > 1 ? 's' : ''}</legend>
       <div className="form-grid">
-        <label className="field">Chercher un rôle<input type="search" value={filter} onChange={e => setFilter(e.target.value)} placeholder="Lavandière, Imp…" /></label>
+        <label className="field">Chercher un rôle<input type="search" value={filter} onChange={e => setFilter(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') e.preventDefault(); }} placeholder="Lavandière, Imp…" /></label>
         <label className="field">Module<select value={edition} onChange={e => setEdition(e.target.value as Edition | '')}><option value="">Tous les modules</option>{(Object.keys(editionLabels) as Edition[]).map(id => <option key={id} value={id}>{editionLabels[id]}</option>)}</select></label>
       </div>
       <label className="check-field"><input type="checkbox" checked={onlyPicked} onChange={e => setOnlyPicked(e.target.checked)} />Seulement les rôles choisis</label>

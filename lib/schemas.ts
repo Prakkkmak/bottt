@@ -28,7 +28,7 @@ export const seriesSchema = sessionFields.omit({ id: true }).extend({
 export const scriptSchema = z.object({
   id: z.uuid('Ce script est introuvable.').optional(),
   name: z.string().trim().transform(s => s.replace(/\s+/g, ' ')).pipe(z.string().min(2, 'Donne au script un nom de 2 à 100 caractères.').max(100, 'Donne au script un nom de 2 à 100 caractères.'))
-    .refine(s => !isBaseScript(s), 'Ce nom est celui d’un script de base.').refine(s => scriptSlug(s) !== '', 'Donne au script un nom avec des lettres ou des chiffres.'),
+    .refine(s => !isBaseScript(s), 'Ce nom est celui d’un script de base.').refine(s => scriptSlug(s) !== '', 'Donne au script un nom avec des lettres latines ou des chiffres.'),
   author: z.string().trim().max(100, 'Le nom de l’auteur tient en 100 caractères au plus.').default(''),
   characters: z.array(z.string().refine(id => knownCharacterIds.has(id), 'Un des personnages choisis est inconnu. Recharge la page et réessaie.')).max(200, 'Un script compte 200 personnages au plus.').default([]).transform(ids => [...new Set(ids)]),
 }, 'Le script envoyé est incomplet. Recharge la page et réessaie.').transform(s => ({ ...s, slug: scriptSlug(s.name) }));

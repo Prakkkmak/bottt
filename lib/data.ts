@@ -33,8 +33,10 @@ export const getData = cache(async (): Promise<AppData> => {
     const db = await supabase();
     // The sessions and the profile load side by side: the profile only waits for the token check, not for the sessions.
     const profileRequest = currentUserId().then(id => id ? db.from('profiles').select('*').eq('id', id).maybeSingle() : null);
-    const [{ data: sessions, error }, profile] = await Promise.all([db.rpc('list_sessions'), profileRequest]);
+    // The circle's scripts come along, so that a game's script leads to its page only when the site has one.
+    const [{ data: sessions, error }, profile, scripts] = await Promise.all([db.rpc('list_sessions'), profileRequest, getScripts()]);
     if (error) throw error;
+    empty.scripts = scripts.map(({ name, slug }) => ({ name, slug }));
     if (!profile) return { ...empty, sessions: sessions as GameSession[] };
     if (profile.error) throw profile.error;
     // A valid Auth cookie without a readable profile means the database refused the session: expired after 30 days or suspended.

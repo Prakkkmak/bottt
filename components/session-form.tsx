@@ -24,7 +24,7 @@ export function SessionForm({ session, address = '', template, venues = [], scri
   const [script, setScript] = useState(defaults ? defaults.script : 'Trouble Brewing');
   // The base box's scripts, then the circle's own; a game keeps a script that has since left the list.
   const options = [...baseScripts.map(s => s.name), ...scripts.map(s => s.name).sort((x, y) => x.localeCompare(y, 'fr'))];
-  if (script && !options.includes(script)) options.push(script);
+  if (defaults?.script && !options.includes(defaults.script)) options.push(defaults.script);
   const [location, setLocation] = useState(defaults?.location || 'Brest');
   // A game opens on its venue, a new one on the last game's; '' is a place typed in for this game only.
   const [venueId, setVenueId] = useState(() => { const id = defaults ? defaults.venue_id : venues[0]?.id; return venues.some(v => v.id === id) ? id! : ''; });

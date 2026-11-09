@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { characters, characterById, baseScriptCharacters, byTeam, charactersOf, knownCharacterIds, teams, editions } from '../lib/characters';
-import { baseScripts, isBaseScript, readScriptTool, scriptPath, scriptSlug } from '../lib/scripts';
+import { baseScripts, isBaseScript, readScriptTool, scriptHref, scriptSlug } from '../lib/scripts';
 import { scriptSchema } from '../lib/schemas';
 
 test('chaque personnage a un identifiant unique, une équipe, un module et sa capacité', () => {
@@ -32,6 +32,7 @@ test('un personnage se retrouve quelle que soit l’écriture de son identifiant
   assert.equal(characterById('Fortune Teller')?.id, 'fortuneteller');
   assert.equal(characterById('inconnu'), undefined);
   assert.deepEqual(charactersOf(['imp', 'nope', 'washerwoman']).map(c => c.id), ['imp', 'washerwoman']);
+  assert.deepEqual(charactersOf(['imp', null, 7, 'washerwoman']).map(c => c.id), ['imp', 'washerwoman']);
   // On a sheet: good teams first, then evil ones.
   assert.deepEqual(byTeam(charactersOf(['imp', 'poisoner', 'washerwoman', 'butler'])).map(t => t.id), ['townsfolk', 'outsider', 'minion', 'demon']);
 });
@@ -40,7 +41,14 @@ test('l’adresse d’un script vient de son nom', () => {
   assert.equal(scriptSlug('Sects & Violets'), 'sects-violets');
   assert.equal(scriptSlug('  Les Nuits de Brest ! '), 'les-nuits-de-brest');
   assert.equal(scriptSlug('Été maudit'), 'ete-maudit');
-  assert.equal(scriptPath('Trouble Brewing'), '/apprendre/scripts/trouble-brewing');
+  assert.equal(scriptSlug('Cœur de Brest'), scriptSlug('Coeur de Brest'));
+  assert.equal(scriptSlug('Straße'), 'strasse');
+  const own = [{ name: 'Les nuits de Brest', slug: 'les-nuits-de-brest' }];
+  assert.equal(scriptHref('Trouble Brewing', own), '/apprendre/scripts/trouble-brewing');
+  assert.equal(scriptHref('Sects and Violets', own), '/apprendre/scripts/sects-violets');
+  assert.equal(scriptHref('les nuits de brest', own), '/apprendre/scripts/les-nuits-de-brest');
+  // A deleted script, or a name typed before the list, has no page: no link to a 404.
+  for (const name of ['Un script supprimé', 'TB', 'Trouble Brewing (débutants)', 'Ночь', ' ']) assert.equal(scriptHref(name, own), null);
   assert.ok(baseScripts.every(s => scriptSlug(s.name) === s.slug));
   assert.ok(isBaseScript('bad moon rising') && isBaseScript('Sects and Violets') && !isBaseScript('Les nuits de Brest'));
 });
@@ -58,7 +66,7 @@ test('un script du cercle a un nom à lui et des personnages connus', () => {
   const issue = (input: unknown) => { const r = scriptSchema.safeParse(input); return r.success ? undefined : r.error.issues[0].message; };
   assert.equal(issue({ name: 'a' }), 'Donne au script un nom de 2 à 100 caractères.');
   assert.equal(issue({ name: 'Trouble brewing' }), 'Ce nom est celui d’un script de base.');
-  assert.equal(issue({ name: '!!' }), 'Donne au script un nom avec des lettres ou des chiffres.');
+  assert.equal(issue({ name: '!!' }), 'Donne au script un nom avec des lettres latines ou des chiffres.');
   assert.equal(issue({ name: 'Mon script', characters: ['imp', 'personne'] }), 'Un des personnages choisis est inconnu. Recharge la page et réessaie.');
   assert.equal(issue({ name: 'Mon script', author: 'x'.repeat(101) }), 'Le nom de l’auteur tient en 100 caractères au plus.');
 });
