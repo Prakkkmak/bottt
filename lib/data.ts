@@ -82,7 +82,7 @@ export async function getAdminData(): Promise<{ bookings: Booking[]; profiles: P
     db.from('profiles').select('*').order('display_name'),
     db.from('session_addresses').select('*'),
     db.from('venues').select('id,name,address').order('name'),
-    db.from('session_series').select('id,title,script,location,venue_id,capacity,visibility,first_date,starts_local,every_weeks,weeks_ahead,ends_on').order('created_at')
+    db.from('session_series').select('id,title,script,location,address,venue_id,capacity,visibility,first_date,starts_local,duration,every_weeks,weeks_ahead,ends_on,stopped_at').order('created_at')
   ]);
   if (!organizer) throw new Error('Accès organisateur requis.');
   if (bookings.error || profiles.error || addresses.error) throw new Error('Impossible de charger les participants.');

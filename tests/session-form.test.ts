@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { checkSessionForm, isPastStart, type SessionFormValues } from '../lib/session-form';
 import { MIN_CAPACITY } from '../lib/session-rules';
-import { sessionSchema, seriesSchema } from '../lib/schemas';
+import { sessionSchema, seriesSchema, seriesEditSchema } from '../lib/schemas';
 import { fromParisInput } from '../lib/utils';
 
 const values: SessionFormValues = { title: '', starts_at: '2099-10-02T19:30', script: 'Trouble Brewing', location: 'Brest', address: '', maps_url: '', capacity: '15', visibility: 'public' };
@@ -185,4 +185,36 @@ test('le mot aux inscrits ne part qu’avec une partie modifiée, et le serveur 
     if (payload) assert.equal(sessionSchema.safeParse(payload).success, true);
   }
   assert.equal(checkSessionForm({ ...values, note: 'x'.repeat(2001) }, { session }).errors.note, 'Le message aux inscrits tient en 2000 caractères au plus.');
+});
+
+test('une série modifiée part de sa prochaine date, garde la durée de ses parties et toujours un rythme', () => {
+  const series = { id: '30000000-0000-4000-8000-000000000001', starts_at: '1970-01-01T00:00:00.000Z', ends_at: '1970-01-01T03:30:00.000Z' };
+  const { payload } = checkSessionForm({ ...values, ...weekly, repeat: '2', ends_on: '2099-12-31' }, { series });
+  assert.deepEqual(payload, {
+    id: series.id, title: '', script: 'Trouble Brewing', starts_at: '2099-10-02T17:30:00.000Z', ends_at: '2099-10-02T21:00:00.000Z', location: 'Brest', address: '', venue_id: null, capacity: 15, visibility: 'public',
+    every_weeks: 2, weeks_ahead: 4, ends_on: '2099-12-31',
+  });
+  assert.equal(seriesEditSchema.safeParse(payload).success, true);
+  // The last date is compared with the next one; a series without a rhythm is refused.
+  assert.deepEqual(checkSessionForm({ ...values, ...weekly, ends_on: '2099-10-01' }, { series }).errors, { ends_on: 'La dernière date doit suivre la prochaine partie.' });
+  assert.deepEqual(checkSessionForm({ ...values, ...weekly, repeat: '' }, { series }).errors, { repeat: 'Choisis le rythme de la série.' });
+  assert.deepEqual(checkSessionForm({ ...values, ...weekly, starts_at: '2020-10-02T19:30' }, { series }).errors, { starts_at: 'Choisis une date à venir.' });
+});
+
+test('le formulaire et le serveur refusent les mêmes modifications de série avec les mêmes mots', () => {
+  const series = { id: '30000000-0000-4000-8000-000000000001', starts_at: '1970-01-01T00:00:00.000Z', ends_at: '1970-01-01T04:00:00.000Z' };
+  const cases: Partial<SessionFormValues>[] = [{}, { repeat: '2' }, { repeat: '3' }, { weeks_ahead: '0' }, { weeks_ahead: '13' }, { ends_on: '2099-10-01' }, { ends_on: '2099-10-02' }, { ends_on: '2099-02-30' },
+    { capacity: '2', weeks_ahead: '0' }, { starts_at: '2020-10-02T19:30' }, { script: '', location: '' }];
+  for (const changes of cases) {
+    const form = { ...values, ...weekly, ...changes };
+    const { errors, message, payload } = checkSessionForm(form, { series });
+    const startsAt = fromParisInput(form.starts_at);
+    const parsed = seriesEditSchema.safeParse(payload ?? { id: series.id, title: form.title, script: form.script, starts_at: startsAt, ends_at: new Date(Date.parse(startsAt) + 4 * 3600000).toISOString(), location: form.location, address: form.address, venue_id: null,
+      capacity: form.capacity.trim() ? Number(form.capacity) : NaN, visibility: form.visibility, every_weeks: Number(form.repeat), weeks_ahead: Number(form.weeks_ahead), ends_on: form.ends_on || null });
+    const server: Record<string, string> = {};
+    for (const issue of parsed.success ? [] : parsed.error.issues) server[String(issue.path[0] ?? '')] ??= issue.message;
+    const client: Record<string, string> = { ...errors, ...(message ? { '': message } : {}) };
+    if (client.repeat) { client.every_weeks = client.repeat; delete client.repeat; }
+    assert.deepEqual(client, server, JSON.stringify(changes));
+  }
 });
