@@ -36,6 +36,14 @@ test('le nom d’une partie garde le jeu en vue sans le répéter', () => {
   assert.equal(names[2].remainingAttendeeCapacity, 0);
 });
 
+test('une partie sans script est décrite sans script', () => {
+  const [bare, named] = sessionEvents([session({ id: 'e', script: '' }), session({ id: 'f', title: 'Soirée d’Halloween', script: '' })], origin, now);
+  assert.equal(bare.name, 'Blood on the Clocktower');
+  assert.equal(bare.description, 'Partie de Blood on the Clocktower à Brest, ouverte aux débutants comme aux habitués.');
+  assert.equal(named.name, 'Soirée d’Halloween · Blood on the Clocktower');
+  assert.equal(sessionEvents([session({})], origin, now)[0].description, 'Partie de Blood on the Clocktower à Brest sur le script Trouble Brewing, ouverte aux débutants comme aux habitués.');
+});
+
 test('les données structurées ne peuvent pas fermer la balise script', () => {
   const json = serializeJsonLd(homeJsonLd([session({ title: '</script><script>alert(1)</script>' })], origin, now));
   assert.ok(!json.includes('<'));

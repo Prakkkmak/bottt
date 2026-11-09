@@ -5,8 +5,10 @@ export const shortDate = (date: string) => new Intl.DateTimeFormat('fr-FR', { da
 export const time = (date: string) => new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' }).format(new Date(date)).replace(':', 'h');
 export const initials = (name: string) => name.trim().split(/\s+/).slice(0, 2).map(s => s[0]).join('').toUpperCase();
 export const activeBooking = (status: BookingStatus | null) => status !== null && !['cancelled', 'declined'].includes(status);
-/** A game without a name goes by its script. */
-export const sessionName = (s: Pick<GameSession, 'title' | 'script'>) => s.title.trim() || s.script;
+/** What a game with neither name nor script is called. */
+export const unnamedSession = 'Blood on the Clocktower';
+/** A game without a name goes by its script, and without a script by the game itself. */
+export const sessionName = (s: Pick<GameSession, 'title' | 'script'>) => s.title.trim() || s.script.trim() || unnamedSession;
 export function calendarUrl(id: string) { return `/api/calendar/${encodeURIComponent(id)}`; }
 export function sessionUrl(id: string) { const encoded = encodeURIComponent(id); return `/?partie=${encoded}#partie-${encoded}`; }
 export function parisInput(iso: string) {

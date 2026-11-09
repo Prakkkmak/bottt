@@ -35,3 +35,10 @@ test('une partie sans nom s’inscrit à l’agenda sous le nom de son script', 
   assert.equal(new URL(externalCalendarUrl('google', unnamed, 'Brest')).searchParams.get('text'), 'Sects & Violets');
   assert.ok(sessionCalendar(unnamed, 'Brest', new Date('2026-10-01T12:00:00Z')).includes('SUMMARY:Sects & Violets\r\n'));
 });
+
+test('une partie sans nom ni script s’inscrit à l’agenda sous le nom du jeu', () => {
+  const bare = { ...session, title: '', script: '' };
+  assert.equal(new URL(externalCalendarUrl('google', bare, 'Brest')).searchParams.get('text'), 'Blood on the Clocktower');
+  assert.equal(new URL(externalCalendarUrl('outlook', bare, 'Brest')).searchParams.get('subject'), 'Blood on the Clocktower');
+  assert.ok(sessionCalendar(bare, 'Brest', new Date('2026-10-01T12:00:00Z')).includes('SUMMARY:Blood on the Clocktower\r\n'));
+});

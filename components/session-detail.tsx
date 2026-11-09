@@ -81,7 +81,7 @@ export function SessionDetail({ data, session: s, address, embedded = false }: {
     {!embedded && <Link className="back-link" href="/"><ChevronLeft size={16} />Les parties</Link>}
     {!embedded && <div className="detail-heading">
       <h1>{sessionName(s)}</h1>
-      <div className="detail-badges"><span className="script-tag">{s.script}</span>{s.visibility === 'members' && <span className="badge"><LockKeyhole size={14} />Membres et invités</span>}</div>
+      <div className="detail-badges">{s.script && <span className="script-tag">{s.script}</span>}{s.visibility === 'members' && <span className="badge"><LockKeyhole size={14} />Membres et invités</span>}</div>
       {practical}
     </div>}
     {embedded && practical}

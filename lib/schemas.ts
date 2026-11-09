@@ -7,7 +7,7 @@ export const nicknameSchema = z.string().trim().min(2,'Choisis un pseudo d’au 
 export const profileSchema = z.object({ display_name: nicknameSchema, bio: z.string().trim().max(300), avatar_color: z.enum(['rose','blue','sage','ochre','lilac']), experience: z.enum(['beginner','some','experienced'], 'Choisis ton niveau.'), can_storytell: z.boolean().optional() });
 const sessionFields = z.object({
   id: z.uuid('Cette partie est introuvable.').optional(), title: z.string(m.title).trim().max(100, m.title).default(''), description: z.string('La description tient en 4000 caractères au plus.').trim().max(4000, 'La description tient en 4000 caractères au plus.').default(''),
-  script: z.string(m.scriptShort).trim().min(2, m.scriptShort).max(100, m.scriptLong),
+  script: z.string(m.scriptShort).trim().max(100, m.scriptLong).refine(s => !s || s.length >= 2, m.scriptShort).default(''),
   starts_at: z.iso.datetime({ offset: true, error: m.start }).refine(s => new Date(s) > new Date(), m.past), ends_at: z.iso.datetime({ offset: true, error: 'La fin de la partie est invalide.' }).optional(),
   location: z.string(m.locationShort).trim().min(2, m.locationShort).max(150, m.locationLong), venue_id: z.uuid('Ce lieu n’est plus dans la liste. Choisis-en un autre.').nullable().default(null), address: z.string(m.address).trim().max(500, m.address),
   capacity: z.number(m.seats).int(m.wholeSeats).min(MIN_CAPACITY, m.fewSeats).max(MAX_CAPACITY, m.manySeats).default(DEFAULT_CAPACITY),
