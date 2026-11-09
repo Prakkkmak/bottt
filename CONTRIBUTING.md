@@ -40,7 +40,7 @@ Une pull request traite un seul sujet. Sa description explique pourquoi le chang
 
 **Navigateur**
 - Un nouveau service tiers chargé par le navigateur (script, police, image, cadre) doit être ajouté dans `lib/content-security-policy.ts`, sinon la CSP le bloque en production.
-- Une nouvelle police ou image de `public/` passe par le proxy à chaque chargement tant qu’elle n’est pas ajoutée, par son nom exact, aux exclusions du `matcher` de `proxy.ts`.
+- Une nouvelle police ou image de `public/` passe par le proxy à chaque chargement tant qu’elle n’est pas ajoutée, par son nom exact, aux exclusions du `matcher` de `proxy.ts`. Les icônes et logos de `public/roles/` y sont écrits par `scripts/build-role-icons.py`.
 - N’importe pas zod dans le code client : le formulaire de partie se vérifie avec `lib/session-form.ts`, qui partage ses messages avec le schéma du serveur.
 
 **Comptes**
