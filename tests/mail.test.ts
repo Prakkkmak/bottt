@@ -32,6 +32,10 @@ test('e-mails d’inscription, de liste d’attente et de place libérée', () =
   assert.equal(named.subject, 'Une place s’est libérée pour Valentine · Une nuit à Ravenswood, vendredi 23 octobre');
   // A guest name cannot break the subject line.
   assert.equal(notificationMail({ ...game, title: 'Val\r\nBcc: x@y.z a sa place', body: '' }, 'https://bottt.fr').subject, 'Val Bcc: x@y.z a sa place · Trouble Brewing, vendredi 23 octobre');
+  // A game with neither name nor script goes by the game itself.
+  const bare = notificationMail({ ...game, session_script: '', title: 'Ta place est réservée', body: 'Ton inscription est confirmée.' }, 'https://bottt.fr');
+  assert.equal(bare.subject, 'Ta place est réservée · Blood on the Clocktower, vendredi 23 octobre');
+  assert.equal(bare.text.split('\n\n')[1], 'Partie : Blood on the Clocktower\nQuand : vendredi 23 octobre à 19h30\nOù : Le Grenier · Brest centre');
   // A message about no game, or about a deleted one, links to the home page without details.
   const welcome = notificationMail({ id: 'n2', email: 'lea@exemple.fr', session_id: null, title: 'Bienvenue parmi les membres', body: 'Tu vois désormais les parties réservées aux membres.' }, 'https://bottt.fr');
   assert.deepEqual([welcome.subject, welcome.text], ['Bienvenue parmi les membres', 'Tu vois désormais les parties réservées aux membres.\n\nhttps://bottt.fr/\n\nBlood on the Tanguy Tower']);

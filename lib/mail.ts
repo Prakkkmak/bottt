@@ -64,7 +64,8 @@ const oneLine = (value: string, none: string) => value.split(/\r\n|[\r\n\u2028\u
 /** A notification as an e-mail: the subject names the game and its date, the text adds when and where, and a link back to it.
  * When the game changed, each changed line reads as before → now, a time alone after the arrow when the day stays the same. */
 export function notificationMail(m: QueuedEmail, site = siteUrl()) {
-  const game = m.session_script ? sessionName({ title: m.session_title ?? '', script: m.session_script }) : '';
+  // Every game has a date, not always a script: the date says the message is about a game still on the site.
+  const game = m.session_starts_at ? sessionName({ title: m.session_title ?? '', script: m.session_script ?? '' }) : '';
   const day = m.session_starts_at ? dateLong(m.session_starts_at) : '';
   const { starts_at: moved, location: place, address } = readChanges(m.changes);
   const sameDay = moved && parisInput(moved.before!).slice(0, 10) === parisInput(moved.after).slice(0, 10);

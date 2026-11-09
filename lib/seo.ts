@@ -45,7 +45,7 @@ export function sessionEvents(sessions: GameSession[], origin: string, now = Dat
   return sessions.filter(s => s.visibility === 'public' && Date.parse(s.ends_at) > now).map(s => ({
     '@type': 'Event',
     name: eventName(s),
-    description: `Partie de Blood on the Clocktower à Brest sur le script ${s.script}, ouverte aux débutants comme aux habitués.`,
+    description: `Partie de Blood on the Clocktower à Brest${s.script.trim() ? ` sur le script ${s.script.trim()}` : ''}, ouverte aux débutants comme aux habitués.`,
     startDate: s.starts_at,
     endDate: s.ends_at,
     eventStatus: s.status === 'cancelled' ? 'https://schema.org/EventCancelled' : 'https://schema.org/EventScheduled',

@@ -4,7 +4,7 @@ import { flushSync } from 'react-dom';
 import { CalendarDays, MapPin, Settings2 } from 'lucide-react';
 import { MIN_CAPACITY, DEFAULT_CAPACITY, MAX_CAPACITY, SERIES_WEEKS_AHEAD, DEFAULT_WEEKS_AHEAD } from '@/lib/session-rules';
 import type { GameSession, Venue } from '@/lib/types';
-import { parisInput, fromParisInput, dateLong, time } from '@/lib/utils';
+import { parisInput, fromParisInput, dateLong, time, sessionName } from '@/lib/utils';
 import { checkSessionForm, type SessionField, type SessionFieldErrors } from '@/lib/session-form';
 import { nextSessionStart, sessionEnd, DEFAULT_SESSION_HOURS } from '@/lib/session-defaults';
 import { splitAddress } from '@/lib/locations';
@@ -19,7 +19,8 @@ export function SessionForm({ session, address = '', template, venues = [], onSa
   const a = useAction();
   const defaults = session || template;
   const [start, setStart] = useState(() => session ? parisInput(session.starts_at) : nextSessionStart());
-  const [script, setScript] = useState(defaults?.script || 'Trouble Brewing');
+  // The script of the game edited, or of the last one, even none; a first game suggests the most accessible one.
+  const [script, setScript] = useState(defaults ? defaults.script : 'Trouble Brewing');
   const [location, setLocation] = useState(defaults?.location || 'Brest');
   // A game opens on its venue, a new one on the last game's; '' is a place typed in for this game only.
   const [venueId, setVenueId] = useState(() => { const id = defaults ? defaults.venue_id : venues[0]?.id; return venues.some(v => v.id === id) ? id! : ''; });
@@ -71,8 +72,8 @@ export function SessionForm({ session, address = '', template, venues = [], onSa
   }}>
     <p className="muted">{!session && template ? 'Le lieu, le script et les réglages de la dernière partie sont repris. Choisis la date et ajuste ce dont tu as besoin.' : 'Choisis le début de la soirée, vérifie le lieu et publie.'}</p>
     <fieldset className="form-section"><legend><CalendarDays size={18} />La soirée</legend>
-      <label className="field">Nom de la partie <span className="field-note">Facultatif · sans nom, la partie prend celui du script</span><input name="title" maxLength={100} defaultValue={session?.title || ''} placeholder={script.trim() || 'Trouble Brewing'} autoFocus={!session} data-autofocus={!session || undefined} {...invalidField(error('title'))} /><FieldError {...error('title')} /></label>
-      <div className="form-grid"><label className="field">Début · heure de Paris<input name="starts_at" required type="datetime-local" value={start} onChange={e => setStart(e.target.value)} {...invalidField(error('starts_at'))} /><FieldError {...error('starts_at')} /></label><label className="field">Script<input name="script" required list="session-scripts" minLength={2} maxLength={100} value={script} onChange={e => setScript(e.target.value)} {...invalidField(error('script'))} /><FieldError {...error('script')} /><datalist id="session-scripts"><option>Trouble Brewing</option><option>Bad Moon Rising</option><option>Sects &amp; Violets</option></datalist></label></div>
+      <label className="field">Nom de la partie <span className="field-note">Facultatif · sans nom, la partie prend celui du script</span><input name="title" maxLength={100} defaultValue={session?.title || ''} placeholder={sessionName({ title: '', script })} autoFocus={!session} data-autofocus={!session || undefined} {...invalidField(error('title'))} /><FieldError {...error('title')} /></label>
+      <div className="form-grid"><label className="field">Début · heure de Paris<input name="starts_at" required type="datetime-local" value={start} onChange={e => setStart(e.target.value)} {...invalidField(error('starts_at'))} /><FieldError {...error('starts_at')} /></label><label className="field">Script · facultatif<input name="script" list="session-scripts" minLength={2} maxLength={100} value={script} onChange={e => setScript(e.target.value)} {...invalidField(error('script'))} /><FieldError {...error('script')} /><datalist id="session-scripts"><option>Trouble Brewing</option><option>Bad Moon Rising</option><option>Sects &amp; Violets</option></datalist></label></div>
       <p className="field-note">{session ? 'La durée de la partie est conservée.' : `Durée estimée de ${DEFAULT_SESSION_HOURS} h pour l’agenda.`}{endLabel && ` Fin prévue : ${endLabel}.`}</p>
       {!session && <>
         <div className="form-grid">
