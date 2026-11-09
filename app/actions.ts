@@ -105,7 +105,14 @@ export async function sendInvitation(input: string): Promise<ActionResult> {
   } catch(e) { return failure(e); }
 }
 export async function revokeInvitation(id: string) { if (!isUuid(id)) return failure(new Error('Invitation introuvable.')); return rpc('revoke_invitation', { p_id: id }, 'Cette invitation est désactivée.'); }
-export async function saveSession(input: unknown) { const parsed = sessionSchema.safeParse(input); if (!parsed.success) return failure(parsed.error); return rpc('save_session', { p_data: { ...parsed.data, beginners_welcome: true } }, 'La session est publiée.'); }
+/** A game, new or edited. A past date is closed at once and writes to nobody; a note leaves with the message about an edited game. */
+export async function saveSession(input: unknown) {
+  const parsed = sessionSchema.safeParse(input); if (!parsed.success) return failure(parsed.error);
+  const { note, ...game } = parsed.data;
+  const message = Date.parse(game.starts_at) <= Date.now() ? 'La partie est enregistrée à sa date passée : les inscriptions sont closes.'
+    : !game.id ? 'La session est publiée.' : note ? 'Les modifications sont enregistrées. Ton message part aux inscrits.' : 'Les modifications sont enregistrées.';
+  return rpc('save_session', { p_data: { ...game, ...(game.id && note ? { note } : {}), beginners_welcome: true } }, message);
+}
 export async function saveSeries(input: unknown) { const parsed = seriesSchema.safeParse(input); if (!parsed.success) return failure(parsed.error); return rpc('save_series', { p_data: parsed.data }, 'La série est publiée : ses prochaines dates sont ouvertes aux inscriptions.'); }
 export async function stopSeries(id: string) { if (!isUuid(id)) return failure(new Error('Cette série est introuvable.')); return rpc('stop_series', { p_id: id }, data => stoppedSeriesMessage((data ?? {}) as { removed?: number; kept?: number })); }
 export async function saveVenue(input: unknown) { const parsed = venueSchema.safeParse(input); if (!parsed.success) return failure(parsed.error); return rpc('save_venue', { p_data: parsed.data }, parsed.data.id ? 'Le lieu est enregistré.' : 'Le lieu est ajouté.'); }

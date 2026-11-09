@@ -5,7 +5,7 @@ import { CalendarDays, MapPin, Settings2 } from 'lucide-react';
 import { MIN_CAPACITY, DEFAULT_CAPACITY, MAX_CAPACITY, SERIES_WEEKS_AHEAD, DEFAULT_WEEKS_AHEAD } from '@/lib/session-rules';
 import type { GameSession, Venue } from '@/lib/types';
 import { parisInput, fromParisInput, dateLong, time, sessionName } from '@/lib/utils';
-import { checkSessionForm, type SessionField, type SessionFieldErrors } from '@/lib/session-form';
+import { checkSessionForm, isPastStart, type SessionField, type SessionFieldErrors } from '@/lib/session-form';
 import { nextSessionStart, sessionEnd, DEFAULT_SESSION_HOURS } from '@/lib/session-defaults';
 import { splitAddress } from '@/lib/locations';
 import { rhythmLabel, weeksAheadLabel } from '@/lib/series';
@@ -16,7 +16,8 @@ import { AddressFields } from './address-fields';
 import { MapLinks } from './map-links';
 import { FieldError, invalidField } from './ui';
 
-export function SessionForm({ session, address = '', template, venues = [], scripts = [], onSaved }: { session?: GameSession; address?: string; template?: GameSession; venues?: Venue[]; scripts?: CustomScript[]; onSaved: () => void }) {
+/** recipients: how many people a note about the edited game reaches (registered or waiting, its writer aside). */
+export function SessionForm({ session, address = '', template, venues = [], scripts = [], recipients = 0, onSaved }: { session?: GameSession; address?: string; template?: GameSession; venues?: Venue[]; scripts?: CustomScript[]; recipients?: number; onSaved: () => void }) {
   const a = useAction();
   const defaults = session || template;
   const [start, setStart] = useState(() => session ? parisInput(session.starts_at) : nextSessionStart());
@@ -33,11 +34,20 @@ export function SessionForm({ session, address = '', template, venues = [], scri
   const [repeat, setRepeat] = useState('');
   const [weeksAhead, setWeeksAhead] = useState(String(DEFAULT_WEEKS_AHEAD));
   const repeating = !session && repeat !== '';
+  // A single game may be given a date already past: the first try warns, the second saves. A new date asks again.
+  const inPast = !repeating && isPastStart(start);
+  const askPast = inPast && start !== (session ? parisInput(session.starts_at) : '');
+  const [warned, setWarned] = useState('');
+  const confirming = askPast && warned === start;
+  const warning = useRef<HTMLParagraphElement>(null);
+  // A note goes with the message about the change; a game whose date has passed writes to nobody (see save_session).
+  const [note, setNote] = useState('');
+  const noting = !!session && recipients > 0 && !inPast;
   const id = useId(); const form = useRef<HTMLFormElement>(null);
   const [errors, setErrors] = useState<SessionFieldErrors>({}); const [edits, setEdits] = useState(0);
   const check = (f: HTMLFormElement) => {
     const d = new FormData(f); const value = (name: string) => String(d.get(name) ?? '');
-    return checkSessionForm({ title: value('title'), starts_at: start, script, location, address: value('address'), maps_url: value('maps_url'), capacity: value('capacity'), visibility: value('visibility'),
+    return checkSessionForm({ title: value('title'), starts_at: start, script, location, address: value('address'), maps_url: value('maps_url'), capacity: value('capacity'), visibility: value('visibility'), note: noting ? note : '',
       ...(repeating ? { repeat, weeks_ahead: weeksAhead, ends_on: value('ends_on') } : {}) }, { session, venue });
   };
   // Once a try is refused, a flagged field's message follows what is typed and leaves as soon as it is right; anything new waits for the next try.
@@ -70,6 +80,11 @@ export function SessionForm({ session, address = '', template, venues = [], scri
       const first = f.querySelector<HTMLElement>('[aria-invalid="true"]');
       // Centred, the field and its message stay clear of the sticky submit button.
       first?.focus({ preventScroll: true }); first?.scrollIntoView({ block: 'center' });
+      return;
+    }
+    if (askPast && !confirming) {
+      flushSync(() => { setWarned(start); a.setResult(null); });
+      warning.current?.scrollIntoView({ block: 'center' });
       return;
     }
     a.run(() => 'every_weeks' in payload ? saveSeries(payload) : saveSession(payload), onSaved);
@@ -110,7 +125,9 @@ export function SessionForm({ session, address = '', template, venues = [], scri
       <div className="form-grid"><label className="field">Places, MJ compris<input name="capacity" type="number" required min={MIN_CAPACITY} max={MAX_CAPACITY} defaultValue={defaults?.capacity ?? DEFAULT_CAPACITY} {...invalidField(error('capacity'))} /><FieldError {...error('capacity')} /></label><label className="field">Visibilité<select name="visibility" defaultValue={defaults?.visibility || 'public'} {...invalidField(error('visibility'))}><option value="public">Ouverte à tous</option><option value="members">Membres et leurs invités</option></select><FieldError {...error('visibility')} /></label></div>
       <p className="field-note">Le MJ prend l’une de ces places : {DEFAULT_CAPACITY} places, par exemple, pour {DEFAULT_CAPACITY - 1} joueurs et le MJ. Une nouvelle partie reprend le nombre de la dernière. Les places vont aux premiers inscrits, membres, voyageurs et invités confondus. Une fois le cercle complet, une liste d’attente prend le relais : chaque place libérée revient à la première personne qui attend.</p>
     </div></details>
+    {noting && <label className="field">Un mot aux inscrits <span className="field-note">Facultatif · envoyé par e-mail {recipients > 1 ? `aux ${recipients} personnes inscrites ou en attente` : 'à la personne inscrite ou en attente'}, avec ce qui change. Tous n’ont pas l’adresse exacte : n’y mets ni l’adresse ni un code d’accès.</span><textarea name="note" rows={3} maxLength={2000} value={note} onChange={e => setNote(e.target.value)} placeholder="Pourquoi la partie change, ce qu’il faut savoir…" {...invalidField(error('note'))} /><FieldError {...error('note')} /></label>}
+    {confirming && <p ref={warning} className="alert warning" role="alert">Attention, tu mets une date passée : la partie sera close aux inscriptions et rangée avec les sessions passées{session ? ', sans message aux inscrits' : ''}. Confirme si c’est bien la bonne date.{session && recipients > 0 && !isPastStart(parisInput(session.starts_at)) && ' Si elle n’a pas eu lieu, annule-la plutôt : ses inscrits seront prévenus.'}</p>}
     {wrong > 0 && <p className="alert error" role="alert">{wrong > 1 ? `${wrong} champs sont à corriger` : 'Un champ est à corriger'} {session ? 'avant d’enregistrer les modifications' : repeating ? 'avant de publier la série' : 'avant de publier la partie'}.</p>}
-    <Feedback result={a.result} /><button className="button primary full" disabled={a.pending}>{a.pending ? 'Enregistrement…' : session ? 'Enregistrer les modifications' : repeating ? 'Publier la série' : 'Publier la partie'}</button>
+    <Feedback result={a.result} /><button className="button primary full" disabled={a.pending}>{a.pending ? 'Enregistrement…' : confirming ? 'Confirmer la date passée' : session ? 'Enregistrer les modifications' : repeating ? 'Publier la série' : 'Publier la partie'}</button>
   </form>;
 }

@@ -196,6 +196,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .alert { padding: 13px 16px; background: #28372f; border: 1px solid #506752; border-radius: 6px; color: #d0e0c8; font-size: 14px; }
 .alert.error { background: #472534; color: #ffdae0; border-color: #985769; }
 .alert.info { background: #30253d; color: #d6c5e7; border-color: #60456f; }
+.alert.warning { background: #3b3020; color: #f1dfb8; border-color: #8c6d3a; }
 .empty-state { padding: 45px 24px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 16px; color: var(--muted); border: 1px dashed var(--border); border-radius: 8px; }
 .empty-state > svg { color: var(--gold); }
 .empty-state h2 { color: var(--ink); }
