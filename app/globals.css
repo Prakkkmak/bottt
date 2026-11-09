@@ -682,6 +682,11 @@ a.practical-link, .calendar-link > span { text-decoration: underline; text-under
 .venue-other[hidden] { display: none; }
 .venue-panel .panel-heading { flex-wrap: wrap; }
 .series-panel { margin-bottom: 18px; }
+.announcement-row { align-items: flex-start; }
+.announcement-row .venue-icon { margin-top: 2px; }
+.announcement-row .announcement-body { margin-top: 8px; color: var(--ink); font-size: 14px; line-height: 1.6; white-space: pre-line; overflow-wrap: anywhere; }
+.announcement-body.is-clamped { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.announcement-row .text-link { margin-top: 2px; min-height: 36px; padding: 0; background: none; border: 0; color: var(--gold); text-decoration: underline; text-underline-offset: 3px; }
 @media (max-width: 540px) {
   /* Name and address take the first line; the count and the actions go under them. */
   .venue-row > div:nth-child(2) { flex-basis: calc(100% - 52px); }

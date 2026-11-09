@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { Plus, CalendarDays, UsersRound, Clock3, X, Pencil, BookOpen, Link2, Trash2, Repeat, Mail, Send } from 'lucide-react';
-import type { ActionResult, AppData, GameSession, Booking, Membership, Profile, Series, Venue } from '@/lib/types';
+import type { ActionResult, Announcement, AnnouncementCounts, AppData, GameSession, Booking, Membership, Profile, Series, Venue } from '@/lib/types';
 import { time, statusLabels, sessionUrl, activeBooking, sessionName } from '@/lib/utils';
 import { seriesSummary } from '@/lib/series';
 import { bookingLabel, experienceLabels, experienceOf, membershipLabels, messageRecipients, orderBySponsor, waitlistPositions } from '@/lib/guests';
@@ -12,6 +12,7 @@ import { cancelSession, deleteSession, removeParticipant, sendSessionMessage, se
 import { Dialog } from './dialog';
 import { Avatar } from './ui';
 import { Venues } from './venues';
+import { Announcements } from './announcements';
 import { Feedback, useAction } from './action-feedback';
 /** The three ranks an organizer can give; suspension is a separate action. */
 const rankChoices: { value: Exclude<Membership, 'suspended'>; label: string; note: string }[] = [
@@ -21,8 +22,8 @@ const rankChoices: { value: Exclude<Membership, 'suspended'>; label: string; not
 ];
 const SessionForm = dynamic(() => import('./session-form').then(mod => mod.SessionForm), { loading: () => <p className="muted">Chargement du formulaire…</p> });
 
-export function Admin({ data, bookings, profiles, addresses, venues, series = [], initialCreate = false }: { data: AppData; bookings: Booking[]; profiles: Profile[]; addresses: Record<string, string>; venues: Venue[]; series?: Series[]; initialCreate?: boolean }) {
-  const [tab, setTab] = useState<'sessions' | 'members' | 'venues'>('sessions');
+export function Admin({ data, bookings, profiles, addresses, venues, series = [], announcements = [], announcementCounts = null, initialCreate = false }: { data: AppData; bookings: Booking[]; profiles: Profile[]; addresses: Record<string, string>; venues: Venue[]; series?: Series[]; announcements?: Announcement[]; announcementCounts?: AnnouncementCounts | null; initialCreate?: boolean }) {
+  const [tab, setTab] = useState<'sessions' | 'members' | 'venues' | 'messages'>('sessions');
   const [editing, setEditing] = useState<GameSession | 'new' | null>(initialCreate ? 'new' : null);
   const [selected, setSelected] = useState<GameSession | null>(null);
   const [cancel, setCancel] = useState<GameSession | null>(null);
@@ -59,7 +60,7 @@ export function Admin({ data, bookings, profiles, addresses, venues, series = []
   const writable = (s: GameSession) => { if (s.status !== 'published' || new Date(s.starts_at) <= new Date()) return false; const r = recipientsOf(s); return r.registered + r.waiting > 0; };
   return <><div className="page-heading admin-heading"><h1>Organiser</h1><button className="button primary compact" onClick={() => setEditing('new')}><Plus size={17} />Créer une partie</button></div>
     <div className="admin-stats"><div><CalendarDays /><span><strong>{future.length}</strong>sessions à venir</span></div><div><UsersRound /><span><strong>{profiles.filter(p => p.membership !== 'suspended').length}</strong>personnes dans le cercle</span></div><div><Clock3 /><span><strong>{waitingCount}</strong>{waitingCount > 1 ? 'personnes' : 'personne'} en liste d’attente</span></div></div>
-    <div className="session-tabs admin-tabs" role="group" aria-label="Espace organisateur">{([['sessions', 'Les sessions'], ['members', 'Les membres'], ['venues', 'Les lieux']] as const).map(([value, label]) => <button key={value} aria-pressed={tab === value} className={tab === value ? 'selected' : ''} onClick={() => setTab(value)}>{label}</button>)}</div><div ref={feedbackRef}><Feedback result={a.result} /></div>
+    <div className="session-tabs admin-tabs" role="group" aria-label="Espace organisateur">{([['sessions', 'Les sessions'], ['members', 'Les membres'], ['venues', 'Les lieux'], ['messages', 'Les messages']] as const).map(([value, label]) => <button key={value} aria-pressed={tab === value} className={tab === value ? 'selected' : ''} onClick={() => setTab(value)}>{label}</button>)}</div><div ref={feedbackRef}><Feedback result={a.result} /></div>
     {tab === 'sessions' ? <>{series.length > 0 && <div className="panel venue-panel series-panel">
       <div className="panel-heading"><h2><Repeat size={20} />Parties récurrentes</h2></div>
       <p className="muted">Chaque série ouvre ses prochaines dates d’elle-même. Chaque date se modifie ou s’annule dans la liste ci-dessous, sans toucher aux autres.</p>
@@ -71,6 +72,7 @@ export function Admin({ data, bookings, profiles, addresses, venues, series = []
       </div>; })}
     </div>}<div className="admin-session-list">{listed.length ? listed.map(s => <article className={`admin-session-row ${s.status === 'cancelled' ? 'is-cancelled' : isPast(s) ? 'is-past' : ''}`} key={s.id}><DateTile date={s.starts_at} /><div className="admin-session-name"><Link href={sessionUrl(s.id)}><h2>{sessionName(s)}</h2></Link><p>{s.status === 'cancelled' ? <span className="session-state">Annulée · </span> : isPast(s) ? <span className="session-state">Passée · </span> : null}{s.script && `${s.script} · `}{time(s.starts_at)} · {s.visibility === 'public' ? 'Ouverte à tous' : 'Membres et invités'}{s.series_id && ' · Série'}</p></div><span className="badge">{s.confirmed_count}/{s.capacity} inscrits</span><div className="row-actions"><button className="button secondary compact" onClick={() => open(setSelected, s)}><UsersRound size={15} />Participants</button>{writable(s) && <button aria-label={`Écrire aux inscrits de ${sessionName(s)}`} title="Écrire aux inscrits" className="icon-btn" onClick={() => open(setWriting, s)}><Mail size={17} /></button>}{s.status === 'published' && <button aria-label={`Modifier ${sessionName(s)}`} className="icon-btn" onClick={() => open(setEditing, s)}><Pencil size={17} /></button>}{s.status === 'published' && !isPast(s) && <button aria-label={`Annuler ${sessionName(s)}`} className="icon-btn" onClick={() => open(setCancel, s)}><X size={17} /></button>}{deletable(s) && <button aria-label={`Supprimer ${sessionName(s)}`} title="Supprimer définitivement" className="icon-btn" onClick={() => open(setRemoval, s)}><Trash2 size={17} /></button>}</div></article>) : <div className="empty-state"><CalendarDays /><h2>Crée votre première soirée.</h2><p>Tu choisis la date, le script et les places disponibles.</p></div>}</div></>
     : tab === 'venues' ? <Venues venues={venues} sessions={data.sessions} />
+    : tab === 'messages' ? <Announcements announcements={announcements} counts={announcementCounts} profiles={profiles} writer={data.profile?.display_name ?? 'Organisation'} />
     : <div className="panel">{profiles.map(p => <div className="member-row" key={p.id}><Avatar name={p.display_name} color={p.avatar_color} /><div><h3>{p.display_name}</h3><p>{experienceLabels[experienceOf(p)]}{p.can_storytell && ' · volontaire MJ'}{p.bio && ` · ${p.bio}`}</p></div><span className={`badge ${p.membership === 'suspended' ? 'red' : ''}`}>{membershipLabels[p.membership]}</span>{p.membership !== 'organizer' && <button className="button secondary compact" disabled={a.pending} onClick={() => open(setMember, p)}>{p.membership === 'suspended' ? 'Réactiver' : 'Gérer'}</button>}</div>)}</div>}
     <Dialog title={editing === 'new' ? 'Créer une partie' : 'Modifier la partie'} open={editing !== null} onClose={() => setEditing(null)} wide guard>{editing && <SessionForm session={editing === 'new' ? undefined : editing} template={template} address={editing === 'new' ? (template ? addresses[template.id] : undefined) : addresses[editing.id]} venues={venues} recipients={editing === 'new' ? 0 : (r => r.registered + r.waiting)(recipientsOf(editing))} onSaved={() => setEditing(null)} />}</Dialog>
     <Dialog title={selected ? sessionName(selected) : 'Participants'} open={!!selected} onClose={() => setSelected(null)} wide><div className="stack">
