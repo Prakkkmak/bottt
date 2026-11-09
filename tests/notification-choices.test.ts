@@ -50,3 +50,30 @@ test('l’organisateur lit à combien de personnes son message part', () => {
   // Before the migration, the function returned the count alone.
   assert.equal(sessionMessageSent(4), 'Ton message part à 4 personnes.');
 });
+
+test('quand le service d’envoi demande de ralentir, les messages pas encore essayés retournent dans la file', async () => {
+  const { sendQueuedEmails } = await import('../lib/notifications');
+  const saved = { key: process.env.RESEND_API_KEY, url: process.env.NEXT_PUBLIC_SUPABASE_URL, fetch: globalThis.fetch };
+  process.env.RESEND_API_KEY = 'test'; process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://exemple.supabase.co';
+  const queued = ['a', 'b', 'c'].map(id => ({ ...game, id, kind: 'booking', title: 'Ta place est réservée', body: 'Ton inscription est confirmée.' }));
+  const calls: { name: string; args?: unknown }[] = []; let posts = 0;
+  const db = {
+    rpc: async (name: string, args?: unknown) => { calls.push({ name, args }); return { data: name === 'claim_emails' ? queued : null, error: null }; },
+    from: () => ({ update: () => ({ eq: async (_: string, id: string) => { calls.push({ name: 'sent', args: id }); return { error: null }; } }) }),
+  };
+  // The first message leaves; the second is refused twice, so it and the third go back untouched.
+  globalThis.fetch = (async () => { posts++; return new Response('{}', { status: posts === 1 ? 200 : 429, headers: { 'retry-after': '1' } }); }) as typeof fetch;
+  try {
+    const result = await sendQueuedEmails(db as never);
+    assert.deepEqual(result, { sent: 1, failed: 0, pending: false, stopped: true });
+    assert.deepEqual(calls.slice(1), [{ name: 'sent', args: 'a' }, { name: 'release_emails', args: { p_ids: ['b', 'c'] } }]);
+    // Past the deadline, nothing more is tried and everything goes back.
+    calls.length = 0;
+    assert.deepEqual(await sendQueuedEmails(db as never, Date.now() - 1), { sent: 0, failed: 0, pending: false, stopped: true });
+    assert.deepEqual(calls.slice(1), [{ name: 'release_emails', args: { p_ids: ['a', 'b', 'c'] } }]);
+  } finally {
+    globalThis.fetch = saved.fetch;
+    if (saved.key === undefined) delete process.env.RESEND_API_KEY; else process.env.RESEND_API_KEY = saved.key;
+    if (saved.url === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_URL; else process.env.NEXT_PUBLIC_SUPABASE_URL = saved.url;
+  }
+});

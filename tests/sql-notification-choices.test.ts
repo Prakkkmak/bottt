@@ -99,10 +99,13 @@ test('Choix des notifications',async t=>{
     await choose(3,{message:false});await choose(4,{message:false});
     await clear();
     await h.login(1);
-    assert.deepEqual((await h.call('select send_session_message($1,$2) as r',[id,'Apportez des gâteaux']))[0].r,{sent:1,muted:2});
+    assert.deepEqual((await h.call('select send_session_message_counts($1,$2) as r',[id,'Apportez des gâteaux']))[0].r,{sent:1,muted:2});
     assert.deepEqual((await notices()).map(n=>[n.user_id,n.kind]),[[uuid(2),'message']]);
+    // The site already deployed still reads the number of people reached.
+    await h.login(1);assert.deepEqual((await h.call('select send_session_message($1,$2) as r',[id,'Et des boissons']))[0].r,1);
     await choose(2,{message:false});
-    await h.login(1);await assert.rejects(h.call('select send_session_message($1,$2)',[id,'Encore moi']),/ont coupé les messages/);
+    await h.login(1);await assert.rejects(h.call('select send_session_message_counts($1,$2)',[id,'Encore moi']),/ont coupé les messages/);
+    await h.anonymous();await assert.rejects(h.call('select send_session_message_counts($1,$2)',[id,'Bonjour']),/permission denied/i);
     for(const n of [2,3,4])await choose(n,{message:true});
     await clear();
   });
@@ -142,8 +145,13 @@ test('Choix des notifications',async t=>{
     assert.deepEqual(told.map(n=>n.user_id),[uuid(1),uuid(2),uuid(5),uuid(6)]);
     assert.match(told[0].body,/revient chaque semaine/);
     assert.ok((await h.call<{session_id:string}>(`select distinct session_id from notifications where title='Nouvelle partie'`)).every(r=>r.session_id===dates[0].id));
-    // The dates opened later, week after week, are not announced.
+    // The dates opened later, week after week, are not announced, even once the earlier ones are gone.
     await h.call(`update session_series set weeks_ahead=8 where id=$1`,[series]);await h.call('select extend_series($1)',[series]);
+    assert.equal((await notices(`title='Nouvelle partie'`)).length,4);
+    await h.call('delete from sessions where series_id=$1',[series]);
+    await h.call(`update session_series set weeks_ahead=12 where id=$1`,[series]);await h.call('select extend_series($1)',[series]);
+    assert.ok((await h.call('select 1 from sessions where series_id=$1',[series])).length>0);
+    // The four messages already written stay, about no game any more; no new one.
     assert.equal((await notices(`title='Nouvelle partie'`)).length,4);
     for(const n of [1,2,5,6])await choose(n,{new_game:false});
     await clear();
@@ -190,11 +198,66 @@ test('Choix des notifications',async t=>{
     await choose(7,{activity:true});
     await h.root();await h.call('update sessions set created_by=$1 where id=$2',[uuid(7),id]);
     for(const n of [2,3,4])await book(n,id);
+    type Claimed={email:string;kind:string;session_capacity:number|null;session_taken:number|null;session_waiting:number|null};
+    const claim=async()=>{await h.root();await h.db.exec('set role service_role');
+      return (await h.call<Claimed>('select email,kind,session_capacity,session_taken,session_waiting from claim_emails() order by email')).map(c=>[c.email,c.kind,c.session_capacity,c.session_taken,c.session_waiting]);};
+    // The activity of a game waits a quarter of an hour, so that what follows joins it.
+    assert.deepEqual(await claim(),[['test2@cercle.test','booking',null,null,null],['test3@cercle.test','booking',null,null,null],['test4@cercle.test','booking',null,null,null]]);
+    await h.root();await h.call(`update notifications set created_at=now()-interval '16 minutes' where kind='activity'`);
+    assert.deepEqual(await claim(),[['test7@cercle.test','activity',7,7,1]]);
+    // A message put back, such as when the provider asks to slow down, does not spend one of its attempts.
+    await h.call(`select release_emails(array(select id from notifications where kind='activity'))`);
+    await h.root();assert.deepEqual(await h.call(`select email_attempts,claimed_until from notifications where kind='activity'`),[{email_attempts:0,claimed_until:null}]);
+    await h.login(7);await assert.rejects(h.call('select release_emails($1)',[[uuid(1)]]),/permission denied/i);
+    await clear();
+  });
+
+  await t.test('ce qui dit si et où venir part avant les nouvelles parties',async()=>{
+    await choose(2,{new_game:true});
+    await h.login(1);const id=(await h.call<{save_session:string}>('select save_session($1)',[game({title:'Plus tard'})]))[0].save_session;
+    const other=uuid(105);await h.session(other);
+    assert.equal(await book(3,other),'confirmed');
+    await h.root();await h.call(`update notifications set created_at=now()-interval '1 minute' where kind='new_game'`);
+    await h.db.exec('set role service_role');
+    // Two new games for 2, the one created on the site and the one of 3's booking, written before it: the booking leaves first.
+    assert.deepEqual((await h.call<{kind:string}>('select kind from claim_emails()')).map(c=>c.kind),['booking','new_game','new_game']);
+    await clear();
+    // A new game is checked again as it leaves: still published, still visible to the person.
+    await h.login(1);await h.call('select save_session($1)',[{...game({title:'Plus tard',visibility:'public'}),id}]);
+    await h.root();await h.call(`insert into notifications(user_id,session_id,title,body,kind) values($1,$2,'Nouvelle partie','x','new_game'),($3,$2,'Nouvelle partie','x','new_game')`,[uuid(2),id,uuid(5)]);
+    await h.call(`update sessions set visibility='members' where id=$1`,[id]);
+    await h.db.exec('set role service_role');
+    assert.deepEqual((await h.call<{email:string}>('select email from claim_emails()')).map(c=>c.email),['test2@cercle.test']);
+    await h.root();await h.call(`update notifications set claimed_until=null,email_attempts=0`);
+    await h.call(`update profiles set membership='suspended' where id=$1`,[uuid(2)]);
+    await h.db.exec('set role service_role');
+    assert.deepEqual(await h.call('select email from claim_emails()'),[]);
+    await h.root();await h.call(`update profiles set membership='member' where id=$1`,[uuid(2)]);
+    await h.call(`update notifications set claimed_until=null,email_attempts=0`);
+    await h.login(1);await h.call('select cancel_session($1)',[id]);
     await h.root();await h.db.exec('set role service_role');
-    const claimed=await h.call<{email:string;kind:string;session_capacity:number|null;session_taken:number|null;session_waiting:number|null}>(
-      'select email,kind,session_capacity,session_taken,session_waiting from claim_emails() order by email');
-    assert.deepEqual(claimed.map(c=>[c.email,c.kind,c.session_capacity,c.session_taken,c.session_waiting]),[
-      ['test2@cercle.test','booking',null,null,null],['test3@cercle.test','booking',null,null,null],['test4@cercle.test','booking',null,null,null],
-      ['test7@cercle.test','activity',7,7,1]]);
+    assert.deepEqual((await h.call<{kind:string}>('select kind from claim_emails()')).map(c=>c.kind),[]);
+    await clear();
+  });
+
+  await t.test('dix nouvelles parties par jour au plus pour une même personne',async()=>{
+    await h.login(1);
+    for(let i=0;i<12;i++)await h.call('select save_session($1)',[game({title:`Partie ${i}`,starts_at:inDays(3+i)})]);
+    assert.equal((await notices(`user_id=$1 and kind='new_game'`,[uuid(2)])).length,10);
+    await reset(2);
+    await clear();
+  });
+
+  await t.test('un nom ne peut pas fausser l’e-mail de l’organisateur',async()=>{
+    const id=uuid(106);await h.session(id);
+    await choose(1,{activity:true});
+    await h.root();await h.call(`update profiles set display_name=$1 where id=$2`,['X\nConnexion : https://evil.tld/\u202Emoc',uuid(4)]);
+    await h.call(`update profiles set display_name=$1 where id=$2`,['X\u2028Y\u0007\u200F',uuid(4)]);
+    assert.equal(await book(4,id),'confirmed');
+    await h.login(3);await h.call('select add_guest($1,$2)',[id,'Léa\u2066 \u2069']);
+    assert.deepEqual((await notices(`kind='activity'`)).map(n=>n.body),['X Y a pris une place.\nLéa, invité·e de Joueur 3 a pris une place.']);
+    await h.root();await h.call(`update profiles set display_name='Joueur 4' where id=$1`,[uuid(4)]);
+    await reset(1);
+    await clear();
   });
 });

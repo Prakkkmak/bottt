@@ -12,12 +12,9 @@ test('Message d’un organisateur aux inscrits d’une partie',async t=>{
   const add=async(n:number,name:string,id=game)=>{await h.login(n);return (await h.call<{add_guest:string}>('select add_guest($1,$2)',[id,name]))[0].add_guest;};
   const send=async(n:number,message:string,waitlist?:boolean,id=game)=>{
     await h.login(n);
-    type Sent={send_session_message:{sent:number;muted:number}};
-    const rows=waitlist===undefined?await h.call<Sent>('select send_session_message($1,$2)',[id,message])
-      :await h.call<Sent>('select send_session_message($1,$2,$3)',[id,message,waitlist]);
-    // Nobody here switched the organizers' messages off.
-    assert.equal(rows[0].send_session_message.muted,0);
-    return rows[0].send_session_message.sent;
+    const rows=waitlist===undefined?await h.call<{send_session_message:number}>('select send_session_message($1,$2)',[id,message])
+      :await h.call<{send_session_message:number}>('select send_session_message($1,$2,$3)',[id,message,waitlist]);
+    return rows[0].send_session_message;
   };
   const messages=async(title='Message de Joueur 1')=>{await h.root();return h.call<Notice>('select user_id,title,body from notifications where session_id=$1 and title=$2 order by user_id',[game,title]);};
   const clear=async()=>{await h.root();await h.call(`delete from notifications where title like 'Message de %'`);await h.call(`delete from action_limits where action='session_message'`);};

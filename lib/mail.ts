@@ -13,6 +13,9 @@ export function canSendMail() { return localMail() || Boolean(process.env.RESEND
 /** Absolute links for e-mails, which are read outside the site. */
 export function siteUrl(fallback = 'http://127.0.0.1:3000') { return (process.env.NEXT_PUBLIC_SITE_URL || fallback).replace(/\/+$/, ''); }
 
+/** The provider refused for now because too many messages left at once: the message is fine and goes back to the outbox. */
+export class MailRateLimited extends Error {}
+
 let smtp: ReturnType<typeof nodemailer.createTransport> | null = null;
 export async function sendMail({ to, subject, text, idempotencyKey }: Mail) {
   if (localMail()) {
@@ -28,8 +31,12 @@ export async function sendMail({ to, subject, text, idempotencyKey }: Mail) {
     signal: AbortSignal.timeout(15000),
   });
   let result = await post();
-  // Resend allows a few requests per second: a burst, such as a cancelled game, waits its turn once.
-  if (result.status === 429) { await new Promise(resolve => setTimeout(resolve, 1000)); result = await post(); }
+  // Resend allows a few requests per second: a burst, such as a cancelled game, waits its turn once, as long as it asks (5 s at most).
+  if (result.status === 429) {
+    const wait = Math.min(Math.max(Number(result.headers.get('retry-after')) || 1, 1), 5);
+    await new Promise(resolve => setTimeout(resolve, wait * 1000)); result = await post();
+    if (result.status === 429) throw new MailRateLimited('Email provider rate limit');
+  }
   if (!result.ok) throw new Error('Email provider unavailable');
 }
 

@@ -11,8 +11,8 @@ export const notificationChoices: readonly NotificationChoice[] = [
   { kind: 'reminder', label: 'Rappel avant la partie', detail: 'Moins de 24 h avant une partie où toi ou les personnes que tu amènes avez une place.', defaultOn: true },
   { kind: 'message', label: 'Messages des organisateurs', detail: 'Ce qu’un organisateur écrit aux inscrits d’une partie où tu es inscrit·e.', defaultOn: true },
   { kind: 'announcement', label: 'Annonces du cercle', detail: 'Les nouvelles qu’un organisateur envoie à tout le monde.', defaultOn: true },
-  { kind: 'new_game', label: 'Nouvelles parties', detail: 'Dès qu’une partie que tu peux rejoindre ouvre ses inscriptions. Pour une partie récurrente, seulement sa première date.', defaultOn: false },
-  { kind: 'activity', label: 'Inscriptions et désistements', detail: 'Quand quelqu’un prend ou libère une place à une partie que tu as créée.', defaultOn: false, organizersOnly: true },
+  { kind: 'new_game', label: 'Nouvelles parties', detail: 'Dès qu’une partie que tu peux rejoindre ouvre ses inscriptions (dix par jour au plus). Pour une partie récurrente, seulement sa première date.', defaultOn: false },
+  { kind: 'activity', label: 'Inscriptions et désistements', detail: 'Quand quelqu’un prend ou libère une place à une partie que tu as créée, regroupé par quart d’heure.', defaultOn: false, organizersOnly: true },
 ];
 export const optionalKinds = notificationChoices.map(c => c.kind);
 
@@ -31,8 +31,8 @@ export function withDefaults(saved: Partial<Record<string, boolean>> = {}): Noti
 
 export const choiceOf = (kind: string | null | undefined) => notificationChoices.find(c => c.kind === kind);
 
-/** What an organizer reads once a message to the people registered for a game is sent: send_session_message returns {sent, muted},
- * and only the count before the notification choices. */
+/** What an organizer reads once a message to the people registered for a game is sent: send_session_message_counts returns
+ * {sent, muted}; a plain count, as send_session_message returns, reads as nobody left out. */
 export function sessionMessageSent(data: unknown) {
   const result = (typeof data === 'number' ? { sent: data } : data ?? {}) as { sent?: unknown; muted?: unknown };
   const sent = Number(result.sent) || 0, muted = Number(result.muted) || 0;

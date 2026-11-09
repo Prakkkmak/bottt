@@ -124,7 +124,7 @@ export async function sendSessionMessage(id: string, message: string, waitlist =
   if (!isUuid(id)) return failure(new Error('Session invalide.'));
   const parsed = sessionMessageSchema.safeParse(message);
   if (!parsed.success) return failure(parsed.error);
-  return rpc('send_session_message', { p_session: id, p_message: parsed.data, p_waitlist: waitlist === true }, sessionMessageSent);
+  return rpc('send_session_message_counts', { p_session: id, p_message: parsed.data, p_waitlist: waitlist === true }, sessionMessageSent);
 }
 export async function deleteSession(id: string) { if (!isUuid(id)) return failure(new Error('Session invalide.')); return rpc('delete_session', { p_id: id }, 'La partie est supprimée.'); }
 const rankMessages: Record<Membership, string> = { newcomer: 'Le compte est passé voyageur·se.', member: 'Le compte est passé membre.', organizer: 'Le compte rejoint l’organisation.', suspended: 'Le compte est suspendu.' };

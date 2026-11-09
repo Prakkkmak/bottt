@@ -347,8 +347,7 @@ end; $$;
 
 -- As in the session message migration, the message being of kind 'message': it no longer reaches someone who switched
 -- those off. Returns {sent, muted}: how many people it goes to, and how many registered people chose not to get it.
-drop function public.send_session_message(uuid,text,boolean);
-create function public.send_session_message(p_session uuid,p_message text,p_waitlist boolean default true) returns jsonb language plpgsql security definer set search_path='' as $$
+create function public.send_session_message_counts(p_session uuid,p_message text,p_waitlist boolean default true) returns jsonb language plpgsql security definer set search_path='' as $$
 declare s public.sessions; clean text; sender text; registered integer; sent integer;
 begin
   if not public.is_organizer() then raise exception 'Accès organisateur requis.'; end if;
@@ -384,16 +383,23 @@ begin
   return jsonb_build_object('sent',sent,'muted',registered-sent);
 end; $$;
 
+-- The site already deployed reads a number: it keeps getting one, the count of people the message goes to.
+create or replace function public.send_session_message(p_session uuid,p_message text,p_waitlist boolean default true) returns integer language sql security definer set search_path='' as $$
+  select (public.send_session_message_counts(p_session,p_message,p_waitlist)->>'sent')::integer;
+$$;
+
 -- A game opening is told to the people who asked for it and may see it: members-only games to members and organizers.
--- A recurring game is told once, by its first date; the next ones open on their own, week after week.
+-- A recurring game is told once, by its first date; the next ones open on their own, week after week. Ten a day at most
+-- per person, so that a burst of new games, by mistake or not, cannot flood those who asked.
 create function public.announce_session() returns trigger language plpgsql security definer set search_path='' as $$
 declare series public.session_series; detail text;
 begin
   -- Registrations close 30 minutes before the start: a game created later, or in the past, is not news.
   if new.status<>'published' or new.starts_at<=now()+interval '30 minutes' then return null; end if;
   if new.series_id is not null then
-    if exists(select 1 from public.sessions g where g.series_id=new.series_id and g.id<>new.id) then return null; end if;
+    -- extend_series marks a date as opened right after creating it: only the very first one finds nothing marked yet.
     select * into series from public.session_series where id=new.series_id;
+    if series.generated_through is not null then return null; end if;
   end if;
   detail='Les inscriptions sont ouvertes : réserve ta place sur le site.'
     ||case series.every_weeks when 1 then ' Elle revient chaque semaine, les dates suivantes s’ouvrent au fur et à mesure.'
@@ -404,6 +410,7 @@ begin
     from public.notification_choices c join public.profiles p on p.id=c.user_id
     where c.kind='new_game' and c.enabled and p.membership<>'suspended' and c.user_id is distinct from new.created_by
       and (new.visibility='public' or p.membership in ('member','organizer'))
+      and (select count(*) from public.notifications n where n.user_id=c.user_id and n.kind='new_game' and n.created_at>now()-interval '1 day')<10
     on conflict(dedupe_key) do nothing;
   return null;
 end; $$;
@@ -411,7 +418,13 @@ create trigger sessions_announce after insert on public.sessions for each row ex
 
 -- The organizer who created a game hears about the people who join or leave it, when they asked for it. Only what players
 -- do themselves: a seat passed on by the waiting list, an organizer's decision or a cancelled game is not news to them.
--- Moves made before the message leaves are added to it, so that someone leaving with the people they bring is one e-mail.
+-- A name typed by a player, on one line: a line break or a direction mark must not forge a line, or disguise a link, in an e-mail.
+create function public.plain_name(p_name text) returns text language sql immutable set search_path = '' as $$
+  select btrim(regexp_replace(regexp_replace(coalesce(p_name,''),'[\u200E\u200F\u202A-\u202E\u2066-\u2069]','','g'),'[\s\x01-\x1F\x7F-\x9F\u2028\u2029]+',' ','g'));
+$$;
+
+-- claim_emails holds these messages a quarter of an hour, and the moves made meanwhile are added to the waiting one: someone
+-- leaving with the people they bring, or joining and leaving again and again, makes one e-mail.
 create function public.notify_organizer_activity() returns trigger language plpgsql security definer set search_path='' as $$
 declare s public.sessions; actor uuid=auth.uid(); previous text; was_in boolean; is_in boolean; who text; line text;
 begin
@@ -422,13 +435,15 @@ begin
   if was_in=is_in then return null; end if;
   select * into s from public.sessions where id=new.session_id;
   if s.status<>'published' or s.starts_at<=now() or s.created_by is null or s.created_by=actor
-    or not exists(select 1 from public.profiles where id=s.created_by and membership='organizer') then return null; end if;
-  select case when new.user_id is null then new.guest_name||', invité·e de '||p.display_name else p.display_name end into who
-    from public.profiles p where p.id=actor;
+    or not exists(select 1 from public.profiles where id=s.created_by and membership='organizer')
+    or not public.wants_email(s.created_by,'activity') then return null; end if;
+  select case when new.user_id is null then public.plain_name(new.guest_name)||', invité·e de '||public.plain_name(p.display_name)
+    else public.plain_name(p.display_name) end into who from public.profiles p where p.id=actor;
   line=who||case when new.status='confirmed' then ' a pris une place.' when new.status='waitlisted' then ' est sur la liste d’attente.'
     when is_in then ' demande une place.' when previous='waitlisted' then ' a quitté la liste d’attente.' else ' a libéré sa place.' end;
   update public.notifications n set title='Inscriptions et désistements',body=n.body||E'\n'||line
-    where n.user_id=s.created_by and n.session_id=s.id and n.kind='activity' and n.emailed_at is null and n.email_attempts=0 and n.claimed_until is null;
+    where n.user_id=s.created_by and n.session_id=s.id and n.kind='activity' and n.emailed_at is null and n.email_attempts=0 and n.claimed_until is null
+      and n.created_at>now()-interval '1 hour' and char_length(n.body)<1500;
   if not found then
     insert into public.notifications(user_id,session_id,title,body,kind)
       values(s.created_by,s.id,case when is_in then 'Nouvelle inscription' else 'Désistement' end,line,'activity');
@@ -438,6 +453,9 @@ end; $$;
 create trigger bookings_activity after insert or update of status on public.bookings for each row execute function public.notify_organizer_activity();
 
 -- As in the change details migration, with the kind of each message, and the seats of the game for the kinds that show them.
+-- What tells someone whether and where to come leaves first; new games, activity and announcements wait their turn, and the
+-- activity of a game a quarter of an hour. A new game, or an organizer's activity, is checked again as it leaves: the game
+-- still published, and the person still allowed to see it or still an organizer.
 drop function public.claim_emails();
 create function public.claim_emails() returns table(id uuid,email text,title text,body text,kind text,session_id uuid,
   session_title text,session_script text,session_starts_at timestamptz,session_location text,changes jsonb,
@@ -445,7 +463,11 @@ create function public.claim_emails() returns table(id uuid,email text,title tex
   with picked as (select n.id from public.notifications n where emailed_at is null and email_attempts<5 and (claimed_until is null or claimed_until<now())
       -- A message that could not leave in time is out of date: never a day late, never once its game has started.
       and n.created_at>now()-interval '24 hours' and not exists(select 1 from public.sessions s where s.id=n.session_id and s.starts_at<=now())
-    order by created_at for update skip locked limit 30),
+      and (n.kind<>'activity' or n.created_at<=now()-interval '15 minutes')
+      and (n.kind not in ('new_game','activity') or exists(select 1 from public.profiles p join public.sessions s on s.id=n.session_id
+        where p.id=n.user_id and s.status='published' and case when n.kind='activity' then p.membership='organizer'
+          else p.membership<>'suspended' and (s.visibility='public' or p.membership in ('member','organizer')) end))
+    order by n.kind in ('new_game','activity','announcement'),n.created_at for update skip locked limit 30),
   claimed as (update public.notifications n set claimed_until=now()+interval '5 minutes',email_attempts=email_attempts+1 from picked where n.id=picked.id returning n.*)
   select c.id,u.email,c.title,c.body,c.kind,c.session_id,s.title,s.script,s.starts_at,s.location,c.changes,
     case when seats.shown then s.capacity end,
@@ -453,12 +475,24 @@ create function public.claim_emails() returns table(id uuid,email text,title tex
     case when seats.shown then (select count(*)::integer from public.bookings b where b.session_id=s.id and b.status='waitlisted') end
   from claimed c join auth.users u on u.id=c.user_id left join public.sessions s on s.id=c.session_id
   cross join lateral (select s.id is not null and c.kind in ('new_game','activity') as shown) seats
-  -- In the order written, so that a later message about a game never arrives first.
-  order by c.created_at,c.id;
+  -- In the order written within each rank, so that a later message about a game never arrives first.
+  order by c.kind in ('new_game','activity','announcement'),c.created_at,c.id;
 $$;
 
+-- Messages claimed but not tried, when the sender stops early (provider's rate limit, time running out), go back to the
+-- outbox without spending one of their five attempts.
+create function public.release_emails(p_ids uuid[]) returns void language sql security definer set search_path = '' as $$
+  update public.notifications set claimed_until=null,email_attempts=greatest(email_attempts-1,0) where id=any(p_ids) and emailed_at is null and claimed_until is not null;
+$$;
+
+-- The outbox was read by its primary key alone: the activity merge, the daily cap of new games, the cascade of a deleted
+-- game and the claim's scan of what is waiting each get an index.
+create index notifications_user_created on public.notifications(user_id,created_at);
+create index notifications_session on public.notifications(session_id);
+create index notifications_waiting on public.notifications(created_at) where emailed_at is null;
+
 revoke execute on function public.wants_email(uuid,text),public.sort_notification(),public.save_notification_choices(jsonb),
-  public.notify(uuid,uuid,text,text,text,text),public.send_session_message(uuid,text,boolean),public.announce_session(),
-  public.notify_organizer_activity(),public.claim_emails() from public,anon,authenticated;
-grant execute on function public.save_notification_choices(jsonb),public.send_session_message(uuid,text,boolean) to authenticated,service_role;
-grant execute on function public.claim_emails() to service_role;
+  public.notify(uuid,uuid,text,text,text,text),public.send_session_message(uuid,text,boolean),public.send_session_message_counts(uuid,text,boolean),public.announce_session(),
+  public.notify_organizer_activity(),public.plain_name(text),public.claim_emails(),public.release_emails(uuid[]) from public,anon,authenticated;
+grant execute on function public.save_notification_choices(jsonb),public.send_session_message(uuid,text,boolean),public.send_session_message_counts(uuid,text,boolean) to authenticated,service_role;
+grant execute on function public.claim_emails(),public.release_emails(uuid[]) to service_role;
