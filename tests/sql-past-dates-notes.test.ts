@@ -41,9 +41,10 @@ test('Une partie peut prendre une date passée, et l’organisateur peut joindre
     assert.deepEqual(await notices(game),[]);
     await h.root();
     assert.equal((await h.call(`select 1 from action_limits where user_id=$1 and action='session_message'`,[uuid(1)])).length,0);
-    // Brought back to the future, the game writes again, from its past date.
+    // Brought back to the future, the game writes again, with its new date alone: nobody was told about the past one.
     await edit(game,at(3));
-    assert.deepEqual((await notices(game)).map(n=>[n.user_id,n.changes.map(c=>c.field)]),[[uuid(2),['starts_at']],[uuid(3),['starts_at']]]);
+    assert.deepEqual((await notices(game)).map(n=>[n.user_id,n.title,n.changes.map(c=>[c.field,'before' in c])]),
+      [[uuid(2),title,[['starts_at',false]]],[uuid(3),title,[['starts_at',false]]]]);
     await clear(game);
   });
   await t.test('une nouvelle partie peut être créée à une date passée ; une série, non',async()=>{
@@ -90,10 +91,10 @@ test('Une partie peut prendre une date passée, et l’organisateur peut joindre
     // …unless the organizer adds a note. A traveller who cannot read the address gets the note alone.
     await edit(game,{title:'Soirée d’hiver',address:'2 rue du Port, Brest',note:'Deux places de plus la semaine prochaine.'},6);
     const note='Message de Joueur 6 :\nDeux places de plus la semaine prochaine.';
-    assert.deepEqual((await notices(game)).map(n=>[n.user_id,n.body,n.changes.map(c=>c.field)]),[
-      [uuid(2),note,[]],
-      [uuid(3),note,[]],
-      [uuid(4),`Vérifie ce qui change avant de venir. Préviens Ana et Inès et Lou et Max et Tom et Zoé.\n\n${note}`,['address']],
+    assert.deepEqual((await notices(game)).map(n=>[n.user_id,n.title,n.body,n.changes.map(c=>c.field)]),[
+      [uuid(2),'Un mot sur ta session',note,[]],
+      [uuid(3),'Un mot sur ta session',note,[]],
+      [uuid(4),title,`Vérifie ce qui change avant de venir. Préviens Ana et Inès et Lou et Max et Tom et Zoé.\n\n${note}`,['address']],
     ]);
     // A later edit before it leaves keeps the note and adds the change; a second note follows the first.
     const first=await current(game);
@@ -126,7 +127,7 @@ test('Une partie peut prendre une date passée, et l’organisateur peut joindre
     await h.login(1);await h.call('select send_session_message($1,$2)',[game,'Pensez aux gâteaux.']);
     await edit(game,{note:'Rien ne change.'});
     await h.root();
-    assert.deepEqual((await h.call<{title:string}>('select distinct title from notifications where session_id=$1 and email_attempts<5 order by 1',[game])).map(n=>n.title),[title,'Message de Joueur 1']);
+    assert.deepEqual((await h.call<{title:string}>('select distinct title from notifications where session_id=$1 and email_attempts<5 order by 1',[game])).map(n=>n.title),['Message de Joueur 1','Un mot sur ta session']);
     await clear(game);
   });
   await t.test('un mot trop long est refusé ; les mots comptent parmi les dix messages du jour',async()=>{

@@ -65,6 +65,8 @@ begin
     -- A venue's message merged with a game's own takes the general wording.
     heading=p_title;message=p_body;
     if kinds<>array[p_title] then heading='Les informations de ta session ont changé';message='Vérifie ce qui change avant de venir.'; end if;
+    -- Nothing this person reads changed: the subject does not say otherwise.
+    if jsonb_array_length(merged)=0 then heading='Un mot sur ta session'; end if;
     insert into public.notifications(user_id,session_id,title,body,changes,note,sender_id)
       values(r.recipient,p_session,heading,concat_ws(E'\n\n',
         -- Nothing this person reads changed: the note is the message, passed on to the people they bring.
@@ -126,8 +128,10 @@ begin
       end if;
       -- Only a change of date or place is written to the people registered: a new name or more seats is not, unless
       -- the organizer adds a note.
+      -- A game brought back from a past date was never told about it: the message gives its new date alone.
       if previous.starts_at is distinct from starts then
-        changed=changed||jsonb_build_array(jsonb_build_object('field','starts_at','before',previous.starts_at,'after',starts));
+        changed=changed||jsonb_build_array(jsonb_build_object('field','starts_at','after',starts)
+          ||case when previous.starts_at>now() then jsonb_build_object('before',previous.starts_at) else '{}'::jsonb end);
       end if;
       if previous.location is distinct from p_data->>'location' then
         changed=changed||jsonb_build_array(jsonb_build_object('field','location','before',previous.location,'after',p_data->>'location'));

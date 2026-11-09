@@ -6,7 +6,7 @@ import { fromParisInput, parisInput } from './utils';
 /** What the form says about each field, and what sessionSchema says too when the server refuses a game. */
 export const sessionMessages = {
   title: 'Le nom de la partie tient en 100 caractères au plus.',
-  scriptShort: 'Indique le script joué, en 2 caractères au moins.', scriptLong: 'Le nom du script tient en 100 caractères au plus.',
+  scriptShort: 'Écris au moins 2 caractères, ou laisse le champ vide si le script n’est pas encore choisi.', scriptLong: 'Le nom du script tient en 100 caractères au plus.',
   start: 'Choisis le jour et l’heure du début.', past: 'Choisis une date à venir.', end: 'La fin doit être après le début.',
   locationShort: 'Indique le lieu affiché à tous, en 2 caractères au moins.', locationLong: 'Le lieu affiché tient en 150 caractères au plus.',
   address: 'L’adresse et le lien de carte doivent tenir en 500 caractères.', link: 'Colle un lien complet, qui commence par https://.',
@@ -54,7 +54,8 @@ export function checkSessionForm(values: SessionFormValues, { session, venue }: 
   const endsAt = session && startsAt ? sessionEnd(startsAt, session) : undefined;
   if (endsAt && !(Date.parse(endsAt) > Date.parse(startsAt))) message = sessionMessages.end;
   set('title', values.title.trim().length > 100 ? sessionMessages.title : undefined);
-  set('script', length(values.script, 2, 100, sessionMessages.scriptShort, sessionMessages.scriptLong));
+  // The script may wait: left empty, the game goes by its name, or by the game itself.
+  set('script', values.script.trim() ? length(values.script, 2, 100, sessionMessages.scriptShort, sessionMessages.scriptLong) : undefined);
   // A picked venue fills the place and its address: the fields of « Autre lieu » are neither shown nor sent.
   if (!venue) {
     set('location', length(values.location, 2, 150, sessionMessages.locationShort, sessionMessages.locationLong));

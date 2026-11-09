@@ -21,7 +21,7 @@ test('chaque champ refusé reçoit son propre message en français', () => {
   assert.deepEqual(errors, {
     title: 'Le nom de la partie tient en 100 caractères au plus.',
     starts_at: 'Choisis le jour et l’heure du début.',
-    script: 'Indique le script joué, en 2 caractères au moins.',
+    script: 'Écris au moins 2 caractères, ou laisse le champ vide si le script n’est pas encore choisi.',
     location: 'Indique le lieu affiché à tous, en 2 caractères au moins.',
     address: 'L’adresse et le lien de carte doivent tenir en 500 caractères.',
     maps_url: 'Colle un lien complet, qui commence par https://.',
@@ -42,6 +42,15 @@ test('les places, la date et le lien de carte sont expliqués selon l’erreur',
   assert.equal(check({ maps_url: 'javascript:alert(1)' }).maps_url, 'Colle un lien complet, qui commence par https://.');
   assert.equal(check({ maps_url: 'https://' }).maps_url, 'Colle un lien complet, qui commence par https://.');
   assert.equal(check({ maps_url: 'https://maps.app.goo.gl/abc' }).maps_url, undefined);
+});
+
+test('une partie peut attendre son script', () => {
+  assert.deepEqual(checkSessionForm({ ...values, script: '' }, {}).errors, {});
+  assert.equal(sessionSchema.parse({ ...checkSessionForm({ ...values, script: '  ' }, {}).payload }).script, '');
+  // Sent without any script, the game has none.
+  const { script: _, ...noScript } = checkSessionForm(values, {}).payload!;
+  assert.equal(sessionSchema.parse(noScript).script, '');
+  assert.equal(seriesSchema.parse({ ...checkSessionForm({ ...values, repeat: '1', weeks_ahead: '4', ends_on: '', script: '' }, {}).payload }).script, '');
 });
 
 test('un formulaire juste donne ce que saveSession attend', () => {
@@ -72,12 +81,12 @@ test('une durée enregistrée impossible est signalée pour toute la partie', ()
 test('le formulaire et le serveur refusent les mêmes valeurs avec les mêmes mots', () => {
   const cases: Partial<SessionFormValues>[] = [{},
     { title: 'x'.repeat(100) }, { title: 'x'.repeat(101) }, { title: `  ${'x'.repeat(100)}  ` },
-    { script: '' }, { script: ' a ' }, { script: 'ab' }, { script: 'x'.repeat(100) }, { script: 'x'.repeat(101) },
+    { script: '' }, { script: '   ' }, { script: ' a ' }, { script: 'ab' }, { script: 'x'.repeat(100) }, { script: 'x'.repeat(101) },
     { starts_at: '2020-10-02T19:30' },
     { location: '' }, { location: ' a ' }, { location: 'ab' }, { location: 'x'.repeat(151) }, { address: 'x'.repeat(500) }, { address: 'x'.repeat(501) },
     { capacity: '' }, { capacity: ' ' }, { capacity: '2' }, { capacity: '6' }, { capacity: '7' }, { capacity: '20' }, { capacity: '21' }, { capacity: '7.5' }, { capacity: '2.5' }, { capacity: '-3' }, { capacity: '1e400' }, { capacity: 'abc' },
     { visibility: 'members' }, { visibility: '' }, { visibility: 'secret' },
-    { title: 'x'.repeat(101), script: '', location: '', capacity: '2', visibility: 'x' },
+    { title: 'x'.repeat(101), script: '', location: '', capacity: '2', visibility: 'x' }, { title: 'x'.repeat(101), script: 'a', location: '', capacity: '2', visibility: 'x' },
   ];
   for (const changes of cases) {
     const form = { ...values, ...changes };
@@ -91,7 +100,7 @@ test('le formulaire et le serveur refusent les mêmes valeurs avec les mêmes mo
 
 test('ce que le formulaire laisse partir, le serveur l’accepte, lieu choisi ou partie modifiée', () => {
   const session = { id: '10000000-0000-4000-8000-000000000001', starts_at: '2026-10-02T17:00:00Z', ends_at: '2026-10-02T20:00:00Z' };
-  for (const context of [{}, { venue }, { session }, { session, venue }]) for (const changes of [{}, { title: 'Soirée d’automne', capacity: '7' }, { capacity: '20', visibility: 'members', maps_url: 'https://maps.app.goo.gl/abc', address: '12 rue de Siam\nhttps://maps.app.goo.gl/abc' }]) {
+  for (const context of [{}, { venue }, { session }, { session, venue }]) for (const changes of [{}, { title: 'Soirée d’automne', capacity: '7' }, { script: '' }, { title: '', script: '  ' }, { capacity: '20', visibility: 'members', maps_url: 'https://maps.app.goo.gl/abc', address: '12 rue de Siam\nhttps://maps.app.goo.gl/abc' }]) {
     const { payload } = checkSessionForm({ ...values, ...changes }, context);
     assert.ok(payload, JSON.stringify([context, changes]));
     assert.equal(sessionSchema.safeParse(payload).success, true, JSON.stringify([context, changes]));
@@ -123,7 +132,7 @@ test('une partie récurrente donne son rythme, ses dates ouvertes et sa dernièr
 test('le formulaire et le serveur refusent les mêmes séries avec les mêmes mots', () => {
   const cases: Partial<SessionFormValues>[] = [{}, { repeat: '2' }, { repeat: '3' }, { repeat: '0' }, { weeks_ahead: '' }, { weeks_ahead: '0' }, { weeks_ahead: '1' }, { weeks_ahead: '12' }, { weeks_ahead: '13' }, { weeks_ahead: '2.5' },
     { ends_on: '2099-10-01' }, { ends_on: '2099-10-02' }, { ends_on: '2100-01-01' }, { ends_on: '2099-02-30' }, { ends_on: '2099-13-01' }, { ends_on: 'demain' },
-    { capacity: '2', weeks_ahead: '0' }, { script: '', repeat: '5', ends_on: 'x' }, { starts_at: '2020-10-02T19:30' }, { starts_at: '2020-10-02T19:30', capacity: '2' }];
+    { capacity: '2', weeks_ahead: '0' }, { script: '', repeat: '5', ends_on: 'x' }, { script: '' }, { script: 'a', repeat: '5' }, { starts_at: '2020-10-02T19:30' }, { starts_at: '2020-10-02T19:30', capacity: '2' }];
   for (const changes of cases) {
     const form = { ...values, ...weekly, ...changes };
     const { errors, message } = checkSessionForm(form, {});
