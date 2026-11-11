@@ -90,6 +90,19 @@ test('Une partie peut prendre une date passée, et l’organisateur peut joindre
     assert.deepEqual((await notices(game)).map(n=>[n.user_id,n.title,n.changes.map(c=>c.field),n.note,n.sender_id]),[
       [uuid(1),title,['starts_at'],other,uuid(6)],[uuid(2),title,['starts_at'],other,uuid(6)],[uuid(3),title,['starts_at'],other,uuid(6)]]);
     await clear(game);
+    // The message waiting for its writer takes their next note, as the others' do…
+    const planned=await current(game);
+    await edit(game,{...at(13),note:'Premier mot.'});
+    await edit(game,{note:'Deuxième mot.'});
+    const both='Message de Joueur 1 :\nPremier mot.\n\nMessage de Joueur 1 :\nDeuxième mot.';
+    assert.deepEqual((await notices(game)).map(n=>[n.user_id,n.title,n.changes.map(c=>c.field),n.note]),[
+      [uuid(1),title,['starts_at'],both],[uuid(2),title,['starts_at'],both],[uuid(3),title,['starts_at'],both]]);
+    // …and, the change undone, keeps every note, as the others' do.
+    await edit(game,{starts_at:planned.starts_at.toISOString(),ends_at:planned.ends_at.toISOString(),note:'Finalement non.'});
+    const all=`${both}\n\nMessage de Joueur 1 :\nFinalement non.`;
+    assert.deepEqual((await notices(game)).map(n=>[n.user_id,n.title,n.changes.length,n.note]),[
+      [uuid(1),'Un mot sur ta session',0,all],[uuid(2),'Un mot sur ta session',0,all],[uuid(3),'Un mot sur ta session',0,all]]);
+    await clear(game);
   });
   await t.test('un mot sans changement visible part quand même, à tous les inscrits et à la liste d’attente',async()=>{
     const game=uuid(102);await h.session(game,{capacity:7,startsIn:'10 days'});

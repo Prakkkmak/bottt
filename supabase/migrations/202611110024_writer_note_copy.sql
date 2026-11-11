@@ -1,7 +1,8 @@
 -- An organizer registered for the game they edit gets the message about the change like everyone else, but it came
 -- without the few words they had added for the people registered: reading it, they could only think their note had not
--- left. The message they get now carries their note too, so that it shows what the others read. A note with nothing
--- they read changed still writes them nothing: their own words alone would tell them nothing new.
+-- left. Their own message now carries their note too, so that it shows what the others read, and a message waiting for
+-- them takes their next notes like the others' do. A note written while nothing they read changed and no message waits
+-- for them still writes them nothing, then or with a later change: their own words alone would tell them nothing new.
 
 -- Same as the past dates and change notes migration, except for the note of the writer in their own message.
 create or replace function public.notify_session_change(p_session uuid,p_title text,p_body text,p_changes jsonb,p_address jsonb,p_previous_start timestamptz,p_note text default null)
@@ -24,8 +25,7 @@ begin
     mine=r.recipient is not distinct from auth.uid();
     note=nullif(p_note,'');
     writer=case when note is not null then auth.uid() end;
-    -- Its writer is not written to about their note alone: they have just written it.
-    continue when jsonb_array_length(fresh)=0 and (note is null or mine);
+    continue when jsonb_array_length(fresh)=0 and note is null;
     -- One being sent right now may still leave: the new one then repeats its former values, which stay true.
     with replaced as (update public.notifications n set email_attempts=5
         where n.user_id=r.recipient and n.session_id=p_session and (n.changes<>'[]'::jsonb or n.note is not null) and n.emailed_at is null and n.email_attempts<5
@@ -36,6 +36,9 @@ begin
         (select string_agg(q.note,E'\n\n' order by q.created_at,q.id) from replaced q where q.created_at>now()-interval '24 hours'),
         (select q.sender_id from replaced q where q.note is not null and q.created_at>now()-interval '24 hours' order by q.created_at desc,q.id desc limit 1)
       into earlier,kinds,notes,sender;
+    -- Its writer is not written to about their note alone, with nothing waiting for them: they have just written it.
+    -- A message waiting for them was replaced above and is written again below, with this note, as the others' are.
+    continue when mine and jsonb_array_length(fresh)=0 and jsonb_array_length(earlier)=0 and notes is null;
     merged='[]';
     foreach f in array array['starts_at','location','address'] loop
       newest=(select e.change from jsonb_array_elements(fresh) e(change) where e.change->>'field'=f);
@@ -47,8 +50,6 @@ begin
       continue when former is not null and case when f='starts_at' then (former#>>'{}')::timestamptz=(latter#>>'{}')::timestamptz else former=latter end;
       merged=merged||jsonb_build_array(jsonb_build_object('field',f,'after',latter)||case when former is null then '{}'::jsonb else jsonb_build_object('before',former) end);
     end loop;
-    -- Its writer reads their note with a change they read, never alone; the notes written before it stay in either case.
-    if mine and jsonb_array_length(merged)=0 then note=null;writer=null; end if;
     note=nullif(concat_ws(E'\n\n',notes,note),'');
     continue when jsonb_array_length(merged)=0 and note is null;
     -- A venue's message merged with a game's own takes the general wording.
