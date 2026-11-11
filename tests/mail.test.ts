@@ -42,7 +42,7 @@ test('e-mails d’inscription, de liste d’attente et de place libérée', () =
 });
 
 test('e-mail d’une partie modifiée : l’ancienne valeur puis la nouvelle', () => {
-  const game = { id: 'n3', email: 'lea@exemple.fr', session_id: 's1', session_title: '', session_script: 'Trouble Brewing', session_starts_at: '2026-10-24T18:00:00Z', session_location: 'La Tour', title: 'Les informations de ta session ont changé', body: 'Vérifie ce qui change avant de venir. Préviens Nora.' };
+  const game = { id: 'n3', email: 'lea@exemple.fr', session_id: 's1', session_title: '', session_script: 'Trouble Brewing', session_starts_at: '2026-10-24T18:00:00Z', session_location: 'La Tour', title: 'Les informations de ta session ont changé', body: 'Les informations de ta session ont changé. Préviens Nora.' };
   const moved = notificationMail({ ...game, changes: [
     { field: 'starts_at', before: '2026-10-23T17:30:00+00:00', after: '2026-10-24T18:00:00+00:00' },
     { field: 'location', before: 'Le Grenier', after: 'La Tour' },
@@ -51,7 +51,7 @@ test('e-mail d’une partie modifiée : l’ancienne valeur puis la nouvelle', (
   // The subject gives the new date; each changed line gives the former value, then the new one, in Paris time.
   assert.equal(moved.subject, 'Les informations de ta session ont changé · Trouble Brewing, samedi 24 octobre');
   assert.deepEqual(moved.text.split('\n\n'), [
-    'Vérifie ce qui change avant de venir. Préviens Nora.',
+    'Les informations de ta session ont changé. Préviens Nora.',
     'Partie : Trouble Brewing\nQuand : vendredi 23 octobre à 19h30 → samedi 24 octobre à 20h00\nOù : Le Grenier → La Tour\nAdresse : 1 rue du Port, 29200 Brest → 8 rue de Siam, Brest, https://maps.app.goo.gl/x',
     'https://bottt.fr/sessions/s1',
     'Blood on the Tanguy Tower',
@@ -72,4 +72,20 @@ test('e-mail d’une partie modifiée : l’ancienne valeur puis la nouvelle', (
   for (const changes of [null, [], 'x', [null, 3, { field: 'title', before: 'a', after: 'b' }, { field: 'starts_at', before: 'hier', after: '2026-10-24T18:00:00Z' }, { field: 'location', before: 1, after: 'La Tour' }, { field: 'location', after: 'La Tour' }, { field: 'address', before: null, after: 'x' }]]) {
     assert.equal(notificationMail({ ...game, changes }, 'https://bottt.fr').text.split('\n\n')[1], plain);
   }
+  // The organizer's note comes after what changed, its paragraphs kept; a note with nothing changed comes before the game.
+  const note = 'Message de Lévy :\nLa salle ouvre plus tard.\n\nMessage de Nora :\nJ’apporte le grimoire.';
+  const noted = notificationMail({ ...game, kind: 'change', body: `Les informations de ta session ont changé.\n\n${note}`,
+    changes: [{ field: 'starts_at', before: '2026-10-24T17:30:00Z', after: '2026-10-24T18:00:00Z' }] }, 'https://bottt.fr');
+  assert.deepEqual(noted.text.split('\n\n').slice(0, 5), [
+    'Les informations de ta session ont changé.',
+    'Partie : Trouble Brewing\nQuand : samedi 24 octobre à 19h30 → 20h00\nOù : La Tour',
+    'Message de Lévy :\nLa salle ouvre plus tard.',
+    'Message de Nora :\nJ’apporte le grimoire.',
+    'https://bottt.fr/sessions/s1',
+  ]);
+  // A game brought back from a past date gives its new date alone, still before the note.
+  const back = notificationMail({ ...game, kind: 'change', body: `Les informations de ta session ont changé.\n\n${note}`, changes: [{ field: 'starts_at', after: '2026-10-24T18:00:00Z' }] }, 'https://bottt.fr');
+  assert.deepEqual(back.text.split('\n\n').slice(0, 3), ['Les informations de ta session ont changé.', plain, 'Message de Lévy :\nLa salle ouvre plus tard.']);
+  const word = notificationMail({ ...game, kind: 'change', title: 'Un mot sur ta session', body: `Transmets ce message à Nora.\n\n${note}`, changes: [] }, 'https://bottt.fr');
+  assert.deepEqual(word.text.split('\n\n').slice(0, 5), ['Transmets ce message à Nora.', 'Message de Lévy :\nLa salle ouvre plus tard.', 'Message de Nora :\nJ’apporte le grimoire.', plain, 'https://bottt.fr/sessions/s1']);
 });

@@ -98,7 +98,7 @@ test('Gestion des lieux par les organisateurs',async t=>{
       {id:past,location:'Le Grenier',address:'1 rue du Port, Brest'},{id:cancelled,location:'Le Grenier',address:'1 rue du Port, Brest'},
       {id:upcoming,location:'Le Grenier du port',address:'8 rue du Port, Brest'}]);
     const notices=await h.call<{user_id:string;title:string;body:string}>(`select user_id,title,body from notifications where title='Le lieu de ta session a changé' order by user_id`);
-    assert.deepEqual(notices.map(n=>[n.user_id,n.body]),[[uuid(2),'Vérifie le nouveau lieu avant de venir.'],[uuid(4),'Vérifie le nouveau lieu avant de venir. Préviens Paul.']]);
+    assert.deepEqual(notices.map(n=>[n.user_id,n.body]),[[uuid(2),'Le lieu de ta session a changé.'],[uuid(4),'Le lieu de ta session a changé. Préviens Paul.']]);
     // Saving a venue unchanged, or only fixing its capitals, sends nothing; the games still take the new spelling.
     const count=async()=>{await h.root();return Number((await h.call<{count:string}>('select count(*) from notifications'))[0].count);};
     const before=await count();

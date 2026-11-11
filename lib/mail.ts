@@ -84,7 +84,8 @@ function choicesLine(m: QueuedEmail, site: string) {
 }
 
 /** A notification as an e-mail: the subject names the game and its date, the text adds when and where, a link back to it and
- * where to choose one's e-mails. When the game changed, each changed line reads as before → now, a time alone after the arrow when the day stays the same. */
+ * where to choose one's e-mails. When the game changed, each changed line reads as before → now, a time alone after the arrow when the day stays the same,
+ * and these lines follow the first paragraph, which says what changed (public.notify_session_change writes it on one line), before the organizer's notes. */
 export function notificationMail(m: QueuedEmail, site = siteUrl()) {
   // Every game has a date, not always a script: the date says the message is about a game still on the site.
   const game = m.session_starts_at ? sessionName({ title: m.session_title ?? '', script: m.session_script ?? '' }) : '';
@@ -98,7 +99,11 @@ export function notificationMail(m: QueuedEmail, site = siteUrl()) {
   const link = `${site}${m.session_id ? `/sessions/${m.session_id}` : '/'}`;
   // Guest names reach the title: a line break must not end the subject header.
   const subject = [m.title, game && [game, day].filter(Boolean).join(', ')].filter(Boolean).join(' · ').replace(/\s+/g, ' ').trim();
-  return { subject, text: [m.body, details, link, choicesLine(m, site), 'Blood on the Tanguy Tower'].filter(Boolean).join('\n\n') };
+  // A change is read first, then what the organizer added about it; a new date given alone (a game brought back from the past) is one too.
+  const changed = Array.isArray(m.changes) && m.changes.length > 0;
+  const split = changed ? m.body.indexOf('\n\n') : -1;
+  const [lead, notes] = split >= 0 ? [m.body.slice(0, split), m.body.slice(split + 2)] : [m.body, ''];
+  return { subject, text: [lead, details, notes, link, choicesLine(m, site), 'Blood on the Tanguy Tower'].filter(Boolean).join('\n\n') };
 }
 
 /** The sponsorship e-mail: fixed text, so a member cannot use it to send arbitrary content. */
