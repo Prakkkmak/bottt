@@ -41,8 +41,8 @@ test('Les messages de modification donnent l’ancienne et la nouvelle valeur',a
     assert.deepEqual([Date.parse(moved.before),Date.parse(moved.after)],[before.starts_at.getTime(),starts.getTime()]);
     assert.deepEqual([place.before,place.after],['Brest','La Tour']);
     assert.deepEqual([address.before,address.after],['1 rue du Port, Brest','8 rue de Siam, Brest']);
-    assert.equal(sent[0].body,'Vérifie ce qui change avant de venir.');
-    assert.equal(sent[2].body,'Vérifie ce qui change avant de venir. Préviens Inès et Lou et Paul et Tom.');
+    assert.equal(sent[0].body,'Les informations de ta session ont changé.');
+    assert.equal(sent[2].body,'Les informations de ta session ont changé. Préviens Inès et Lou et Paul et Tom.');
   });
   await t.test('seule l’adresse change : seuls ceux qui la lisent sont prévenus',async()=>{
     await h.root();await h.call(`update session_addresses set address='8 rue de Siam, Brest' where session_id=$1`,[game]);
@@ -100,7 +100,7 @@ test('Les messages de modification donnent l’ancienne et la nouvelle valeur',a
       [uuid(4),[{field:'location',before:'Le Grenier',after:'Le Grenier du port'},{field:'address',before:'1 rue du Port, Brest',after:'8 rue du Port, Brest'}]],
       [uuid(5),[{field:'location',before:'Le Grenier',after:'Le Grenier du port'}]],
     ]);
-    assert.equal(sent[2].body,'Vérifie le nouveau lieu avant de venir. Préviens Inès et Lou et Paul et Tom.');
+    assert.equal(sent[2].body,'Le lieu de ta session a changé. Préviens Inès et Lou et Paul et Tom.');
     // Fixing the capitals of the name while moving the address only gives the address, to those who read it.
     await h.login(1);await h.call('select save_venue($1)',[{id:venue,name:'Le Grenier du Port',address:'9 rue du Port, Brest'}]);
     assert.deepEqual((await notices('Le lieu de ta session a changé')).map(n=>[n.user_id,fields(n)]),[[uuid(2),['address']],[uuid(4),['address']]]);
@@ -150,7 +150,7 @@ test('Les messages de modification donnent l’ancienne et la nouvelle valeur',a
     await edit({location:'Brest',address:'1 rue du Port, Brest'},twice);
     await h.root();
     const pending=await h.call<{title:string;body:string;changes:Change[]}>(`select title,body,changes from notifications where session_id=$1 and user_id=$2 and emailed_at is null and email_attempts<5`,[twice,uuid(2)]);
-    assert.deepEqual(pending.map(n=>[n.title,n.body,n.changes.map(c=>[c.field,c.before,c.after])]),[['Les informations de ta session ont changé','Vérifie ce qui change avant de venir.',
+    assert.deepEqual(pending.map(n=>[n.title,n.body,n.changes.map(c=>[c.field,c.before,c.after])]),[['Les informations de ta session ont changé','Les informations de ta session ont changé.',
       [['location','Le Phare','Brest'],['address','3 quai Est, Brest','1 rue du Port, Brest']]]]);
     await h.call('delete from notifications where session_id=$1',[twice]);
     // The outbox gives messages in the order written.
