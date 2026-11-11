@@ -99,8 +99,8 @@ export function notificationMail(m: QueuedEmail, site = siteUrl()) {
   const link = `${site}${m.session_id ? `/sessions/${m.session_id}` : '/'}`;
   // Guest names reach the title: a line break must not end the subject header.
   const subject = [m.title, game && [game, day].filter(Boolean).join(', ')].filter(Boolean).join(' · ').replace(/\s+/g, ' ').trim();
-  // A change is read first, then what the organizer added about it.
-  const changed = moved || place || exact;
+  // A change is read first, then what the organizer added about it; a new date given alone (a game brought back from the past) is one too.
+  const changed = Array.isArray(m.changes) && m.changes.length > 0;
   const split = changed ? m.body.indexOf('\n\n') : -1;
   const [lead, notes] = split >= 0 ? [m.body.slice(0, split), m.body.slice(split + 2)] : [m.body, ''];
   return { subject, text: [lead, details, notes, link, choicesLine(m, site), 'Blood on the Tanguy Tower'].filter(Boolean).join('\n\n') };

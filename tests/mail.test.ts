@@ -83,6 +83,9 @@ test('e-mail d’une partie modifiée : l’ancienne valeur puis la nouvelle', (
     'Message de Nora :\nJ’apporte le grimoire.',
     'https://bottt.fr/sessions/s1',
   ]);
+  // A game brought back from a past date gives its new date alone, still before the note.
+  const back = notificationMail({ ...game, kind: 'change', body: `Les informations de ta session ont changé.\n\n${note}`, changes: [{ field: 'starts_at', after: '2026-10-24T18:00:00Z' }] }, 'https://bottt.fr');
+  assert.deepEqual(back.text.split('\n\n').slice(0, 3), ['Les informations de ta session ont changé.', plain, 'Message de Lévy :\nLa salle ouvre plus tard.']);
   const word = notificationMail({ ...game, kind: 'change', title: 'Un mot sur ta session', body: `Transmets ce message à Nora.\n\n${note}`, changes: [] }, 'https://bottt.fr');
   assert.deepEqual(word.text.split('\n\n').slice(0, 5), ['Transmets ce message à Nora.', 'Message de Lévy :\nLa salle ouvre plus tard.', 'Message de Nora :\nJ’apporte le grimoire.', plain, 'https://bottt.fr/sessions/s1']);
 });
