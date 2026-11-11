@@ -56,7 +56,7 @@ test('Une partie peut prendre une date passée, et l’organisateur peut joindre
     await h.login(1);
     await assert.rejects(h.call('select save_session($1::jsonb)',[JSON.stringify({title:'',description:'',script:'Trouble Brewing',location:'Brest',address:'',capacity:8,beginners_welcome:true,visibility:'public'})]),/jour et l’heure/);
   });
-  await t.test('le mot part avec les changements, signé, à chacun sauf à son auteur',async()=>{
+  await t.test('le mot part avec les changements, signé, à chacun, son auteur compris quand il reçoit le changement',async()=>{
     const game=uuid(101);await h.session(game,{startsIn:'10 days'});
     await h.root();await h.call(`insert into session_addresses values($1,'1 rue du Port, Brest')`,[game]);
     for(const n of [1,2,3])assert.equal(await book(n,game),'confirmed');
@@ -66,16 +66,29 @@ test('Une partie peut prendre une date passée, et l’organisateur peut joindre
     const sent=await notices(game);
     assert.deepEqual(sent.map(n=>[n.user_id,n.title,n.changes.map(c=>c.field)]),[[uuid(1),title,['starts_at']],[uuid(2),title,['starts_at']],[uuid(3),title,['starts_at']]]);
     const note='Message de Joueur 1 :\nLa salle est prise mercredi :\non décale à jeudi.';
-    // The writer gets the change, not their own words.
-    assert.deepEqual([sent[0].body,sent[0].note],['Vérifie ce qui change avant de venir.',null]);
+    // The writer, registered too, gets the change with their own words, as the others read them.
+    assert.deepEqual([sent[0].body,sent[0].note],[`Vérifie ce qui change avant de venir.\n\n${note}`,note]);
     assert.deepEqual([sent[1].body,sent[1].note],[`Vérifie ce qui change avant de venir. Préviens Paul.\n\n${note}`,note]);
     assert.equal(sent[2].body,`Vérifie ce qui change avant de venir.\n\n${note}`);
     // The message keeps the account that wrote its note.
     await h.root();
-    assert.deepEqual((await h.call<{user_id:string;sender_id:string|null}>('select user_id,sender_id from notifications where session_id=$1 order by user_id',[game])).map(n=>n.sender_id),[null,uuid(1),uuid(1)]);
+    assert.deepEqual((await h.call<{user_id:string;sender_id:string|null}>('select user_id,sender_id from notifications where session_id=$1 order by user_id',[game])).map(n=>n.sender_id),[uuid(1),uuid(1),uuid(1)]);
     // The outbox gives the note within the text.
     await h.root();
     assert.ok((await h.call<{body:string}>('select body from claim_emails() where session_id=$1',[game])).every(m=>m.body.startsWith('Vérifie ce qui change')));
+    await clear(game);
+    // A note with nothing changed writes to the others only: its writer is not sent their own words alone.
+    await edit(game,{note:'Pensez à vos gâteaux.'});
+    assert.deepEqual((await notices(game)).map(n=>[n.user_id,n.title]),[[uuid(2),'Un mot sur ta session'],[uuid(3),'Un mot sur ta session']]);
+    await clear(game);
+    // A change made with no note leaves without one, for its writer as for the others.
+    await edit(game,at(12));
+    assert.deepEqual((await notices(game)).map(n=>[n.user_id,n.note]),[[uuid(1),null],[uuid(2),null],[uuid(3),null]]);
+    // Another organizer's note, added before it leaves, reaches the first one too, with the change.
+    await edit(game,{note:'Je ramène le grimoire.'},6);
+    const other='Message de Joueur 6 :\nJe ramène le grimoire.';
+    assert.deepEqual((await notices(game)).map(n=>[n.user_id,n.title,n.changes.map(c=>c.field),n.note,n.sender_id]),[
+      [uuid(1),title,['starts_at'],other,uuid(6)],[uuid(2),title,['starts_at'],other,uuid(6)],[uuid(3),title,['starts_at'],other,uuid(6)]]);
     await clear(game);
   });
   await t.test('un mot sans changement visible part quand même, à tous les inscrits et à la liste d’attente',async()=>{
