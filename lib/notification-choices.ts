@@ -7,7 +7,7 @@ export type NotificationChoice = { kind: OptionalKind; label: string; detail: st
 
 /** What the profile page offers, in its order: what each kind sends, and whether it is on for someone who never chose. */
 export const notificationChoices: readonly NotificationChoice[] = [
-  { kind: 'booking', label: 'Mes inscriptions', detail: 'La confirmation quand tu t’inscris, inscris un·e invité·e, rejoins ou quittes la liste d’attente, ou te désistes.', defaultOn: true },
+  { kind: 'booking', label: 'Mes inscriptions', detail: 'La confirmation quand tu t’inscris, inscris un·e invité·e, rejoins ou quittes la liste d’attente, ou te désistes, et à chaque nouvelle date d’une partie où tu viens à chaque fois.', defaultOn: true },
   { kind: 'reminder', label: 'Rappel avant la partie', detail: 'Moins de 24 h avant une partie où toi ou les personnes que tu amènes avez une place.', defaultOn: true },
   { kind: 'message', label: 'Messages des organisateurs', detail: 'Ce qu’un organisateur écrit aux inscrits d’une partie où tu es inscrit·e.', defaultOn: true },
   { kind: 'announcement', label: 'Annonces du cercle', detail: 'Les nouvelles qu’un organisateur envoie à tout le monde.', defaultOn: true },

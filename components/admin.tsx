@@ -4,9 +4,9 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { Plus, CalendarDays, UsersRound, Clock3, X, Pencil, BookOpen, Link2, Trash2, Repeat, Mail, Send, Play } from 'lucide-react';
-import type { ActionResult, Announcement, AnnouncementCounts, AppData, GameSession, Booking, Membership, Profile, Series, Venue } from '@/lib/types';
+import type { ActionResult, Announcement, AnnouncementCounts, AppData, GameSession, Booking, Membership, Profile, Series, SeriesRegular, Venue } from '@/lib/types';
 import { time, statusLabels, sessionUrl, activeBooking, sessionName, dateLong } from '@/lib/utils';
-import { seriesSummary } from '@/lib/series';
+import { regularsSummary, seriesSummary } from '@/lib/series';
 import { bookingLabel, experienceLabels, experienceOf, membershipLabels, messageRecipients, orderBySponsor, waitlistPositions } from '@/lib/guests';
 import { cancelSession, deleteSeries, deleteSession, removeParticipant, sendSessionMessage, setMembership, stopSeries } from '@/app/actions';
 import { Dialog } from './dialog';
@@ -25,7 +25,7 @@ const rankChoices: { value: Exclude<Membership, 'suspended'>; label: string; not
 ];
 const SessionForm = dynamic(() => import('./session-form').then(mod => mod.SessionForm), { loading: () => <p className="muted">Chargement du formulaire…</p> });
 
-export function Admin({ data, bookings, profiles, addresses, venues, series = [], scripts = [], characters = [], announcements = [], announcementCounts = null, initialCreate = false }: { data: AppData; bookings: Booking[]; profiles: Profile[]; addresses: Record<string, string>; venues: Venue[]; series?: Series[]; scripts?: CustomScript[]; characters?: CharacterChoice[]; announcements?: Announcement[]; announcementCounts?: AnnouncementCounts | null; initialCreate?: boolean }) {
+export function Admin({ data, bookings, profiles, addresses, venues, series = [], scripts = [], characters = [], announcements = [], announcementCounts = null, regulars = [], initialCreate = false }: { data: AppData; bookings: Booking[]; profiles: Profile[]; addresses: Record<string, string>; venues: Venue[]; series?: Series[]; scripts?: CustomScript[]; characters?: CharacterChoice[]; announcements?: Announcement[]; announcementCounts?: AnnouncementCounts | null; regulars?: SeriesRegular[]; initialCreate?: boolean }) {
   const [tab, setTab] = useState<'sessions' | 'members' | 'venues' | 'scripts' | 'messages'>('sessions');
   const [editing, setEditing] = useState<GameSession | 'new' | null>(initialCreate ? 'new' : null);
   const [selected, setSelected] = useState<GameSession | null>(null);
@@ -61,6 +61,8 @@ export function Admin({ data, bookings, profiles, addresses, venues, series = []
   const booked = (s: GameSession) => s.confirmed_count > 0 || bookings.some(b => b.session_id === s.id && activeBooking(b.status));
   // Counted like stop_series: the upcoming dates it removes, the ones with someone registered that it leaves.
   const datesOf = (r: Series) => data.sessions.filter(s => s.series_id === r.id && new Date(s.starts_at) > new Date());
+  // Who comes to every date of a series, named from the profiles: their places are taken as each date opens.
+  const regularsOf = (r: Series) => regularsSummary(regulars, r.id, id => profiles.find(p => p.id === id)?.display_name);
   const stopPlan = stopping ? { removed: datesOf(stopping).filter(s => !booked(s)).length, kept: datesOf(stopping).filter(s => s.status === 'published' && booked(s)).length } : null;
   const sponsorOf = (b: Booking) => profiles.find(p => p.id === b.sponsor_id);
   const nameOf = (b: Booking) => b.guest_name ?? b.profile?.display_name ?? 'Joueur';
@@ -77,7 +79,7 @@ export function Admin({ data, bookings, profiles, addresses, venues, series = []
       <p className="muted">Chaque série ouvre ses prochaines dates d’elle-même. « Modifier » change toutes ses dates à venir ; une date se modifie ou s’annule aussi seule dans la liste ci-dessous. Une série arrêtée reste ici pour reprendre plus tard.</p>
       {seriesListed.map(r => { const upcoming = datesOf(r).filter(s => s.status === 'published').sort((x, y) => Date.parse(x.starts_at) - Date.parse(y.starts_at)); const next = upcoming[0]; return <div className={`member-row venue-row ${r.stopped_at ? 'is-stopped' : ''}`} key={r.id}>
         <span className="venue-icon" aria-hidden="true"><Repeat size={18} /></span>
-        <div><h3>{sessionName(r)}</h3><p>{seriesSummary(r)} · {venues.find(v => v.id === r.venue_id)?.name ?? r.location}</p>{next && <p>Prochaine date : {dateLong(next.starts_at)} à {time(next.starts_at)}</p>}</div>
+        <div><h3>{sessionName(r)}</h3><p>{seriesSummary(r)} · {venues.find(v => v.id === r.venue_id)?.name ?? r.location}</p>{next && <p>Prochaine date : {dateLong(next.starts_at)} à {time(next.starts_at)}</p>}{(c => c.people > 0 && <p>Inscrits à chaque date : {c.text}</p>)(regularsOf(r))}</div>
         <span className={`badge ${r.stopped_at ? 'red' : ''}`}>{r.stopped_at ? 'Arrêtée' : upcoming.length ? `${upcoming.length} date${upcoming.length > 1 ? 's' : ''} à venir` : 'Aucune date à venir'}</span>
         <div className="row-actions">{r.stopped_at ? <>
           <button className="button secondary compact" aria-label={`Reprendre la série ${sessionName(r)}`} onClick={() => open(setChanging, r)}><Play size={15} />Reprendre</button>
@@ -109,7 +111,7 @@ export function Admin({ data, bookings, profiles, addresses, venues, series = []
     <Dialog title="Annuler cette soirée ?" open={!!cancel} onClose={() => setCancel(null)}><div className="stack"><p>La session « {cancel && sessionName(cancel)} » sera annulée et les participants seront prévenus.</p><button className="button danger" disabled={a.pending} onClick={() => cancel && a.run(() => cancelSession(cancel.id), () => setCancel(null))}>Confirmer l’annulation</button><Feedback result={a.result} /></div></Dialog>
     <Dialog title="Supprimer cette partie ?" open={!!removal} onClose={() => setRemoval(null)}><div className="stack"><p>« {removal && sessionName(removal)} », ses inscriptions et son adresse seront effacées définitivement.{removal?.venue_id && ' Son lieu reste dans « Les lieux » tant que tu ne le supprimes pas.'} Les messages déjà prévus, comme une annulation, partiront quand même.</p><div className="button-row"><button className="button secondary" onClick={() => setRemoval(null)}>Garder la partie</button><button className="button danger" disabled={a.pending} onClick={() => removal && a.run(() => deleteSession(removal.id), () => setRemoval(null))}><Trash2 size={16} />Supprimer définitivement</button></div><Feedback result={a.result} /></div></Dialog>
     <Dialog title="Arrêter cette série ?" open={!!stopping} onClose={() => setStopping(null)}><div className="stack">
-      <p>« {stopping && sessionName(stopping)} » n’ouvrira plus de nouvelle date.{stopPlan && stopPlan.removed > 0 && (stopPlan.removed > 1 ? ` Ses ${stopPlan.removed} dates à venir sans inscrit seront retirées.` : ' Sa date à venir sans inscrit sera retirée.')}{stopPlan && stopPlan.kept > 0 && (stopPlan.kept > 1 ? ` Ses ${stopPlan.kept} parties avec des inscrits restent prévues : tu pourras les annuler une par une pour prévenir chacun.` : ' Sa partie avec des inscrits reste prévue : tu pourras l’annuler pour prévenir chacun.')} Elle reste dans la liste : tu pourras la reprendre plus tard.</p>
+      <p>« {stopping && sessionName(stopping)} » n’ouvrira plus de nouvelle date.{stopPlan && stopPlan.removed > 0 && (stopPlan.removed > 1 ? ` Ses ${stopPlan.removed} dates à venir sans inscrit seront retirées.` : ' Sa date à venir sans inscrit sera retirée.')}{stopPlan && stopPlan.kept > 0 && (stopPlan.kept > 1 ? ` Ses ${stopPlan.kept} parties avec des inscrits restent prévues : tu pourras les annuler une par une pour prévenir chacun.` : ' Sa partie avec des inscrits reste prévue : tu pourras l’annuler pour prévenir chacun.')}{stopping && regularsOf(stopping).people > 0 && ' Les personnes inscrites à chaque date gardent les places déjà prises, et retrouvent les suivantes si la série reprend.'} Elle reste dans la liste : tu pourras la reprendre plus tard.</p>
       <div className="button-row"><button className="button secondary" onClick={() => setStopping(null)}>Garder la série</button><button className="button danger" disabled={a.pending} onClick={() => stopping && a.run(() => stopSeries(stopping.id), () => setStopping(null))}>Arrêter la série</button></div><Feedback result={a.result} />
     </div></Dialog>
     <Dialog title="Supprimer cette série ?" open={!!forgetting} onClose={() => setForgetting(null)}><div className="stack">

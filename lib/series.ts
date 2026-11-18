@@ -1,4 +1,4 @@
-import type { GameSession, Series } from './types';
+import type { GameSession, Series, SeriesRegistration, SeriesRegular } from './types';
 import { parisInput, shortDate } from './utils';
 import { DEFAULT_SESSION_HOURS } from './session-defaults';
 
@@ -58,6 +58,58 @@ export function stoppedSeriesMessage({ removed = 0, kept = 0 }: { removed?: numb
   if (removed) message += removed > 1 ? ` ${removed} dates sans inscrit sont retirées.` : ' 1 date sans inscrit est retirée.';
   if (kept) message += kept > 1 ? ` ${kept} parties avec des inscrits restent prévues : annule-les si besoin.` : ' 1 partie avec des inscrits reste prévue : annule-la si besoin.';
   return message;
+}
+
+/** The badge of a date whose series still runs: « Chaque mercredi », « Un mercredi sur deux »; null otherwise. */
+export function seriesBadge(s: Pick<GameSession, 'series'>) {
+  return s.series ? rhythmLabel(s.series.every_weeks, s.series.first_date) : null;
+}
+
+/** « Antoine », « Antoine et Léa », « Léa, Paul et Inès ». */
+export function namesList(names: string[]) {
+  return names.length > 1 ? `${names.slice(0, -1).join(', ')} et ${names.at(-1)}` : names[0] ?? '';
+}
+
+/** Who a registration for every date takes in, as the viewer reads it: « toi », « toi et Antoine », « Antoine ». */
+export function regularsLabel(r: SeriesRegistration) {
+  return namesList([...(r.self ? ['toi'] : []), ...r.guests]);
+}
+
+const plural = (n: number, one: string, many: string) => `${n} ${n > 1 ? many : one}`;
+
+/** What save_series_registration did: the places taken at the dates already open, those left aside, those released. */
+export function seriesRegistrationMessage(data: unknown) {
+  const r = (data ?? {}) as { changed?: boolean; regular?: boolean; confirmed?: number; waitlisted?: number; skipped?: number; released?: number };
+  const n = (value: unknown) => Number(value) || 0;
+  const [confirmed, waitlisted, skipped, released] = [n(r.confirmed), n(r.waitlisted), n(r.skipped), n(r.released)];
+  if (r.changed === false) return r.regular ? 'Ton inscription à chaque date est déjà comme ça.' : 'Tu n’es pas inscrit·e à chaque date.';
+  const freed = released ? ` ${plural(released, 'place déjà prise est libérée', 'places déjà prises sont libérées')}.` : '';
+  if (!r.regular) return `Ton inscription à chaque date est arrêtée.${freed || ' Les places déjà prises aux prochaines dates restent : libère celles dont tu n’as plus besoin.'}`;
+  let message = 'C’est noté : une place est prise automatiquement à chaque nouvelle date.';
+  if (confirmed || waitlisted) message += ` Aux dates déjà ouvertes : ${plural(confirmed, 'place prise', 'places prises')}${waitlisted ? `, ${waitlisted} en liste d’attente` : ''}.`;
+  if (skipped) message += ` ${plural(skipped, 'inscription est laissée', 'inscriptions sont laissées')} de côté, là où tu t’étais désisté·e ou sans place possible.`;
+  return message + freed;
+}
+
+/** The people registered for every date of a series, as organizers read them: each account followed by the people it brings,
+ * « Léa et Antoine · Paul · Nora (invité·e de Hugo) ». An account the list of profiles does not know is left out. */
+export function regularsSummary(rows: SeriesRegular[], seriesId: string, nameOf: (userId: string) => string | undefined) {
+  const byUser = new Map<string, { self: boolean; guests: string[] }>();
+  for (const row of rows) {
+    if (row.series_id !== seriesId) continue;
+    const entry = byUser.get(row.user_id) ?? { self: false, guests: [] };
+    if (row.guest_name === null) entry.self = true; else entry.guests.push(row.guest_name);
+    byUser.set(row.user_id, entry);
+  }
+  const groups: string[] = []; let people = 0;
+  for (const [user, entry] of byUser) {
+    const name = nameOf(user);
+    if (!name) continue;
+    // Someone who only brings guests is named as the one who brings them.
+    groups.push(entry.self ? namesList([name, ...entry.guests]) : `${namesList(entry.guests)} (${entry.guests.length > 1 ? 'invité·es' : 'invité·e'} de ${name})`);
+    people += Number(entry.self) + entry.guests.length;
+  }
+  return { people, text: groups.join(' · ') };
 }
 
 /** How long a game stays under « Sessions passées », as long as list_sessions shows it to players. */

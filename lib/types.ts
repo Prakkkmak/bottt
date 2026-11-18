@@ -15,6 +15,10 @@ export type GameSession = {
   venue_id?: string | null;
   /** The recurring game this date was created by; the date is still a game of its own. */
   series_id?: string | null;
+  /** That recurring game's rhythm while it runs, for the « Chaque mercredi » badge; null once it is stopped. */
+  series?: SessionSeries | null;
+  /** The viewer's registration for every date of that recurring game, if any. */
+  my_series?: SeriesRegistration | null;
   /** newcomer_seats and release_hours are the former member/traveller quotas, kept in the database but no longer applied. */
   capacity: number; newcomer_seats: number; release_hours: number;
   beginners_welcome: boolean; visibility: 'public' | 'members';
@@ -27,6 +31,12 @@ export type GameSession = {
   member_seats_free?: number; traveller_seats_free?: number; my_guests?: MyGuest[];
   participants: Participant[];
 };
+/** The rhythm of a running series as every player reads it: every week or every other week, on the day of first_date (YYYY-MM-DD, Paris time). */
+export type SessionSeries = { every_weeks: number; first_date: string };
+/** A player's registration for every date of a series: themselves (self) and the people they bring each time, by first name. */
+export type SeriesRegistration = { self: boolean; guests: string[] };
+/** A row of public.series_registrations, as organizers read them: guest_name is null for the player themselves. */
+export type SeriesRegular = { series_id: string; user_id: string; guest_name: string | null };
 /**
  * A recurring game, as organizers read it: dates in Paris time, starts_local as 'HH:MM:SS', duration as PostgreSQL writes an interval
  * ('04:00:00'), ends_on the last date allowed, if any. address is private, like a game's; stopped_at is set while the series is stopped.
@@ -47,4 +57,4 @@ export type Invitation = { id: string; sponsor_id: string; expires_at: string; u
 export type ScriptLink = { name: string; slug: string };
 export type AppData = { profile: Profile | null; sessions: GameSession[]; invitations: Invitation[]; demo: boolean; configured: boolean; local?: boolean; error?: string; accountNotice?: string; scripts?: ScriptLink[]; };
 export type ActionResult = { ok: boolean; message: string; value?: string; };
-export type SessionInput = Omit<GameSession, 'id' | 'status' | 'confirmed_count' | 'waitlist_count' | 'my_status' | 'my_offer_expires_at' | 'my_waitlist_position' | 'occupied_seats' | 'my_seat' | 'participants' | 'member_seats_free' | 'traveller_seats_free' | 'my_guests'> & { address: string; id?: string; };
+export type SessionInput = Omit<GameSession, 'id' | 'status' | 'confirmed_count' | 'waitlist_count' | 'my_status' | 'my_offer_expires_at' | 'my_waitlist_position' | 'occupied_seats' | 'my_seat' | 'participants' | 'member_seats_free' | 'traveller_seats_free' | 'my_guests' | 'series' | 'my_series'> & { address: string; id?: string; };

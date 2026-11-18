@@ -4,10 +4,10 @@ import { after } from 'next/server';
 import { z } from 'zod';
 import { supabase, authenticatedClient } from '@/lib/supabase';
 import { isConfigured, isDemo } from '@/lib/config';
-import { profileSchema, nicknameSchema, sessionSchema, seriesSchema, seriesEditSchema, venueSchema, scriptSchema, guestNameSchema, invitationEmailSchema, sessionMessageSchema, notificationChoicesSchema, announcementSchema } from '@/lib/schemas';
+import { profileSchema, nicknameSchema, sessionSchema, seriesSchema, seriesEditSchema, venueSchema, scriptSchema, guestNameSchema, seriesRegistrationSchema, invitationEmailSchema, sessionMessageSchema, notificationChoicesSchema, announcementSchema } from '@/lib/schemas';
 import { sessionMessageSent } from '@/lib/notification-choices';
 import { announcementSent } from '@/lib/announcements';
-import { editedSeriesMessage, stoppedSeriesMessage } from '@/lib/series';
+import { editedSeriesMessage, seriesRegistrationMessage, stoppedSeriesMessage } from '@/lib/series';
 import { canSendMail, invitationMail, sendMail, siteUrl } from '@/lib/mail';
 import { flushEmails } from '@/lib/notifications';
 import type { ActionResult, Membership } from '@/lib/types';
@@ -76,6 +76,14 @@ export async function addGuest(sessionId: string, name: string, seat?: number): 
   if (!result.ok) return result;
   const who = parsed.data;
   return { ...result, message: result.value === 'confirmed' ? `${who} a sa place !` : result.value === 'waitlisted' ? `${who} est sur la liste d’attente.` : `${who} est déjà inscrit·e.` };
+}
+/** Registers the player, and the people they bring, for every date of the game's series, or changes or stops that. */
+export async function saveSeriesRegistration(sessionId: string, input: unknown): Promise<ActionResult> {
+  if (!isUuid(sessionId)) return failure(new Error('Session invalide.'));
+  const parsed = seriesRegistrationSchema.safeParse(input);
+  if (!parsed.success) return failure(parsed.error);
+  const { self, guests, release } = parsed.data;
+  return rpc('save_series_registration', { p_session: sessionId, p_self: self, p_guests: guests, p_release: release }, seriesRegistrationMessage);
 }
 export async function removeGuest(bookingId: string) { if (!isUuid(bookingId)) return failure(new Error('Invité·e introuvable.')); return rpc('remove_guest', { p_booking: bookingId }, 'Sa place est libérée.'); }
 /** An organizer takes someone off a game; their seat passes to the first person waiting. */

@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { editedSeriesMessage, groupSessions, nextSeriesStart, rhythmLabel, seriesDuration, seriesSummary, stoppedSeriesMessage } from '../lib/series';
+import { editedSeriesMessage, groupSessions, namesList, nextSeriesStart, regularsLabel, regularsSummary, rhythmLabel, seriesBadge, seriesDuration, seriesRegistrationMessage, seriesSummary, stoppedSeriesMessage } from '../lib/series';
+import { seriesRegistrationSchema } from '../lib/schemas';
 
 test('le rythme d’une série se dit avec son jour', () => {
   // 4 novembre 2026 : un mercredi.
@@ -73,4 +74,51 @@ test('la modification d’une série dit ce qu’elle change, ouvre, retire et g
   assert.equal(editedSeriesMessage({ resumed: true, updated: 1, opened: 3 }), 'La série reprend. Sa date à venir suit ces changements. 3 nouvelles dates sont ouvertes aux inscriptions.');
   assert.equal(editedSeriesMessage({ opened: 1, removed: 2, kept: 1 }), 'La série est modifiée. 1 nouvelle date est ouverte aux inscriptions. 2 dates sans inscrit sont retirées. 1 partie avec des inscrits reste à sa date : annule-la si besoin.');
   assert.equal(editedSeriesMessage({ removed: 1, kept: 2 }), 'La série est modifiée. 1 date sans inscrit est retirée. 2 parties avec des inscrits restent à leur date : annule-les si besoin.');
+});
+
+test('une date d’une série en cours porte son rythme', () => {
+  assert.equal(seriesBadge({ series: { every_weeks: 1, first_date: '2026-11-04' } }), 'Chaque mercredi');
+  assert.equal(seriesBadge({ series: { every_weeks: 2, first_date: '2026-11-04' } }), 'Un mercredi sur deux');
+  // A game on its own, or a stopped series, has none.
+  assert.equal(seriesBadge({ series: null }), null);
+  assert.equal(seriesBadge({}), null);
+});
+
+test('une inscription à chaque date nomme les personnes qu’elle prend', () => {
+  assert.equal(namesList([]), '');
+  assert.equal(namesList(['Léa', 'Paul', 'Inès']), 'Léa, Paul et Inès');
+  assert.equal(regularsLabel({ self: true, guests: [] }), 'toi');
+  assert.equal(regularsLabel({ self: true, guests: ['Antoine'] }), 'toi et Antoine');
+  assert.equal(regularsLabel({ self: false, guests: ['Antoine', 'Léa'] }), 'Antoine et Léa');
+});
+
+test('l’inscription à chaque date dit ce qu’elle a fait', () => {
+  assert.equal(seriesRegistrationMessage({ changed: true, regular: true, dates: 4, confirmed: 8, waitlisted: 0, skipped: 0, released: 0 }),
+    'C’est noté : une place est prise automatiquement à chaque nouvelle date. Aux dates déjà ouvertes : 8 places prises.');
+  assert.equal(seriesRegistrationMessage({ changed: true, regular: true, confirmed: 1, waitlisted: 2, skipped: 1, released: 1 }),
+    'C’est noté : une place est prise automatiquement à chaque nouvelle date. Aux dates déjà ouvertes : 1 place prise, 2 en liste d’attente. 1 inscription est laissée de côté, là où tu t’étais désisté·e ou sans place possible. 1 place déjà prise est libérée.');
+  assert.equal(seriesRegistrationMessage({ changed: true, regular: true, confirmed: 0, waitlisted: 0 }), 'C’est noté : une place est prise automatiquement à chaque nouvelle date.');
+  assert.equal(seriesRegistrationMessage({ changed: true, regular: false, released: 0 }),
+    'Ton inscription à chaque date est arrêtée. Les places déjà prises aux prochaines dates restent : libère celles dont tu n’as plus besoin.');
+  assert.equal(seriesRegistrationMessage({ changed: true, regular: false, released: 3 }), 'Ton inscription à chaque date est arrêtée. 3 places déjà prises sont libérées.');
+  assert.equal(seriesRegistrationMessage({ changed: false, regular: true }), 'Ton inscription à chaque date est déjà comme ça.');
+  assert.equal(seriesRegistrationMessage(null), 'Ton inscription à chaque date est arrêtée. Les places déjà prises aux prochaines dates restent : libère celles dont tu n’as plus besoin.');
+});
+
+test('les organisateurs voient qui vient à chaque date', () => {
+  const rows = [
+    { series_id: 's1', user_id: 'lea', guest_name: null }, { series_id: 's1', user_id: 'lea', guest_name: 'Antoine' },
+    { series_id: 's1', user_id: 'paul', guest_name: null }, { series_id: 's2', user_id: 'paul', guest_name: null },
+    { series_id: 's1', user_id: 'hugo', guest_name: 'Nora' }, { series_id: 's1', user_id: 'gone', guest_name: null },
+  ];
+  const names: Record<string, string> = { lea: 'Léa', paul: 'Paul', hugo: 'Hugo' };
+  assert.deepEqual(regularsSummary(rows, 's1', id => names[id]), { people: 4, text: 'Léa et Antoine · Paul · Nora (invité·e de Hugo)' });
+  assert.deepEqual(regularsSummary(rows, 's3', id => names[id]), { people: 0, text: '' });
+});
+
+test('le formulaire d’inscription à chaque date est vérifié par le site', () => {
+  assert.deepEqual(seriesRegistrationSchema.parse({ self: true, guests: [' Antoine '] }), { self: true, guests: ['Antoine'], release: false });
+  assert.ok(!seriesRegistrationSchema.safeParse({ self: true, guests: ['A', 'B', 'C'] }).success);
+  assert.equal(seriesRegistrationSchema.safeParse({ self: true, guests: ['Léa', 'Paul', 'Inès'] }).error?.issues[0].message, 'Tu peux inscrire 2 invité·es au plus à chaque date.');
+  assert.ok(!seriesRegistrationSchema.safeParse({ self: 'yes', guests: [] }).success);
 });

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { MIN_CAPACITY, DEFAULT_CAPACITY, MAX_CAPACITY, MAX_WEEKS_AHEAD } from './session-rules';
+import { MIN_CAPACITY, DEFAULT_CAPACITY, MAX_CAPACITY, MAX_WEEKS_AHEAD, MAX_SERIES_GUESTS } from './session-rules';
 import { sessionEnd } from './session-defaults';
 import { sessionMessages as m, parisDate } from './session-form';
 import { isBaseScript, scriptSlug } from './scripts';
@@ -49,6 +49,13 @@ export const venueSchema = z.object({
 export const guestNameSchema = z.string().trim().min(2, 'Indique un prénom ou un pseudo de 2 à 40 caractères.').max(40, 'Indique un prénom ou un pseudo de 2 à 40 caractères.');
 export const invitationEmailSchema = z.string().trim().toLowerCase().pipe(z.email('Cette adresse e-mail est invalide.').max(254, 'Cette adresse e-mail est invalide.'));
 /** What an organizer writes to the people registered for a game, sent as a plain-text e-mail. */
+/** A registration for every date of a recurring game: the player or not, the people they bring each time, and whether the places
+ * of those taken off it are released at the dates already open. */
+export const seriesRegistrationSchema = z.object({
+  self: z.boolean(),
+  guests: z.array(guestNameSchema).max(MAX_SERIES_GUESTS, `Tu peux inscrire ${MAX_SERIES_GUESTS} invité·es au plus à chaque date.`),
+  release: z.boolean().default(false),
+}, 'L’inscription envoyée est incomplète. Recharge la page et réessaie.');
 export const sessionMessageSchema = z.string('Écris un message de 2 à 2000 caractères.').trim().min(2, 'Écris un message de 2 à 2000 caractères.').max(2000, 'Écris un message de 2 à 2000 caractères.');
 /** The switches of the profile page, every optional kind of public.notification_kinds and nothing else. */
 const choiceMessage = 'Ces choix de notifications sont invalides. Recharge la page et réessaie.';
