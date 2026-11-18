@@ -83,7 +83,7 @@ export function seriesRegistrationMessage(data: unknown) {
   const n = (value: unknown) => Number(value) || 0;
   const [confirmed, waitlisted, skipped, released] = [n(r.confirmed), n(r.waitlisted), n(r.skipped), n(r.released)];
   if (r.changed === false) return r.regular ? 'Ton inscription à chaque date est déjà comme ça.' : 'Tu n’es pas inscrit·e à chaque date.';
-  const freed = released ? ` ${plural(released, 'place déjà prise est libérée', 'places déjà prises sont libérées')}.` : '';
+  const freed = released ? ` ${plural(released, 'inscription aux prochaines dates est retirée', 'inscriptions aux prochaines dates sont retirées')}.` : '';
   if (!r.regular) return `Ton inscription à chaque date est arrêtée.${freed || ' Les places déjà prises aux prochaines dates restent : libère celles dont tu n’as plus besoin.'}`;
   let message = 'C’est noté : une place est prise automatiquement à chaque nouvelle date.';
   if (confirmed || waitlisted) message += ` Aux dates déjà ouvertes : ${plural(confirmed, 'place prise', 'places prises')}${waitlisted ? `, ${waitlisted} en liste d’attente` : ''}.`;

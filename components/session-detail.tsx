@@ -77,7 +77,8 @@ export function SessionDetail({ data, session: s, address, embedded = false }: {
   const showGuests = !!data.profile && s.status !== 'cancelled' && !ended && (canAddGuest || (s.my_guests ?? []).some(g => g.status !== 'cancelled'));
   // A date of a series that still runs offers to come to every date; a cancelled or finished one only names its rhythm.
   const badge = seriesBadge(s);
-  const showSeries = !!badge && !!data.profile && s.status === 'published' && !ended;
+  // A series that opens no more dates still lets a regular stop their registration.
+  const showSeries = (!!badge || !!s.my_series) && !!data.profile && s.status === 'published' && !ended;
   const privateAddress = canSeeAddress(s, data.profile) ? address : null;
   const addressLater = data.profile?.membership === 'newcomer' && hasSeat(s) && !privateAddress;
   const practical = <div className={`detail-when ${embedded ? 'session-practical' : ''}`}>

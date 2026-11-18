@@ -96,11 +96,11 @@ test('l’inscription à chaque date dit ce qu’elle a fait', () => {
   assert.equal(seriesRegistrationMessage({ changed: true, regular: true, dates: 4, confirmed: 8, waitlisted: 0, skipped: 0, released: 0 }),
     'C’est noté : une place est prise automatiquement à chaque nouvelle date. Aux dates déjà ouvertes : 8 places prises.');
   assert.equal(seriesRegistrationMessage({ changed: true, regular: true, confirmed: 1, waitlisted: 2, skipped: 1, released: 1 }),
-    'C’est noté : une place est prise automatiquement à chaque nouvelle date. Aux dates déjà ouvertes : 1 place prise, 2 en liste d’attente. 1 inscription est laissée de côté, là où tu t’étais désisté·e ou sans place possible. 1 place déjà prise est libérée.');
+    'C’est noté : une place est prise automatiquement à chaque nouvelle date. Aux dates déjà ouvertes : 1 place prise, 2 en liste d’attente. 1 inscription est laissée de côté, là où tu t’étais désisté·e ou sans place possible. 1 inscription aux prochaines dates est retirée.');
   assert.equal(seriesRegistrationMessage({ changed: true, regular: true, confirmed: 0, waitlisted: 0 }), 'C’est noté : une place est prise automatiquement à chaque nouvelle date.');
   assert.equal(seriesRegistrationMessage({ changed: true, regular: false, released: 0 }),
     'Ton inscription à chaque date est arrêtée. Les places déjà prises aux prochaines dates restent : libère celles dont tu n’as plus besoin.');
-  assert.equal(seriesRegistrationMessage({ changed: true, regular: false, released: 3 }), 'Ton inscription à chaque date est arrêtée. 3 places déjà prises sont libérées.');
+  assert.equal(seriesRegistrationMessage({ changed: true, regular: false, released: 3 }), 'Ton inscription à chaque date est arrêtée. 3 inscriptions aux prochaines dates sont retirées.');
   assert.equal(seriesRegistrationMessage({ changed: false, regular: true }), 'Ton inscription à chaque date est déjà comme ça.');
   assert.equal(seriesRegistrationMessage(null), 'Ton inscription à chaque date est arrêtée. Les places déjà prises aux prochaines dates restent : libère celles dont tu n’as plus besoin.');
 });

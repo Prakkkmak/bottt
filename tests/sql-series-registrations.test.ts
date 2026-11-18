@@ -66,41 +66,38 @@ test('Venir à chaque date d’une partie récurrente',async t=>{
     const [,second]=await dates(weekly);
     await h.login(2);await h.call('select leave_session($1,$2)',[second.id,[]]);
     assert.deepEqual(await bookings(second.id,2),[{who:'self',status:'cancelled'},{who:'Antoine',status:'confirmed'}]);
-    // A guest added later is taken in everywhere, but the date given up stays given up.
+    // A guest added later is taken in at the other dates; the date given up stays given up, without the people brought there.
     const result=await save(2,second.id,true,['Antoine','Léa']);
-    assert.equal(result.confirmed,4);assert.equal(result.skipped,0);
-    assert.deepEqual(await bookings(second.id,2),[{who:'self',status:'cancelled'},{who:'Antoine',status:'confirmed'},{who:'Léa',status:'confirmed'}]);
+    assert.equal(result.confirmed,3);assert.equal(result.skipped,1);
+    assert.deepEqual(await bookings(second.id,2),[{who:'self',status:'cancelled'},{who:'Antoine',status:'confirmed'}]);
+    // The receipt not sent yet gives way to the new one.
+    const receipts=(await notices(2)).filter(m=>m.title.startsWith('Inscription à chaque date'));
+    assert.equal(receipts.length,1);
+    assert.match(receipts[0].body,/pour toi, Antoine et Léa\. Aux dates déjà ouvertes : 3 places prises\./);
     await assert.rejects(save(2,second.id,true,['Antoine','Léa','Yann']),/2 invité·es au plus/);
+    await assert.rejects(save(2,second.id,true,['Antoine','antoine','ANTOINE']),/2 invité·es au plus/);
     await assert.rejects(save(2,second.id,true,['A']),/2 à 40 caractères/);
   });
 
-  await t.test('chaque nouvelle date prend aussitôt les habitués, qui reçoivent un e-mail',async()=>{
+  await t.test('chaque nouvelle date prend aussitôt les habitués, sans e-mail quand il y a de la place',async()=>{
     await save(4,(await dates(weekly))[0].id,true);
     const before=(await notices(2)).length;
     assert.equal(await openNextWeek(weekly),1);
     const fresh=(await dates(weekly)).at(-1)!;
     assert.deepEqual(await bookings(fresh.id,2),[{who:'self',status:'confirmed'},{who:'Antoine',status:'confirmed'},{who:'Léa',status:'confirmed'}]);
     assert.deepEqual(await bookings(fresh.id,4),[{who:'self',status:'confirmed'}]);
-    const mail=(await notices(2)).slice(before);
-    assert.equal(mail.length,1);
-    assert.equal(mail[0].title,'Nouvelle date : inscription faite');
-    assert.equal(mail[0].session_id,fresh.id);
-    assert.equal(mail[0].body.split('\n').slice(1,4).join('|'),'Toi : place confirmée|Antoine : place confirmée|Léa : place confirmée');
+    // The reminder of the day before is enough.
+    assert.equal((await notices(2)).length,before);
     // The organizer is not told about moves nobody made.
     await h.root();assert.equal((await h.call(`select 1 from notifications where kind='activity'`)).length,0);
   });
 
-  await t.test('plusieurs dates qui ouvrent ensemble font un seul e-mail',async()=>{
+  await t.test('plusieurs dates qui ouvrent ensemble prennent les habitués à chacune',async()=>{
     const before=(await notices(4)).length;
     assert.equal(await openNextWeek(weekly,2),2);
     const [first,second]=(await dates(weekly)).slice(-2);
     for(const d of [first,second])assert.deepEqual(await bookings(d.id,4),[{who:'self',status:'confirmed'}]);
-    const mail=(await notices(4)).slice(before);
-    assert.equal(mail.length,1);
-    assert.equal(mail[0].title,'Nouvelles dates : inscriptions faites');
-    assert.equal(mail[0].session_id,first.id);
-    assert.match(mail[0].body,/les 2 nouvelles dates qui ouvrent te comptent déjà, avec 2 places prises\./);
-    assert.ok(mail[0].body.endsWith('\n\nLa première de ces dates :'));
+    assert.equal((await notices(4)).length,before);
   });
 
   await t.test('une date complète met les derniers inscrits en liste d’attente, dans l’ordre des inscriptions',async()=>{
@@ -118,7 +115,29 @@ test('Venir à chaque date d’une partie récurrente',async t=>{
     assert.deepEqual(await bookings(next.id,9),[{who:'self',status:'waitlisted'}]);
     const mail=(await notices(9)).at(-1)!;
     assert.equal(mail.title,'Nouvelle date : liste d’attente');
-    assert.match(mail.body,/Toi : n° 1 sur la liste d’attente/);
+    assert.equal(mail.session_id,next.id);
+    assert.match(mail.body,/\nToi : n° 1 sur la liste d’attente\n/);
+    // Seated, player 8 hears nothing; several full dates make one e-mail for player 9.
+    const [seated,waiting]=[(await notices(8)).length,(await notices(9)).length];
+    assert.equal(await openNextWeek(small,2),2);
+    const [third]=(await dates(small)).slice(-2);
+    assert.equal((await notices(8)).length,seated);
+    const more=(await notices(9)).slice(waiting);
+    assert.equal(more.length,1);
+    assert.equal(more[0].title,'Nouvelles dates : liste d’attente');
+    assert.equal(more[0].session_id,third.id);
+    assert.match(more[0].body,/mais 2 des nouvelles dates qui ouvrent sont déjà complètes : 2 inscriptions sont en liste d’attente\./);
+    assert.ok(more[0].body.endsWith('\n\nLa première de ces dates :'));
+  });
+
+  await t.test('les invités pris ainsi restent dans les limites de chaque date',async()=>{
+    const crowded=await createSeries({starts_at:at(6),weeks_ahead:1});
+    const [first]=await dates(crowded);
+    // Two people already brought by hand at this date: the one the registration brings is not added on top.
+    await h.login(5);for(const name of ['Paul','Tom'])await h.call('select add_guest($1,$2)',[first.id,name]);
+    const result=await save(5,first.id,true,['Zoé']);
+    assert.equal(result.skipped,1);
+    assert.deepEqual((await bookings(first.id,5)).map(b=>b.who),['self','Paul','Tom']);
   });
 
   await t.test('arrêter garde les places prises, ou les libère pour la liste d’attente',async()=>{
@@ -129,14 +148,28 @@ test('Venir à chaque date d’une partie récurrente',async t=>{
     assert.equal((await notices(4)).at(-1)!.title,'Inscription à chaque date arrêtée');
     // Player 2 stops for Léa only and releases her places.
     const partial=await save(2,small.id,true,['Antoine'],true);
-    assert.equal(partial.released,7);assert.equal(partial.regular,true);
+    assert.equal(partial.released,6);assert.equal(partial.regular,true);
     for(const d of await dates(weekly))assert.ok((await bookings(d.id,2)).every(b=>b.who!=='Léa'||b.status==='cancelled'));
     assert.deepEqual((await listed(2,weekly))[0].my_series,{self:true,guests:['Antoine']});
     // Stopping entirely with release frees every place the registration covered; the waiting list moves in.
     await save(2,small.id,false,[],true);
     for(const d of await dates(weekly))assert.ok((await bookings(d.id,2)).every(b=>b.status==='cancelled'));
-    assert.match((await notices(2)).at(-1)!.body,/places déjà prises aux prochaines dates sont libérées/);
+    assert.match((await notices(2)).at(-1)!.body,/inscriptions aux prochaines dates sont retirées/);
     assert.ok((await listed(2,weekly)).every(s=>s.my_series===null));
+  });
+
+  await t.test('l’organisateur l’apprend en un message, pas un par date',async()=>{
+    await h.login(1);await h.call('select save_notification_choices($1)',[{activity:true}]);
+    const all=await dates(weekly);
+    const activity=async()=>{await h.root();return h.call<{title:string;body:string;session_id:string}>(`select title,body,session_id from notifications where user_id=$1 and kind='activity' order by created_at,id`,[uuid(1)]);};
+    await save(8,all[3].id,true);
+    assert.deepEqual(await activity(),[{title:'Inscription à chaque date',body:`Joueur 8 vient à chaque date : ${all.length} places prises aux prochaines dates.`,session_id:all[0].id}]);
+    await save(8,all[3].id,false,[],true);
+    assert.deepEqual(await activity(),[{title:'Inscriptions et désistements',session_id:all[0].id,
+      body:`Joueur 8 vient à chaque date : ${all.length} places prises aux prochaines dates.\nJoueur 8 ne vient plus à chaque date : ${all.length} inscriptions retirées aux prochaines dates.`}]);
+    // A booking of one date is told as before.
+    await h.login(9);await h.call('select book_session($1)',[all.at(-1)!.id]);
+    assert.deepEqual((await activity()).map(m=>[m.title,m.session_id]),[['Inscriptions et désistements',all[0].id],['Nouvelle inscription',all.at(-1)!.id]]);
   });
 
   await t.test('on ne s’inscrit qu’aux séries en cours et que l’on peut voir',async()=>{
@@ -144,12 +177,21 @@ test('Venir à chaque date d’une partie récurrente',async t=>{
     const members=await createSeries({visibility:'members',starts_at:at(4)});
     const [first]=await dates(members);
     await assert.rejects(save(3,first.id,true),/inaccessible/);
-    // Stopped, a series takes nobody in, but can still be left.
-    await save(4,first.id,true);
+    // Stopped, a series takes nobody in, but can still be cut down or left.
+    await save(4,first.id,true,['Inès']);
     await h.login(1);await h.call('select stop_series($1)',[members]);
     await assert.rejects(save(2,first.id,true),/arrêtée/);
+    await assert.rejects(save(4,first.id,true,['Inès','Yann']),/arrêtée/);
+    assert.equal((await save(4,first.id,true)).regular,true);
+    assert.ok((await listed(4,members)).every(s=>s.series===null&&s.my_series?.self===true&&s.my_series.guests.length===0));
     assert.equal((await save(4,first.id,false)).regular,false);
-    assert.ok((await listed(4,members)).every(s=>s.series===null));
+    assert.ok((await listed(4,members)).every(s=>s.series===null&&s.my_series===null));
+    // A series past its last day opens nothing more either.
+    const ending=await createSeries({starts_at:at(4,'21:00')});
+    const [last]=await dates(ending);
+    await h.root();await h.call('update session_series set first_date=$2,ends_on=$2 where id=$1',[ending,day(-1)]);
+    await assert.rejects(save(2,last.id,true),/arrêtée/);
+    assert.ok((await listed(2,ending)).every(s=>s.series===null));
   });
 
   await t.test('un voyageur sur une série passée aux membres n’est plus pris',async()=>{
@@ -170,6 +212,22 @@ test('Venir à chaque date d’une partie récurrente',async t=>{
     const next=(await dates(small)).at(-1)!;
     assert.deepEqual(await bookings(next.id,6),[{who:'self',status:'confirmed'},{who:'Ami 6',status:'confirmed'}]);
     assert.equal((await notices(6)).length,before);
+  });
+
+  await t.test('une inscription à chaque date part 30 jours après l’arrêt ou la fin de sa série',async()=>{
+    await h.root();
+    const seriesOf=async(n:number)=>(await h.call<{series_id:string}>('select distinct series_id from series_registrations where user_id=$1',[uuid(n)])).map(r=>r.series_id);
+    const [open]=await seriesOf(3);const [small]=await seriesOf(9);
+    await h.call(`update session_series set stopped_at=now()-interval '29 days' where id=$1`,[open]);
+    await h.call('update session_series set first_date=$2,ends_on=$2 where id=$1',[small,day(-29)]);
+    await h.call('select maintenance()');
+    assert.deepEqual([(await seriesOf(3)).length,(await seriesOf(9)).length],[1,1]);
+    await h.call(`update session_series set stopped_at=now()-interval '31 days' where id=$1`,[open]);
+    await h.call('update session_series set first_date=$2,ends_on=$2 where id=$1',[small,day(-31)]);
+    await h.call('select maintenance()');
+    assert.deepEqual([await seriesOf(3),await seriesOf(9)],[[],[]]);
+    // A series still running keeps its regulars.
+    assert.equal((await seriesOf(5)).length,1);
   });
 
   await t.test('les inscriptions récurrentes passent par la fonction, et chacun ne lit que les siennes',async()=>{
