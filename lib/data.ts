@@ -3,7 +3,7 @@ import { isConfigured, isDemo } from './config';
 import { initialDemo, demoVenues, demoScripts } from './fixtures';
 import type { CustomScript } from './scripts';
 import type { AppData } from './types';
-import type { Announcement, AnnouncementCounts, Booking, Profile, GameSession, Series, Venue } from './types';
+import type { Announcement, AnnouncementCounts, Booking, Profile, GameSession, Series, SeriesRegular, Venue } from './types';
 import { supabase, authenticatedClient, currentUserId } from './supabase';
 import { extendSeries, flushEmails, runMaintenance, serviceClient } from './notifications';
 import type { NotificationChoices } from './notification-choices';
@@ -84,11 +84,11 @@ export const getScripts = cache(async (): Promise<CustomScript[]> => {
   if (error) { console.error('Scripts unavailable', error.message); return []; }
   return data ?? [];
 });
-export async function getAdminData(): Promise<{ bookings: Booking[]; profiles: Profile[]; addresses: Record<string, string>; venues: Venue[]; series: Series[]; announcements: Announcement[]; announcementCounts: AnnouncementCounts | null }> {
-  if (isDemo()) return { bookings: [], profiles: [], addresses: {}, venues: demoVenues, series: [], announcements: [], announcementCounts: null };
+export async function getAdminData(): Promise<{ bookings: Booking[]; profiles: Profile[]; addresses: Record<string, string>; venues: Venue[]; series: Series[]; announcements: Announcement[]; announcementCounts: AnnouncementCounts | null; regulars: SeriesRegular[] }> {
+  if (isDemo()) return { bookings: [], profiles: [], addresses: {}, venues: demoVenues, series: [], announcements: [], announcementCounts: null, regulars: [] };
   const { db } = await authenticatedClient();
   // The rank check runs with the reads, which row security already limits to the viewer's own rows.
-  const [{ data: organizer }, bookings, profiles, addresses, venues, series, announcements, announcementCounts] = await Promise.all([
+  const [{ data: organizer }, bookings, profiles, addresses, venues, series, announcements, announcementCounts, regulars] = await Promise.all([
     db.rpc('is_organizer'),
     // Newest first: the API returns 1000 rows at most, and those it leaves out are then the oldest games', never the upcoming ones.
     db.from('bookings').select('*,profile:profiles(*)').order('created_at', { ascending: false }).order('id', { ascending: false }).limit(1000),
@@ -97,7 +97,9 @@ export async function getAdminData(): Promise<{ bookings: Booking[]; profiles: P
     db.from('venues').select('id,name,address').order('name'),
     db.from('session_series').select('id,title,script,location,address,venue_id,capacity,visibility,first_date,starts_local,duration,every_weeks,weeks_ahead,ends_on,stopped_at').order('created_at'),
     db.from('announcements').select('id,sender_id,audience,subject,body,sent,muted,created_at').order('created_at', { ascending: false }).limit(20),
-    db.rpc('announcement_counts')
+    db.rpc('announcement_counts'),
+    // The people registered for every date of a series, oldest first like the order they are taken in.
+    db.from('series_registrations').select('series_id,user_id,guest_name').order('created_at').order('id')
   ]);
   if (!organizer) throw new Error('Accès organisateur requis.');
   if (bookings.error || profiles.error || addresses.error) throw new Error('Impossible de charger les participants.');
@@ -105,7 +107,8 @@ export async function getAdminData(): Promise<{ bookings: Booking[]; profiles: P
   if (venues.error) console.error('Venues unavailable', venues.error.message);
   if (series.error) console.error('Series unavailable', series.error.message);
   if (announcements.error || announcementCounts.error) console.error('Announcements unavailable', (announcements.error ?? announcementCounts.error)?.message);
-  return { announcements: announcements.data || [], announcementCounts: announcementCounts.error ? null : announcementCounts.data as AnnouncementCounts, bookings: (bookings.data || []).reverse(), profiles: profiles.data || [], addresses: Object.fromEntries((addresses.data || []).map(a => [a.session_id, a.address])), venues: venues.data || [], series: series.data || [] };
+  if (regulars.error) console.error('Series registrations unavailable', regulars.error.message);
+  return { announcements: announcements.data || [], announcementCounts: announcementCounts.error ? null : announcementCounts.data as AnnouncementCounts, bookings: (bookings.data || []).reverse(), profiles: profiles.data || [], addresses: Object.fromEntries((addresses.data || []).map(a => [a.session_id, a.address])), venues: venues.data || [], series: series.data || [], regulars: regulars.data || [] };
 }
 /** The viewer's e-mail choices, the defaults filled in. ready is false when they cannot be read, such as before their migration. */
 export async function getNotificationChoices(): Promise<{ choices: NotificationChoices; ready: boolean }> {

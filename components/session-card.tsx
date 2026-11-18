@@ -1,9 +1,10 @@
 'use client';
 import { useId } from 'react';
-import { Clock3, Check, ChevronDown, Moon, Flame, Flower2, LockKeyhole, UsersRound, BellRing, X, History } from 'lucide-react';
+import { Clock3, Check, ChevronDown, Moon, Flame, Flower2, LockKeyhole, UsersRound, BellRing, X, History, Repeat } from 'lucide-react';
 import type { AppData, GameSession } from '@/lib/types';
 import { dateLong, time, statusLabels, activeBooking, sessionName } from '@/lib/utils';
 import { activeGuests } from '@/lib/guests';
+import { seriesBadge } from '@/lib/series';
 import { SessionDetail } from './session-detail';
 import { DateTile } from './date-tile';
 
@@ -16,6 +17,7 @@ export function SessionCard({ data, session: s, address, expanded, onToggle, fea
   const free = Math.max(0, s.capacity - s.confirmed_count);
   const active = activeBooking(s.my_status);
   const cancelled = s.status === 'cancelled';
+  const badge = seriesBadge(s);
   const Icon = s.script === 'Bad Moon Rising' ? Moon : s.script === 'Sects & Violets' ? Flower2 : Flame;
   const brought = activeGuests(s).length;
   const rank = s.my_status === 'waitlisted' && s.my_waitlist_position ? ` · n° ${s.my_waitlist_position}` : '';
@@ -24,11 +26,11 @@ export function SessionCard({ data, session: s, address, expanded, onToggle, fea
   const StateIcon = cancelled ? X : past ? History : s.my_status === 'confirmed' ? Check : s.my_status === 'offered' ? BellRing : stateType === 'pending' || stateType === 'waitlisted' ? Clock3 : UsersRound;
   return <article id={`partie-${s.id}`} data-script={s.script || undefined} className={`session-accordion ${expanded ? 'is-expanded' : ''} ${featured ? 'is-next' : ''} ${cancelled ? 'is-cancelled' : ''} ${past ? 'is-past' : ''}`}>
     <h2 className="session-summary">
-      <button type="button" className="session-row session-toggle" id={`${id}-summary`} aria-expanded={expanded} aria-controls={`${id}-panel`} aria-label={`${expanded ? 'Replier' : 'Déplier'} la partie ${sessionName(s)} · ${dateLong(s.starts_at)} · ${s.confirmed_count} places réservées sur ${s.capacity} · ${state}`} onClick={onToggle}>
+      <button type="button" className="session-row session-toggle" id={`${id}-summary`} aria-expanded={expanded} aria-controls={`${id}-panel`} aria-label={`${expanded ? 'Replier' : 'Déplier'} la partie ${sessionName(s)} · ${dateLong(s.starts_at)}${badge ? ` · ${badge.toLocaleLowerCase('fr')}` : ''} · ${s.confirmed_count} places réservées sur ${s.capacity} · ${state}`} onClick={onToggle}>
         <DateTile date={s.starts_at} />
         <span className="session-row-copy">
           <span className="session-title">{sessionName(s)}</span>
-          <span className="row-meta">{s.script && <span className="row-script"><Icon size={14} />{s.script}</span>}<span><Clock3 size={13} />{time(s.starts_at)}</span><span className="row-seats"><UsersRound size={14} aria-hidden="true" />{s.confirmed_count} / {s.capacity}<span className="sr-only"> places réservées</span></span>{s.visibility === 'members' && <span className="row-lock" title="Réservée aux membres et à leurs invités"><LockKeyhole size={13} aria-hidden="true" />Membres</span>}</span>
+          <span className="row-meta">{s.script && <span className="row-script"><Icon size={14} />{s.script}</span>}<span><Clock3 size={13} />{time(s.starts_at)}</span><span className="row-seats"><UsersRound size={14} aria-hidden="true" />{s.confirmed_count} / {s.capacity}<span className="sr-only"> places réservées</span></span>{badge && <span className={`row-series ${s.my_series ? 'is-mine' : ''}`} title={s.my_series ? 'Partie récurrente : tu es inscrit·e à chaque date' : 'Partie récurrente'}><Repeat size={13} aria-hidden="true" />{badge}</span>}{s.visibility === 'members' && <span className="row-lock" title="Réservée aux membres et à leurs invités"><LockKeyhole size={13} aria-hidden="true" />Membres</span>}</span>
         </span>
         <span className={`row-state row-state-${stateType}`}><StateIcon size={15} aria-hidden="true" />{state}</span>
         <ChevronDown className="session-chevron" size={20} aria-hidden="true" />

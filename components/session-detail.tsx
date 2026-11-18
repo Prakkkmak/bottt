@@ -2,10 +2,11 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import { CalendarDays, Clock3, MapPin, ChevronLeft, LockKeyhole, BookOpen, ScrollText } from 'lucide-react';
+import { CalendarDays, Clock3, MapPin, ChevronLeft, LockKeyhole, BookOpen, ScrollText, Repeat } from 'lucide-react';
 import type { ActionResult, AppData, GameSession, MyGuest } from '@/lib/types';
 import { dateLong, time, activeBooking, sessionName } from '@/lib/utils';
 import { scriptHref } from '@/lib/scripts';
+import { seriesBadge } from '@/lib/series';
 import { activeGuests, canSeeAddress, hasSeat, participantLabel, recentGuestNames, seatPlan, waitingLabel, waitlistHint } from '@/lib/guests';
 import { MAX_TRAVELLER_GUESTS, MAX_WAITING_GUESTS, TRAVELLER_ADDRESS_HOURS } from '@/lib/session-rules';
 import { CalendarLink } from './calendar-link';
@@ -15,6 +16,7 @@ import { AuthForm } from './auth';
 import { VillageCircle } from './tableau';
 import { GuestForm } from './guest-dialog';
 import { SessionGuests } from './session-guests';
+import { SeriesRegistrationBlock } from './series-registration';
 import { useAction, Feedback } from './action-feedback';
 import { bookSession, cancelBooking, removeGuest } from '@/app/actions';
 import { Avatar, Spinner } from './ui';
@@ -73,6 +75,10 @@ export function SessionDetail({ data, session: s, address, embedded = false }: {
   // One way to bring someone, booked or not: the same button, above the circle, with the people already brought.
   const canAddGuest = plan.canBringOther || plan.onFreeSeat === 'guest' || plan.waitlist === 'guest';
   const showGuests = !!data.profile && s.status !== 'cancelled' && !ended && (canAddGuest || (s.my_guests ?? []).some(g => g.status !== 'cancelled'));
+  // A date of a series that still runs offers to come to every date; a cancelled or finished one only names its rhythm.
+  const badge = seriesBadge(s);
+  // A series that opens no more dates still lets a regular stop their registration.
+  const showSeries = (!!badge || !!s.my_series) && !!data.profile && s.status === 'published' && !ended;
   const privateAddress = canSeeAddress(s, data.profile) ? address : null;
   const addressLater = data.profile?.membership === 'newcomer' && hasSeat(s) && !privateAddress;
   const practical = <div className={`detail-when ${embedded ? 'session-practical' : ''}`}>
@@ -87,7 +93,7 @@ export function SessionDetail({ data, session: s, address, embedded = false }: {
     {!embedded && <Link className="back-link" href="/"><ChevronLeft size={16} />Les parties</Link>}
     {!embedded && <div className="detail-heading">
       <h1>{sessionName(s)}</h1>
-      <div className="detail-badges">{s.script && (scriptPage ? <Link href={scriptPage} className="script-tag"><ScrollText size={14} aria-hidden="true" />{s.script}</Link> : <span className="script-tag"><ScrollText size={14} aria-hidden="true" />{s.script}</span>)}{s.visibility === 'members' && <span className="badge"><LockKeyhole size={14} />Membres et invités</span>}</div>
+      <div className="detail-badges">{s.script && (scriptPage ? <Link href={scriptPage} className="script-tag"><ScrollText size={14} aria-hidden="true" />{s.script}</Link> : <span className="script-tag"><ScrollText size={14} aria-hidden="true" />{s.script}</span>)}{badge && <span className="badge series-badge"><Repeat size={14} aria-hidden="true" />{badge}</span>}{s.visibility === 'members' && <span className="badge"><LockKeyhole size={14} />Membres et invités</span>}</div>
       {practical}
     </div>}
     {embedded && practical}
@@ -98,6 +104,7 @@ export function SessionDetail({ data, session: s, address, embedded = false }: {
         {plan.waitlist === 'self' && <button className="button parchment" disabled={a.pending} aria-busy={busyOn === 'waitlist' || undefined} onClick={() => choose()}>{busyOn === 'waitlist' && <Spinner />}Rejoindre la liste d’attente</button>}
         {active && s.status !== 'cancelled' && !ended && <div className="table-actions"><button className="text-link" disabled={a.pending} onClick={openCancel}>{waiting ? 'Quitter la liste d’attente' : 'Retirer ma demande'}</button></div>}
       </div>}
+      {showSeries && <SeriesRegistrationBlock session={s} suggestions={[...guests.map(g => g.name), ...recentGuestNames(data.sessions, s)]} />}
       {showGuests && <SessionGuests ref={guestsRef} session={s} limit={traveller ? MAX_TRAVELLER_GUESTS : undefined} hint={guestHint} busy={a.pending}
         result={feedbackSpot === 'guests' ? a.result : null} onAdd={canAddGuest ? () => openGuest() : undefined}
         onRemove={g => { a.setResult(null); setRemoving(g); }} />}
