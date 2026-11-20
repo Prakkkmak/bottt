@@ -76,6 +76,13 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   .community-toggle { display: grid; }
   .community-menu:not([hidden]) { display: block; }
 }
+/* On phones the sign-in button keeps to one line and the brand's subtitle to one line down to 375 px. */
+@media (max-width: 540px) {
+  .header-account { gap: 6px; }
+  .community-toggle { width: 36px; height: 36px; }
+  .header-account > .button.compact { padding-inline: 10px; white-space: nowrap; }
+  .header-account > .button.compact svg { display: none; }
+}
 .account-link { display: flex; gap: 10px; align-items: center; font-size: 13px; min-height: 44px; }
 /* A pseudo runs up to 40 characters: the header shows its start, the link's label gives it whole. */
 .account-link > span:last-child { max-width: 12em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -566,7 +573,7 @@ a.practical-link, .calendar-link > span { text-decoration: underline; text-under
 .session-help { margin: 30px auto 0; max-width: 760px; }
 .session-help .disclosure > summary { font-size: 15px; padding: 16px 0; color: var(--muted); }
 .session-help .disclosure > div { font-size: 14px; }
-@media (max-width: 1199px) {
+@media (max-width: 900px) {
   .session-table { gap: 20px; padding: 30px; }
   .booking-circle .village-token { width: 42px; }
   .booking-circle .village-center .tower-mark { height: 110px; width: 83px; }
