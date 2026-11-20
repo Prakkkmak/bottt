@@ -526,6 +526,7 @@ a.practical-link, .calendar-link > span { text-decoration: underline; text-under
 }
 /* Joining a game happens directly on the village tokens. */
 .session-table { position: relative; isolation: isolate; display: grid; grid-template-columns: minmax(0, 1fr); justify-items: center; gap: 20px; padding: 30px 45px; border: 1px solid #9c626580; border-radius: 10px 20px 20px 10px; background: radial-gradient(ellipse at 90% 20%, #81344955, transparent 65%), #512235; box-shadow: 0 6px 0 #2b1626, 0 7px 0 #73505c, 0 16px 35px #08040e40; }
+.session-table:focus { outline: none; }
 .session-table::before { content: ''; position: absolute; inset: 7px; border: 1px solid #c5a37333; border-radius: 5px 13px 13px 5px; pointer-events: none; z-index: -1; }
 .table-eyebrow { color: var(--gold); text-transform: uppercase; letter-spacing: .08em; font-size: 12px; font-weight: 600; margin-bottom: 15px; }
 .session-table h2 { font-size: clamp(24px, 2.8vw, 32px); line-height: 1.3; color: var(--parchment); text-wrap: balance; }
@@ -548,7 +549,7 @@ a.practical-link, .calendar-link > span { text-decoration: underline; text-under
 .booking-circle .tower-mark { filter: drop-shadow(0 0 12px #f3c67522); }
 .booking-circle .village-orbit { border: 2px solid #f3c67580; box-shadow: 0 0 35px #f3c6750c; }
 .booking-circle .village-orbit::before { border-color: #f3c67550; }
-.booking-circle .village-token { width: 48px; font-size: 26px; padding: 0; transition: background .18s, box-shadow .18s, scale .18s; }
+.booking-circle .village-token { width: 48px; font-size: 26px; line-height: 1; padding: 0; transition: background .18s, box-shadow .18s, scale .18s; }
 .booking-circle .village-token.taken { color: #49273c; background: #fff0cd; border: 2px solid #fff9e9; box-shadow: inset 0 0 0 3px #d4a94d55, 0 4px 0 #130f20, 0 5px 12px #130f2050; }
 .booking-circle .village-token.empty { color: var(--gold); background: #241a31; border: 2px dashed #f3c675; }
 .token-initials { font-size: 14px; font-weight: 700; line-height: 1; }
@@ -564,6 +565,43 @@ a.practical-link, .calendar-link > span { text-decoration: underline; text-under
 .booking-circle button:focus-visible { outline: 3px solid #fff2d7; outline-offset: 5px; }
 .booking-circle button:disabled { opacity: .55; cursor: wait; }
 .booking-circle[aria-busy="true"] .village-center { opacity: .6; }
+/* « Ta venue » beside the circle: the viewer's seat, every date of a series, the people they bring. Under the circle on narrower screens. */
+.session-table-board.has-venue { display: grid; width: 100%; grid-template-columns: minmax(0, 480px) minmax(0, 320px); justify-content: center; align-items: center; justify-items: center; column-gap: 48px; row-gap: 23px; }
+/* Everything stacks in the circle's column, so the status and the answers line up with it; « Ta venue » faces the circle. */
+.has-venue > * { grid-column: 1; }
+.has-venue > .my-venue { grid-column: 2; grid-row: 1; }
+.has-venue.has-status > .my-venue { grid-row: 2; }
+.my-venue { display: grid; width: 100%; min-width: 0; padding: 14px 0 14px 26px; border-left: 1px solid #b492b480; }
+.session-table .my-venue-title { font: 600 17px/1.4 'Cinzel', Georgia, serif; color: var(--parchment); margin-bottom: 4px; }
+.venue-group { display: grid; gap: 2px; padding-bottom: 6px; border-top: 1px solid #b492b433; }
+.my-venue-title + .venue-group, .my-venue-title + .venue-row { border-top: 0; }
+.venue-group .alert { margin: 4px 0 2px; }
+.venue-row { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 8px 0; }
+.venue-icon { display: grid; place-items: center; width: 30px; height: 30px; flex: none; border: 1px solid #f3c67566; border-radius: 50%; color: var(--gold); }
+.venue-icon.is-seated { background: #aff0d01f; border-color: #aff0d066; color: var(--green); }
+.venue-copy { display: grid; flex: 1; min-width: 0; line-height: 1.35; }
+.venue-copy strong { color: var(--parchment); font-size: 15px; font-weight: 600; }
+.venue-copy strong span { color: var(--muted); font-weight: 400; }
+.venue-copy small { color: var(--muted); font-size: 13px; }
+.venue-link { flex: none; min-height: 44px; padding: 0 2px; border: 0; background: transparent; color: var(--muted); font-size: 13px; text-decoration: underline; text-underline-offset: 3px; }
+.venue-link:hover { color: var(--parchment); }
+.venue-add.button.compact { flex: none; padding: 8px 12px; gap: 6px; }
+.venue-add svg { color: var(--gold); }
+/* Looks like a switch; changing it opens the dialog that also says who comes along. A 44px tap target around a 46×26 track. */
+.venue-switch { position: relative; flex: none; width: 46px; height: 26px; margin: 9px 0; padding: 0; border: 1px solid var(--border); border-radius: 999px; background: #241a31; transition: background .15s, border-color .15s; }
+.venue-switch::after { content: ''; position: absolute; inset: -9px -2px; }
+.venue-switch > span { position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: var(--muted); transition: transform .15s, background .15s; }
+.venue-switch:hover { border-color: var(--gold); }
+.venue-switch.is-on { background: var(--gold); border-color: var(--parchment); }
+.venue-switch.is-on > span { transform: translateX(20px); background: #372339; }
+.venue-guest { display: flex; align-items: center; gap: 10px; padding-left: 42px; font-size: 14px; }
+.venue-guest > span:nth-child(2) { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 1000px) {
+  .session-table-board.has-venue { width: min(100%, 480px); grid-template-columns: minmax(0, 1fr); }
+  .has-venue > .my-venue, .has-venue.has-status > .my-venue { grid-column: 1; grid-row: auto; }
+  .my-venue { padding: 14px 0 0; border-left: 0; border-top: 1px solid #a186a4; }
+  .session-table .my-venue-title { font-size: 16px; }
+}
 .circle-roster { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 14px; width: 100%; padding: 16px 0 0; margin: 0; list-style: none; border-top: 1px solid #a186a4; }
 .circle-roster li { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--ink); font-size: 14px; }
 .circle-roster li > span:nth-child(2) { min-width: 0; overflow-wrap: anywhere; }
@@ -681,11 +719,6 @@ a.practical-link, .calendar-link > span { text-decoration: underline; text-under
 .booking-circle .village-token.is-my-guest { box-shadow: inset 0 0 0 3px #d4a94d55, 0 0 0 4px #f3c67540, 0 4px 0 #130f20; }
 /* The people a player brings, and the quick form to add one. */
 .circle-roster small.roster-role { display: block; font-size: 12px; color: var(--muted); }
-.my-guests { width: min(100%, 480px); display: grid; gap: 8px; padding: 14px 16px; border: 1px solid #f3c67566; border-radius: 8px; background: #3e2a2f; }
-.my-guests-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 12px; }
-.my-guests-heading p { color: var(--parchment); font-weight: 600; }
-.my-guests-heading span { color: var(--muted); font-weight: 400; }
-.my-guests-hint { color: var(--muted); font-size: 13px; }
 .my-guest-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; font-size: 14px; }
 .guest-status { color: var(--muted); font-size: 13px; }
 .guest-status-confirmed { color: var(--green); }
@@ -695,15 +728,10 @@ a.practical-link, .calendar-link > span { text-decoration: underline; text-under
 .guest-chip:hover, .guest-chip[aria-pressed="true"] { border-color: var(--gold); color: var(--parchment); }
 .guest-release { margin: 0; padding: 0; border: 0; }
 .guest-release legend { margin-bottom: 4px; color: var(--parchment); font-size: 14px; }
-/* A recurring game: its rhythm on the row and on the page, and the block to come to every date. */
+/* A recurring game: its rhythm on the row and on the page, and the dialog to come to every date. */
 .row-series { color: var(--gold); }
 .row-series.is-mine { font-weight: 600; }
 .series-badge svg { color: var(--gold); }
-.series-regular { width: min(100%, 480px); display: grid; gap: 8px; padding: 14px 16px; border: 1px solid #f3c67566; border-radius: 8px; background: #3e2a2f; }
-.series-regular-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 12px; }
-.series-regular-heading p { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; color: var(--parchment); font-weight: 600; }
-.series-regular-heading p svg { color: var(--gold); flex: none; }
-.series-regular-hint { color: var(--muted); font-size: 13px; line-height: 1.6; }
 .series-guests { display: grid; gap: 8px; margin: 0; padding: 0; border: 0; min-width: 0; }
 .series-guests legend { margin-bottom: 6px; color: var(--parchment); font-size: 15px; font-weight: 500; }
 .series-guests legend span { color: var(--muted); font-weight: 400; }
