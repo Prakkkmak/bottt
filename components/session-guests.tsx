@@ -13,7 +13,7 @@ export function SessionGuests({ ref, session, limit, hint, busy, result = null, 
     <div className="venue-row">
       <span className="venue-icon" aria-hidden="true"><UserPlus size={15} /></span>
       <span className="venue-copy"><strong>Tes invités <span>· {activeGuests(session).length}{limit !== undefined && ` sur ${limit}`}</span></strong>{hint && <small>{hint}</small>}</span>
-      {onAdd && <button type="button" className="button secondary compact venue-add" aria-label="Inscrire quelqu’un d’autre" disabled={busy} onClick={onAdd}><Plus size={15} aria-hidden="true" />Inscrire</button>}
+      {onAdd && <button type="button" className="button secondary compact venue-add" disabled={busy} onClick={onAdd}><Plus size={15} aria-hidden="true" />Inviter</button>}
     </div>
     {guests.map(g => <div className="venue-guest" key={g.id}>
       {/* Seated, a guest wears the colour the circle gives them. */}

@@ -35,7 +35,7 @@ export function SeriesRegistrationRow({ session: s, suggestions }: { session: Ga
     <div className="venue-row">
       <span className="venue-icon" aria-hidden="true"><Repeat size={15} /></span>
       <span className="venue-copy"><strong>{badge ?? 'Inscription à chaque date'}</strong>
-        <small>{!badge ? 'Cette partie n’ouvre plus de nouvelle date.' : mine ? `Place prise d’office pour ${regularsLabel(mine)}` : 'Ta place prise d’office à chaque nouvelle date'}</small></span>
+        <small>{!badge && mine ? `Cette partie n’ouvre plus de nouvelle date : arrête ici l’inscription de ${regularsLabel(mine)}.` : mine ? `Place prise d’office pour ${regularsLabel(mine)}` : 'Ta place prise d’office à chaque nouvelle date'}</small></span>
       <button type="button" className={`venue-switch ${mine ? 'is-on' : ''}`} aria-haspopup="dialog" aria-label={label} title={label} disabled={a.pending} onClick={() => { a.setResult(null); setOpen(true); }}><span aria-hidden="true" /></button>
     </div>
     {!open && <Feedback result={a.result} />}
