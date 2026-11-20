@@ -49,8 +49,43 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .main-nav a:hover, .main-nav a.active { color: var(--parchment); }
 .main-nav a.active::after { content: ''; height: 3px; position: absolute; bottom: -1px; left: 14px; right: 14px; background: var(--gold); border-radius: 3px 3px 0 0; }
 .nav-count { display: grid; place-items: center; min-width: 18px; height: 18px; background: #3c2b43; color: var(--parchment); border-radius: 50%; font-size: 10px; }
-.header-account { flex-shrink: 0; }
+.header-account { flex-shrink: 0; position: relative; display: flex; align-items: center; gap: 18px; }
+/* The circle's groups: round links with their name on hover, or one button opening a list where the header is narrow. */
+.community-icons { display: flex; align-items: center; gap: 8px; margin: 0; padding: 0 18px 0 0; list-style: none; border-right: 1px solid #77678380; }
+.community-icon { position: relative; display: grid; place-items: center; width: 40px; height: 40px; border: 1px solid var(--border); border-radius: 50%; background: var(--paper); color: var(--gold); transition: color .15s, border-color .15s, background .15s; }
+.community-facebook { --brand: #0866ff; }
+.community-signal { --brand: #3a76f0; }
+.community-discord { --brand: #5865f2; }
+.community-tip { position: absolute; top: calc(100% + 9px); left: 50%; z-index: 30; transform: translateX(-50%); padding: 5px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--raised); color: var(--ink); font-size: 13px; line-height: 1.4; white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity .15s; }
+.community-icon:focus-visible .community-tip { opacity: 1; }
+@media (hover: hover) {
+  .community-icon:hover { border-color: var(--brand); background: var(--brand); color: #fff; }
+  .community-icon:hover .community-tip { opacity: 1; }
+}
+.community-toggle { display: none; place-items: center; width: 40px; height: 40px; padding: 0; border: 1px solid var(--border); border-radius: 50%; background: var(--paper); color: var(--gold); }
+.community-toggle[aria-expanded="true"] { border-color: var(--gold); background: var(--raised); }
+.community-menu { display: none; position: absolute; top: calc(100% + 10px); right: 0; z-index: 30; width: min(300px, calc(100vw - 32px)); padding: 10px; border: 1px solid var(--border); border-radius: 12px; background: var(--paper); box-shadow: 0 10px 30px #0008; }
+.community-menu p { padding: 4px 8px 6px; color: var(--muted); font-size: 13px; }
+.community-menu ul { display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.community-menu a { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 6px 8px; border-radius: 8px; color: var(--ink); font-size: 15px; font-weight: 600; }
+.community-menu a:hover { background: var(--raised); }
+.community-logo { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: var(--brand); color: #fff; }
+@media (max-width: 1199px) {
+  .header-account { gap: 10px; }
+  .community-icons { display: none; }
+  .community-toggle { display: grid; }
+  .community-menu:not([hidden]) { display: block; }
+}
+/* On phones the sign-in button keeps to one line and the brand's subtitle to one line down to 375 px. */
+@media (max-width: 540px) {
+  .header-account { gap: 6px; }
+  .community-toggle { width: 36px; height: 36px; }
+  .header-account > .button.compact { padding-inline: 10px; white-space: nowrap; }
+  .header-account > .button.compact svg { display: none; }
+}
 .account-link { display: flex; gap: 10px; align-items: center; font-size: 13px; min-height: 44px; }
+/* A pseudo runs up to 40 characters: the header shows its start, the link's label gives it whole. */
+.account-link > span:last-child { max-width: 12em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .account-link .avatar { width: 33px; height: 33px; font-size: 12px; border: 1px solid var(--gold); box-shadow: 0 0 0 3px #c5a37310; }
 .main-content { width: min(1080px, 100% - 80px); margin: 0 auto; padding: 42px 0 52px; flex: 1; }
 .footer { display: flex; flex-direction: column; align-items: flex-start; gap: 18px; width: min(1080px, 100% - 80px); margin: 0 auto; padding: 32px 0; border-top: 1px solid #77678380; font-size: 13px; color: var(--muted); }

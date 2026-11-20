@@ -5,6 +5,7 @@ import { SignInButton } from './auth';
 import { WebTools } from './webmcp';
 import { TourTanguy } from './tableau';
 import { Navigation } from './navigation';
+import { CommunityLinks } from './community';
 import { CookieSettings } from './cookies';
 import { NicknameStep } from './nickname';
 import { ActivityBar } from './activity';
@@ -27,7 +28,7 @@ export function SiteFrame({ data, children }: { data: AppData; children: React.R
     <header className="site-header">
       <Link href="/" className="brand" aria-label="Blood on the Tanguy Tower, accueil"><span className="brand-seal"><TourTanguy /></span><span>BOTTT<small>Blood on the Tanguy Tower</small></span></Link>
       {!welcome && <Navigation organizer={data.profile?.membership === 'organizer' || data.demo} />}
-      <div className="header-account">{welcome ? null : data.profile ? <Link href="/profil" className="account-link" aria-label={`Mon profil : ${data.profile.display_name}`}><Avatar name={data.profile.display_name} color={data.profile.avatar_color} /><span>{data.profile.display_name}</span></Link> : <SignInButton configured={data.configured} className="button secondary compact" />}</div>
+      <div className="header-account">{welcome ? null : <><CommunityLinks />{data.profile ? <Link href="/profil" className="account-link" aria-label={`Mon profil : ${data.profile.display_name}`}><Avatar name={data.profile.display_name} color={data.profile.avatar_color} /><span>{data.profile.display_name}</span></Link> : <SignInButton configured={data.configured} className="button secondary compact" />}</>}</div>
     </header>
     <main id="main-content" className="main-content">{children}</main>
     <footer className="footer">
