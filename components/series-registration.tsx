@@ -13,9 +13,9 @@ import { Spinner } from './ui';
 const sameName = (a: string, b: string) => a.toLocaleLowerCase('fr') === b.toLocaleLowerCase('fr');
 const tidy = (name: string) => name.replace(/\s+/g, ' ').trim();
 
-/** On a date of a series: whether the viewer comes to every date, with whom, and the dialog that changes it. Once the series
- * opens no more dates, only a registration already made shows, to be cut down or stopped. */
-export function SeriesRegistrationBlock({ session: s, suggestions }: { session: GameSession; suggestions: string[] }) {
+/** In « Ta venue », on a date of a series: whether the viewer comes to every date, with whom, and the dialog that changes it.
+ * Once the series opens no more dates, only a registration already made shows, to be cut down or stopped. */
+export function SeriesRegistrationRow({ session: s, suggestions }: { session: GameSession; suggestions: string[] }) {
   const a = useAction();
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -28,21 +28,21 @@ export function SeriesRegistrationBlock({ session: s, suggestions }: { session: 
     if (!result.ok) router.refresh();
     return result;
   }, () => setOpen(false));
-  return <section className="series-regular" aria-label="Venir à chaque date">
-    <div className="series-regular-heading">
-      <p><Repeat size={16} aria-hidden="true" />{badge ?? 'Inscription à chaque date'}</p>
-      <button type="button" className="button secondary compact" disabled={a.pending} onClick={() => { a.setResult(null); setOpen(true); }}>{!badge ? 'Arrêter' : mine ? 'Modifier' : 'Venir à chaque date'}</button>
+  const rhythm = badge?.toLocaleLowerCase('fr');
+  // The switch shows the state; changing it goes through the dialog, which also says who comes along.
+  const label = !badge ? 'Arrêter ton inscription à chaque date' : mine ? `Modifier ton inscription ${rhythm}` : `Venir ${rhythm}`;
+  return <div className="venue-group">
+    <div className="venue-row">
+      <span className="venue-icon" aria-hidden="true"><Repeat size={15} /></span>
+      <span className="venue-copy"><strong>{badge ?? 'Inscription à chaque date'}</strong>
+        <small>{!badge ? 'Cette partie n’ouvre plus de nouvelle date.' : mine ? `Place prise d’office pour ${regularsLabel(mine)}` : 'Ta place prise d’office à chaque nouvelle date'}</small></span>
+      <button type="button" className={`venue-switch ${mine ? 'is-on' : ''}`} aria-haspopup="dialog" aria-label={label} title={label} disabled={a.pending} onClick={() => { a.setResult(null); setOpen(true); }}><span aria-hidden="true" /></button>
     </div>
-    <p className="series-regular-hint">{!badge
-      ? 'Cette partie n’ouvre plus de nouvelle date. Arrête ton inscription à chaque date pour ne plus être pris·e si elle reprend.'
-      : mine
-      ? `Inscription à chaque date : une place est prise automatiquement pour ${regularsLabel(mine)} dès qu’une nouvelle date ouvre. Un empêchement ? Libère la place de cette date seulement, les suivantes restent prévues.`
-      : `Tu viens ${badge.toLocaleLowerCase('fr')} ? Inscris-toi une fois pour toutes : ta place, et celle de tes invité·es si tu veux, est prise dès qu’une nouvelle date ouvre.`}</p>
     {!open && <Feedback result={a.result} />}
-    <Dialog open={open} onClose={() => setOpen(false)} title={badge ? `Venir ${badge.toLocaleLowerCase('fr')}` : 'Inscription à chaque date'} guard>
+    <Dialog open={open} onClose={() => setOpen(false)} title={badge ? `Venir ${rhythm}` : 'Inscription à chaque date'} guard>
       <SeriesRegistrationForm current={mine} suggestions={suggestions} pending={a.pending} onSubmit={save} result={a.result} canAdd={!!badge} />
     </Dialog>
-  </section>;
+  </div>;
 }
 
 type Value = { self: boolean; guests: string[]; release: boolean };
